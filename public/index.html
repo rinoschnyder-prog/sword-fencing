@@ -2,9 +2,20 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    
+    <!-- 1. スマホでの拡大ズームを防ぐ設定 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- 2. ★追加：ブラウザにキャッシュを強制的に無効化させるmetaタグ -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <title>一撃必殺！ソード・フェンシング</title>
-    <link rel="stylesheet" href="style.css">
+    
+    <!-- 3. ★重要：CSSの読み込み末尾にバージョン (?v=1.1) を指定 -->
+    <link rel="stylesheet" href="style.css?v=1.1">
+    
     <!-- Socket.ioライブラリの読み込み -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
@@ -88,6 +99,7 @@
         【スマホ】画面下のバーチャルパッドで操作
     </div>
 
-    <script src="game.js"></script>
+    <!-- 4. ★重要：ゲーム本体JSの読み込み末尾にもバージョン (?v=1.1) を指定 -->
+    <script src="game.js?v=1.1"></script>
 </body>
 </html>
