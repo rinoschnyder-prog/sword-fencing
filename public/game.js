@@ -29,8 +29,8 @@ let winStreak = 0;
 // オンライン用変数
 let socket = null;
 let isOnlineMode = false;
-let myPlayerNumber = 0; // 1: PLAYER 1, 2: PLAYER 2, 0: ローカル(CPU戦)
-const SERVER_URL = window.location.origin; // 自身のサーバーのURLに自動追従
+let myPlayerNumber = 0; // 1: PLAYER 1, 2: PLAYER 2, 0: ローカル
+const SERVER_URL = window.location.origin; // 自動的にデプロイ先のURLに接続します
 
 const keys = {
     a: false,
@@ -85,7 +85,7 @@ touchBinds.forEach(bind => {
     }
 });
 
-// キャラクター クラス（棒人間仕様）
+// キャラクター クラス
 class Character {
     constructor(x, y, color, isCPU) {
         this.startX = x;
@@ -157,16 +157,13 @@ class Character {
             this.attackCooldown--;
         }
 
-        // 入力の更新（オンライン時は、自分が動かすキャラだけローカル処理）
+        // 入力の更新
         if (this.state !== 'hit' && !roundOver) {
             if (isOnlineMode) {
-                // オンライン対戦時
                 if ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) {
-                    this.updatePlayer(); // 自身のみを操作
+                    this.updatePlayer(); 
                 }
-                // 相手キャラの更新は受信したデータ（opponent_physics）を適用するためここでは何もしない
             } else {
-                // ローカル（CPU戦）
                 if (this.isCPU) {
                     this.updateCPU(opponent);
                 } else {
@@ -196,7 +193,7 @@ class Character {
         if (this.x < 10) this.x = 10;
         if (this.x + this.width > canvas.width - 10) this.x = canvas.width - this.width - 10;
 
-        // 向きの固定（オンラインモードでも向きは対戦相手を見て動的に決める）
+        // 向きの固定
         if (this.state !== 'attack' && this.state !== 'hit' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
         }
@@ -587,7 +584,6 @@ function connectToRoom() {
 
     statusEl.innerText = "サーバーに接続中...";
 
-    // 接続の確立 (自身のホスティング先URLを設定)
     socket = io(SERVER_URL);
 
     socket.on('connect', () => {
@@ -610,7 +606,6 @@ function connectToRoom() {
     });
 
     socket.on('start_game', (data) => {
-        // 対戦相手が入室し、ゲーム開始
         statusEl.innerText = "対戦相手が見つかりました！開始します...";
         isOnlineMode = true;
         winStreak = 0;
@@ -618,18 +613,16 @@ function connectToRoom() {
         p2Score = 0;
         currentRound = 1;
 
-        // CPU設定の無効化
         p1.isCPU = false;
         p2.isCPU = false;
 
-        // プレイヤー名の表示設定
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
 
         setTimeout(() => {
             onlineScreen.style.display = 'none';
             uiLayer.style.display = 'flex';
-            streakCounterEl.style.display = 'none'; // オンライン時は連勝表示を隠す
+            streakCounterEl.style.display = 'none'; 
             updateScoreUI();
             showOverlay(`ROUND ${currentRound}`, 1500, startRound);
         }, 1000);
@@ -637,6 +630,8 @@ function connectToRoom() {
 
     // 相手の移動情報の受信同期
     socket.on('opponent_physics', (data) => {
+        if (roundOver) return; // ★修正箇所1：勝負決定後の上書きを阻止して、倒れるポーズを保つ
+        
         const opp = (myPlayerNumber === 1) ? p2 : p1;
         opp.x = data.x;
         opp.y = data.y;
@@ -663,14 +658,12 @@ function connectToRoom() {
         }
     });
 
-    // 相手が退出した場合
     socket.on('opponent_disconnected', () => {
         alert("対戦相手の通信が切断されました。タイトルへ戻ります。");
         location.reload();
     });
 }
 
-// オンラインデータをサーバーに送る (物理演算の更新ごとに呼び出す)
 function emitMyPhysics() {
     if (!socket || !isOnlineMode || roundOver) return;
 
@@ -698,7 +691,7 @@ function startCPUMode() {
     currentRound = 1;
 
     p1.isCPU = false;
-    p2.isCPU = true; // CPUを有効化
+    p2.isCPU = true; 
 
     document.getElementById('p1-name-display').innerText = "PLAYER 1";
     document.getElementById('p2-name-display').innerText = "CPU";
@@ -734,7 +727,6 @@ function startRound() {
             timerEl.innerText = roundTimer;
             if (roundTimer <= 0) {
                 if (isOnlineMode) {
-                    // オンライン時のタイムアップ判定はホスト(P1)が担当して送信
                     if (myPlayerNumber === 1) {
                         socket.emit('match_round_over', { winnerNum: 0 });
                     }
@@ -785,8 +777,11 @@ function endRound(winner, reason) {
                 });
             }
         } else {
-            currentRound++;
-            showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+            // ★修正箇所2：即座に次のラウンドに行かず、「〇〇 WIN」を表示させたあとに次のラウンドに移るように修正
+            showOverlay(message, 1500, () => {
+                currentRound++;
+                showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+            });
         }
     }, 800);
 }
@@ -817,7 +812,6 @@ function triggerOnlineAlert() {
 function checkHits() {
     if (roundOver) return;
 
-    // オンラインモード時は、お互い「自分が攻撃した側の画面」でヒットを判定し、サーバーに判定を送る
     const p1Attack = p1.getAttackBox();
     const p2Attack = p2.getAttackBox();
 
@@ -830,7 +824,6 @@ function checkHits() {
                 p1.attackTimer = 22; 
             } else {
                 if (isOnlineMode) {
-                    // P1の画面または自分がP1の場合にヒットを送信
                     if (myPlayerNumber === 1) {
                         socket.emit('match_round_over', { winnerNum: 1 });
                     }
@@ -852,7 +845,6 @@ function checkHits() {
                 p2.attackTimer = 22; 
             } else {
                 if (isOnlineMode) {
-                    // P2の画面または自分がP2の場合にヒットを送信
                     if (myPlayerNumber === 2) {
                         socket.emit('match_round_over', { winnerNum: 2 });
                     }
@@ -883,7 +875,6 @@ function gameLoop() {
         p1.update(p2);
         p2.update(p1);
         
-        // ローカル判定、またはオンライン時の入力送信
         if (isOnlineMode) {
             emitMyPhysics();
         }
