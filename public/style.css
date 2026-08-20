@@ -8,6 +8,7 @@
     user-select: none;
     /* タップ時の青いハイライトを削除 */
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0); 
+    box-sizing: border-box;
 }
 
 body {
@@ -41,7 +42,6 @@ canvas {
     border-radius: 4px;
     width: 100%;
     height: 100%;
-    box-sizing: border-box;
 }
 
 /* UI表示 */
@@ -126,7 +126,7 @@ canvas {
 }
 
 #title-screen h1 {
-    font-size: min(6vw, 42px);
+    font-size: min(5.5vw, 40px);
     margin: 0 0 10px 0;
     text-shadow: 3px 3px 5px rgba(0,0,0,0.8);
     letter-spacing: 2px;
@@ -134,7 +134,7 @@ canvas {
 }
 
 .subtitle {
-    font-size: min(3vw, 15px);
+    font-size: min(2.8vw, 15px);
     color: #bdc3c7;
     margin-bottom: 20px;
 }
@@ -233,12 +233,10 @@ canvas {
     display: flex;
     align-items: center;
     justify-content: center;
-    user-select: none;
     outline: none;
-    touch-action: none; /* 個別ボタンの拡大動作防止 */
+    touch-action: none; 
 }
 
-/* タップされた時（iOSでも確実に反応するようactive擬似クラスを設定） */
 .touch-btn:active {
     background-color: rgba(255, 255, 255, 0.4);
     transform: scale(0.95);
@@ -264,4 +262,76 @@ canvas {
     font-size: 12px;
     text-align: center;
     line-height: 1.5;
+}
+
+/* ========================================================
+   ★ 追加：スマホの横画面など「画面の高さが低い」環境用の調整
+   ======================================================== */
+@media (max-height: 500px) {
+    body {
+        padding: 5px;
+    }
+
+    /* 横幅基準ではなく、画面の高さに合わせてゲーム画面全体を縮小 */
+    #game-container {
+        height: 72vh; /* 画面全体の高さの72%に収める */
+        width: auto;
+        aspect-ratio: 2 / 1;
+    }
+
+    /* 各種タイトルの余白と文字サイズを極力小さくする */
+    #title-screen h1 {
+        font-size: 26px;
+        margin: 0 0 2px 0;
+    }
+
+    .subtitle {
+        font-size: 11px;
+        margin-bottom: 8px;
+    }
+
+    .menu-btn {
+        width: 180px;
+        padding: 6px 0;
+        margin: 3px;
+        font-size: 13px;
+    }
+
+    /* ランキングボードもかなりコンパクトに */
+    #ranking-board {
+        margin-top: 5px;
+        padding: 5px 12px;
+        width: 220px;
+        font-size: 11px;
+    }
+
+    #ranking-board h3 {
+        margin: 0 0 2px 0;
+    }
+
+    .ranking-row {
+        margin: 1px 0;
+    }
+
+    /* バーチャルパッドのボタンサイズも一回り小さくして隙間に収める */
+    #touch-controls {
+        margin-top: 5px;
+    }
+
+    .touch-btn {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+
+    .action-btn {
+        width: 48px;
+        height: 48px;
+        font-size: 9px;
+    }
+
+    /* 不要な解説テキストを非表示にして縦スペースを確保 */
+    #controls-info {
+        display: none;
+    }
 }
