@@ -536,7 +536,7 @@ function saveScore(streak) {
     
     if (isTop3) {
         setTimeout(() => {
-            const name = prompt(`🎉ハイスコア！歴代TOP3にランクインしました！\n登録する名前を入力してください（最大8文字）:`, "PLAYER");
+            const name = prompt("🎉ハイスコア！歴代TOP3にランクインしました！\n登録する名前を入力してください（最大8文字）:", "PLAYER");
             const finalName = (name && name.trim() !== "") ? name.substring(0, 8) : "PLAYER";
             
             records.push({ name: finalName, streak: streak });
@@ -630,7 +630,7 @@ function connectToRoom() {
 
     // 相手の移動情報の受信同期
     socket.on('opponent_physics', (data) => {
-        if (roundOver) return; // ★修正箇所1：勝負決定後の上書きを阻止して、倒れるポーズを保つ
+        if (roundOver) return; // 勝負決定後の上書きを阻止して、倒れるポーズを保つ
         
         const opp = (myPlayerNumber === 1) ? p2 : p1;
         opp.x = data.x;
@@ -761,7 +761,12 @@ function endRound(winner, reason) {
     setTimeout(() => {
         if (p1Score >= MAX_SCORE) {
             if (isOnlineMode) {
-                showOverlay(`${document.getElementById('p1-name-display').innerText} VICTORY!`, 3000, returnToTitle);
+                // ★修正箇所：勝った本人は「VICTORY!」、負けた側は「DEFEAT...」を表示します
+                if (myPlayerNumber === 1) {
+                    showOverlay("VICTORY!", 3000, returnToTitle);
+                } else {
+                    showOverlay("DEFEAT...", 3000, returnToTitle);
+                }
             } else {
                 winStreak++;
                 streakCounterEl.innerText = `連勝: ${winStreak}`;
@@ -769,7 +774,12 @@ function endRound(winner, reason) {
             }
         } else if (p2Score >= MAX_SCORE) {
             if (isOnlineMode) {
-                showOverlay(`${document.getElementById('p2-name-display').innerText} VICTORY!`, 3000, returnToTitle);
+                // ★修正箇所：勝った本人は「VICTORY!」、負けた側は「DEFEAT...」を表示します
+                if (myPlayerNumber === 2) {
+                    showOverlay("VICTORY!", 3000, returnToTitle);
+                } else {
+                    showOverlay("DEFEAT...", 3000, returnToTitle);
+                }
             } else {
                 showOverlay(`DEFEAT...\n連勝記録: ${winStreak}`, 3000, () => {
                     saveScore(winStreak);
@@ -777,7 +787,6 @@ function endRound(winner, reason) {
                 });
             }
         } else {
-            // ★修正箇所2：即座に次のラウンドに行かず、「〇〇 WIN」を表示させたあとに次のラウンドに移るように修正
             showOverlay(message, 1500, () => {
                 currentRound++;
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
