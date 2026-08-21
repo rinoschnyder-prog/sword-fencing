@@ -10,8 +10,8 @@
     
     <title>一撃必殺！ソード・フェンシング</title>
     
-    <!-- ★ バージョン v=7.0 -->
-    <link rel="stylesheet" href="style.css?v=7.0">
+    <!-- ★ 最新バージョン v=8.0 -->
+    <link rel="stylesheet" href="style.css?v=8.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -40,7 +40,8 @@
             </div>
 
             <div id="timer-container">
-                <div id="timer">60</div>
+                <!-- ★ 30秒初期表示 -->
+                <div id="timer">30</div>
                 <div id="streak-counter">連勝: 0</div>
             </div>
 
@@ -78,7 +79,7 @@
         <!-- タイトル画面 -->
         <div id="title-screen" class="screen">
             <h1 class="game-title">一撃必殺！<br>ソード・フェンシング</h1>
-            <div class="subtitle">〜 通常5打 / 溜め攻撃一撃KO 〜</div>
+            <div class="subtitle">〜 30秒決戦！通常5打 / 溜め攻撃一撃KO 〜</div>
             
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
             <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
@@ -109,7 +110,7 @@
         </div>
     </div>
 
-    <!-- ★ バージョン v=7.0 -->
-    <script src="game.js?v=7.0"></script>
+    <!-- ★ 最新バージョン v=8.0 -->
+    <script src="game.js?v=8.0"></script>
 </body>
 </html>
