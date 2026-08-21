@@ -2,18 +2,16 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <!-- スマホ全画面・ズーム防止・セーフエリア対応 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- ★ 強力なキャッシュ無効化 metaタグ（常に最新版を読み込ませる） -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
     <title>一撃必殺！ソード・フェンシング</title>
     
-    <!-- ★ CSS読み込みに最新バージョン (?v=5.0) を付与 -->
-    <link rel="stylesheet" href="style.css?v=5.0">
+    <!-- ★ バージョン v=6.0 -->
+    <link rel="stylesheet" href="style.css?v=6.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -24,7 +22,6 @@
 
         <!-- スコア・タイマー・HPゲージUI -->
         <div id="ui-layer">
-            <!-- P1 情報 -->
             <div class="player-info p1-info">
                 <div class="name-score">
                     <span id="p1-name-display" style="color: #ff5252;">PLAYER 1</span>
@@ -33,7 +30,6 @@
                         <div class="dot"></div>
                     </div>
                 </div>
-                <!-- 5分割HPバー -->
                 <div class="hp-bar" id="p1-hp">
                     <div class="hp-block active"></div>
                     <div class="hp-block active"></div>
@@ -43,13 +39,11 @@
                 </div>
             </div>
 
-            <!-- タイマー -->
             <div id="timer-container">
                 <div id="timer">60</div>
                 <div id="streak-counter">連勝: 0</div>
             </div>
 
-            <!-- P2 情報 -->
             <div class="player-info p2-info">
                 <div class="name-score" style="justify-content: flex-end;">
                     <div class="score" id="p2-score">
@@ -58,7 +52,6 @@
                     </div>
                     <span id="p2-name-display" style="color: #40c4ff;">CPU</span>
                 </div>
-                <!-- 5分割HPバー -->
                 <div class="hp-bar" id="p2-hp">
                     <div class="hp-block active"></div>
                     <div class="hp-block active"></div>
@@ -116,7 +109,7 @@
         </div>
     </div>
 
-    <!-- ★ JS本体の読み込みにも最新バージョン (?v=5.0) を付与 -->
-    <script src="game.js?v=5.0"></script>
+    <!-- ★ バージョン v=6.0 -->
+    <script src="game.js?v=6.0"></script>
 </body>
 </html>
