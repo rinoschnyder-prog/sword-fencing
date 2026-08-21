@@ -11,7 +11,7 @@ const overlayTextEl = document.getElementById('overlay-text');
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
 const GRAVITY = 0.65;
-const ROUND_TIME_LIMIT = 30; // ★ 30秒に変更
+const ROUND_TIME_LIMIT = 30; 
 const MAX_SCORE = 2;
 const MAX_HP = 5;
 const MAX_CHARGE_FRAMES = 45;
@@ -861,6 +861,7 @@ function hideOnlineMenu() {
     }
 }
 
+// オンライン対戦（Socket.io）ロジック
 function connectToRoom() {
     const roomId = document.getElementById('room-id-input').value.trim();
     const playerName = document.getElementById('player-name-input').value.trim() || "PLAYER";
@@ -916,6 +917,7 @@ function connectToRoom() {
         }, 1000);
     });
 
+    // 相手の物理挙動＆溜め状態の受信同期
     socket.on('opponent_physics', (data) => {
         if (roundOver) return;
         const opp = (myPlayerNumber === 1) ? p2 : p1;
@@ -929,6 +931,37 @@ function connectToRoom() {
         opp.isHeavyAttack = data.isHeavyAttack;
         opp.hp = data.hp;
         updateScoreUI();
+    });
+
+    // ★ オンライン：相手からの被弾・エフェクト同期の受信
+    socket.on('opponent_hit_event', (data) => {
+        const myChar = (myPlayerNumber === 1) ? p1 : p2;
+        const oppChar = (myPlayerNumber === 1) ? p2 : p1;
+
+        triggerHitEffect(data.hitX, data.hitY, data.isHeavy, data.isGuard);
+
+        if (data.isGuard) {
+            if (data.isHeavy) {
+                myChar.state = 'break';
+                myChar.breakTimer = 65;
+                myChar.vx = myChar.direction * -15;
+            } else {
+                myChar.x += myChar.direction * -20;
+            }
+        } else {
+            myChar.hp = data.defenderHp;
+            updateScoreUI();
+
+            if (myChar.hp <= 0 || data.isHeavy) {
+                myChar.hp = 0;
+                myChar.state = 'hit';
+                myChar.vx = 0;
+            } else {
+                myChar.state = 'flinch';
+                myChar.flinchTimer = 16;
+                myChar.vx = oppChar.direction * 6;
+            }
+        }
     });
 
     socket.on('round_result', (data) => {
@@ -1103,6 +1136,16 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.x += defender.direction * -20; 
             attacker.attackTimer = 22; 
         }
+
+        // オンライン対戦：相手へガード成功を通知
+        if (isOnlineMode && socket) {
+            socket.emit('notify_hit', {
+                hitX, hitY,
+                isHeavy: attacker.isHeavyAttack,
+                isGuard: true,
+                defenderHp: defender.hp
+            });
+        }
     } else {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
 
@@ -1112,10 +1155,14 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.vx = 0;
             updateScoreUI();
 
-            if (isOnlineMode) {
-                if (myPlayerNumber === (isP1Attacker ? 1 : 2)) {
-                    socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
-                }
+            if (isOnlineMode && socket) {
+                socket.emit('notify_hit', {
+                    hitX, hitY,
+                    isHeavy: true,
+                    isGuard: false,
+                    defenderHp: 0
+                });
+                socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
             } else {
                 endRound(attacker);
             }
@@ -1124,13 +1171,20 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             updateScoreUI();
             attacker.attackTimer = 22;
 
+            if (isOnlineMode && socket) {
+                socket.emit('notify_hit', {
+                    hitX, hitY,
+                    isHeavy: false,
+                    isGuard: false,
+                    defenderHp: defender.hp
+                });
+            }
+
             if (defender.hp <= 0) {
                 defender.state = 'hit';
                 defender.vx = 0;
-                if (isOnlineMode) {
-                    if (myPlayerNumber === (isP1Attacker ? 1 : 2)) {
-                        socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
-                    }
+                if (isOnlineMode && socket) {
+                    socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
                 } else {
                     endRound(attacker);
                 }
@@ -1146,6 +1200,24 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
 function checkHits() {
     if (roundOver) return;
 
+    // ★ オンライン時は「自分が攻撃した判定のみ」を判定し、相手に送信する（二重判定バグを防ぐ）
+    if (isOnlineMode) {
+        const myChar = (myPlayerNumber === 1) ? p1 : p2;
+        const oppChar = (myPlayerNumber === 1) ? p2 : p1;
+        const myAttack = myChar.getAttackBox();
+
+        if (myAttack && oppChar.state !== 'flinch' && oppChar.state !== 'hit') {
+            const oppBody = { x: oppChar.x, y: oppChar.y, width: oppChar.width, height: oppChar.height };
+            if (checkCollision(myAttack, oppBody)) {
+                const hitX = myChar.direction === 1 ? oppChar.x + 8 : oppChar.x + oppChar.width - 8;
+                const hitY = myAttack.y + myAttack.height / 2;
+                handleHit(myChar, oppChar, myPlayerNumber === 1, hitX, hitY);
+            }
+        }
+        return;
+    }
+
+    // CPU戦 / ローカル対戦時
     const p1Attack = p1.getAttackBox();
     const p2Attack = p2.getAttackBox();
 
