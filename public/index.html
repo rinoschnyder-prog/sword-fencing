@@ -2,104 +2,114 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- 1. スマホでの拡大ズームを防ぐ設定 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
-    <!-- 2. ★追加：ブラウザにキャッシュを強制的に無効化させるmetaタグ -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
     <title>一撃必殺！ソード・フェンシング</title>
     
-    <!-- 3. ★重要：CSSの読み込み末尾にバージョン (?v=1.1) を指定 -->
-    <link rel="stylesheet" href="style.css?v=1.1">
-    
-    <!-- Socket.ioライブラリの読み込み -->
+    <!-- ★ バージョン v=7.0 -->
+    <link rel="stylesheet" href="style.css?v=7.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
     <div id="game-container">
-        <!-- ゲーム中UI -->
+        <!-- 全画面ゲームCanvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- スコア・タイマー・HPゲージUI -->
         <div id="ui-layer">
-            <div>
-                <span id="p1-name-display" style="color: #e74c3c;">PLAYER 1</span>
-                <div class="score" id="p1-score">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
+            <div class="player-info p1-info">
+                <div class="name-score">
+                    <span id="p1-name-display" style="color: #ff5252;">PLAYER 1</span>
+                    <div class="score" id="p1-score">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                </div>
+                <div class="hp-bar" id="p1-hp">
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
                 </div>
             </div>
+
             <div id="timer-container">
                 <div id="timer">60</div>
                 <div id="streak-counter">連勝: 0</div>
             </div>
-            <div style="text-align: right;">
-                <span id="p2-name-display" style="color: #3498db;">CPU</span>
-                <div class="score" id="p2-score">
-                    <div class="dot"></div>
-                    <div class="dot"></div>
+
+            <div class="player-info p2-info">
+                <div class="name-score" style="justify-content: flex-end;">
+                    <div class="score" id="p2-score">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                    <span id="p2-name-display" style="color: #40c4ff;">CPU</span>
                 </div>
+                <div class="hp-bar" id="p2-hp">
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                    <div class="hp-block active"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 半透明タッチコントローラー -->
+        <div id="touch-controls">
+            <div class="control-group left-group">
+                <button id="btn-left" class="touch-btn">◀</button>
+                <button id="btn-right" class="touch-btn">▶</button>
+            </div>
+            <div class="control-group right-group">
+                <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
+                <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
+                <button id="btn-attack" class="touch-btn action-btn red">ATTACK<br><span style="font-size: 8px;">(長押し溜め)</span></button>
             </div>
         </div>
         
         <!-- タイトル画面 -->
         <div id="title-screen" class="screen">
-            <h1>一撃必殺！ソード・フェンシング</h1>
-            <div class="subtitle">〜 一瞬の隙を突き、命を刈り取れ 〜</div>
+            <h1 class="game-title">一撃必殺！<br>ソード・フェンシング</h1>
+            <div class="subtitle">〜 通常5打 / 溜め攻撃一撃KO 〜</div>
+            
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
             <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
 
             <div id="ranking-board">
                 <h3>🏆 歴代連勝記録 TOP 3</h3>
-                <div id="ranking-list">
-                    <!-- JSで動的に追加 -->
-                </div>
+                <div id="ranking-list"></div>
             </div>
         </div>
 
-        <!-- ルーム（パスワード）入力画面 -->
+        <!-- オンライン設定画面 -->
         <div id="online-screen" class="screen" style="display: none;">
             <h2>オンライン対戦</h2>
             <div id="online-form">
                 <input type="text" id="player-name-input" placeholder="あなたの名前" maxlength="8" value="PLAYER">
                 <input type="text" id="room-id-input" placeholder="部屋のパスワード" maxlength="12">
-                <div>
+                <div class="form-buttons">
                     <button class="menu-btn" onclick="connectToRoom()">入室する</button>
-                    <button class="menu-btn" style="background-color: #7f8c8d;" onclick="hideOnlineMenu()">戻る</button>
+                    <button class="menu-btn" style="background-color: #607d8b;" onclick="hideOnlineMenu()">戻る</button>
                 </div>
             </div>
-            <div id="online-status" style="margin-top: 15px; color: #f1c40f;"></div>
+            <div id="online-status"></div>
         </div>
 
-        <!-- 汎用メッセージ表示用 -->
+        <!-- メッセージオーバーレイ -->
         <div id="game-overlay" class="screen">
             <div id="overlay-text">ROUND 1</div>
         </div>
-
-        <canvas id="gameCanvas" width="800" height="400"></canvas>
     </div>
 
-    <!-- スマホ・タブレット用バーチャルコントローラー -->
-    <div id="touch-controls" style="display: none;">
-        <div class="control-group left-group">
-            <button id="btn-left" class="touch-btn">◀</button>
-            <button id="btn-right" class="touch-btn">▶</button>
-        </div>
-        <div class="control-group right-group">
-            <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
-            <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
-            <button id="btn-attack" class="touch-btn action-btn red">ATTACK</button>
-        </div>
-    </div>
-
-    <div id="controls-info">
-        【PC操作】移動: A, D | ジャンプ: W | ガード: S | 攻撃: F <br>
-        【スマホ】画面下のバーチャルパッドで操作
-    </div>
-
-    <!-- 4. ★重要：ゲーム本体JSの読み込み末尾にもバージョン (?v=1.1) を指定 -->
-    <script src="game.js?v=1.1"></script>
+    <!-- ★ バージョン v=7.0 -->
+    <script src="game.js?v=7.0"></script>
 </body>
 </html>
