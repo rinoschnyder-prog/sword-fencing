@@ -266,7 +266,7 @@ class Character {
     update(opponent) {
         this.animFrame++;
 
-        // オンラインの相手キャラは、通信データで座標を正確に同期するためローカル物理演算をバイパス
+        // オンラインの相手キャラは通信データで正確に同期
         if (isOnlineMode && ((myPlayerNumber === 1 && this === p2) || (myPlayerNumber === 2 && this === p1))) {
             return;
         }
@@ -346,7 +346,6 @@ class Character {
         this.x += this.vx;
         this.y += this.vy;
 
-        // 地面判定
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
@@ -921,15 +920,14 @@ function connectToRoom() {
         }, 1000);
     });
 
-    // ★ 相手の移動受信：地面からの相対位置（groundOffset）で計算し、絶対に浮かせない！
+    // ★ 相手データの受信：HPは「減った値（Math.min）」を絶対共有し、絶対に元に戻さない！
     socket.on('opponent_physics', (data) => {
         if (roundOver) return;
         const opp = (myPlayerNumber === 1) ? p2 : p1;
+        const myChar = (myPlayerNumber === 1) ? p1 : p2;
         
         opp.x = data.xRatio * canvas.width;
-        // 地面基準で高さを決定（解像度差による浮きを100%防止）
         opp.y = GROUND_Y + data.groundOffset;
-        
         opp.direction = data.direction;
         opp.state = data.state;
         opp.guardActive = data.guardActive;
@@ -937,47 +935,40 @@ function connectToRoom() {
         opp.chargeTimer = data.chargeTimer;
         opp.isHeavyAttack = data.isHeavyAttack;
 
-        if (typeof data.hp === 'number') {
-            opp.hp = data.hp;
+        // ★ HPの確定共有処理
+        if (typeof data.p1Hp === 'number' && typeof data.p2Hp === 'number') {
+            const oldMyHp = myChar.hp;
+            
+            // HPは「最小値（減った値）」で強制同期！
+            p1.hp = Math.min(p1.hp, data.p1Hp);
+            p2.hp = Math.min(p2.hp, data.p2Hp);
+
+            // もし相手からのデータで自分のHPが減っていたら被弾リアクション
+            if (myChar.hp < oldMyHp) {
+                const hitX = myChar.x + myChar.width / 2;
+                const hitY = myChar.y + 40;
+                triggerHitEffect(hitX, hitY, myChar.hp === 0, false);
+
+                if (myChar.hp <= 0) {
+                    myChar.state = 'hit';
+                    myChar.vx = 0;
+                    socket.emit('match_round_over', { winnerNum: (myPlayerNumber === 1) ? 2 : 1 });
+                } else {
+                    myChar.state = 'flinch';
+                    myChar.flinchTimer = 16;
+                    myChar.vx = opp.direction * 6;
+                }
+            }
         }
+
+        // 相手がガードブレイク中ならポーズ同期
+        if (data.oppState === 'break') {
+            myChar.state = 'break';
+            myChar.breakTimer = 65;
+            myChar.vx = myChar.direction * -15;
+        }
+
         updateScoreUI();
-    });
-
-    // オンライン：被弾通知受信
-    socket.on('opponent_hit_event', (data) => {
-        if (roundOver) return;
-
-        const myChar = (myPlayerNumber === 1) ? p1 : p2;
-        const oppChar = (myPlayerNumber === 1) ? p2 : p1;
-
-        triggerHitEffect(data.hitX, data.hitY, data.isHeavy, data.isGuard);
-
-        if (data.isGuard) {
-            if (data.isHeavy) {
-                myChar.state = 'break';
-                myChar.breakTimer = 65;
-                myChar.vx = myChar.direction * -15;
-            } else {
-                myChar.x += myChar.direction * -20;
-            }
-        } else {
-            if (data.isHeavy) {
-                myChar.hp = 0;
-            } else {
-                myChar.hp = Math.max(0, myChar.hp - 1);
-            }
-            updateScoreUI();
-
-            if (myChar.hp <= 0) {
-                myChar.state = 'hit';
-                myChar.vx = 0;
-                socket.emit('match_round_over', { winnerNum: (myPlayerNumber === 1) ? 2 : 1 });
-            } else {
-                myChar.state = 'flinch';
-                myChar.flinchTimer = 16;
-                myChar.vx = oppChar.direction * 6;
-            }
-        }
     });
 
     socket.on('round_result', (data) => {
@@ -1003,20 +994,22 @@ function connectToRoom() {
     });
 }
 
-// ★ 地面からの相対高さ（groundOffset）を送信して同期
-function emitMyPhysics() {
+// ★ P1とP2両方の最新HPを一緒に送信して完全共有
+function emitMyPhysics(extraOppState) {
     if (!socket || !isOnlineMode || roundOver) return;
     const myChar = (myPlayerNumber === 1) ? p1 : p2;
     socket.emit('update_physics', {
         xRatio: myChar.x / canvas.width,
-        groundOffset: myChar.y - GROUND_Y, // 地面からの高さ差分
+        groundOffset: myChar.y - GROUND_Y,
         direction: myChar.direction,
         state: myChar.state,
         guardActive: myChar.guardActive,
         attackTimer: myChar.attackTimer,
         chargeTimer: myChar.chargeTimer,
         isHeavyAttack: myChar.isHeavyAttack,
-        hp: myChar.hp
+        p1Hp: p1.hp,
+        p2Hp: p2.hp,
+        oppState: extraOppState || ''
     });
 }
 
@@ -1149,61 +1142,49 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.breakTimer = 65;
             defender.vx = defender.direction * -15;
             attacker.attackTimer = 28;
+            if (isOnlineMode) emitMyPhysics('break');
         } else {
             defender.x += defender.direction * -20; 
             attacker.attackTimer = 22; 
         }
-
-        if (isOnlineMode && socket) {
-            socket.emit('notify_hit', {
-                hitX, hitY,
-                isHeavy: attacker.isHeavyAttack,
-                isGuard: true
-            });
-        }
     } else {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
 
-        if (isOnlineMode) {
-            attacker.attackTimer = 22;
-            if (socket) {
-                socket.emit('notify_hit', {
-                    hitX, hitY,
-                    isHeavy: attacker.isHeavyAttack,
-                    isGuard: false
-                });
-            }
-            if (attacker.isHeavyAttack) {
-                defender.hp = 0;
-                defender.state = 'hit';
+        if (attacker.isHeavyAttack) {
+            // 溜め攻撃直撃：即座にHP 0（一撃KO）
+            defender.hp = 0;
+            defender.state = 'hit';
+            defender.vx = 0;
+            updateScoreUI();
+
+            if (isOnlineMode) {
+                emitMyPhysics();
+                if (socket) socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
             } else {
-                defender.hp = Math.max(0, defender.hp - 1);
+                endRound(attacker);
+            }
+        } else {
+            // 通常攻撃：1ダメージ確実に減算
+            defender.hp = Math.max(0, defender.hp - 1);
+            attacker.attackTimer = 22;
+            updateScoreUI();
+
+            if (isOnlineMode) {
+                emitMyPhysics();
+            }
+
+            if (defender.hp <= 0) {
+                defender.state = 'hit';
+                defender.vx = 0;
+                if (isOnlineMode && socket) {
+                    socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
+                } else {
+                    endRound(attacker);
+                }
+            } else {
                 defender.state = 'flinch';
                 defender.flinchTimer = 16;
                 defender.vx = attacker.direction * 6;
-            }
-            updateScoreUI();
-        } else {
-            if (attacker.isHeavyAttack) {
-                defender.hp = 0;
-                defender.state = 'hit';
-                defender.vx = 0;
-                updateScoreUI();
-                endRound(attacker);
-            } else {
-                defender.hp--;
-                updateScoreUI();
-                attacker.attackTimer = 22;
-
-                if (defender.hp <= 0) {
-                    defender.state = 'hit';
-                    defender.vx = 0;
-                    endRound(attacker);
-                } else {
-                    defender.state = 'flinch';
-                    defender.flinchTimer = 16;
-                    defender.vx = attacker.direction * 6;
-                }
             }
         }
     }
