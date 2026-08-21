@@ -131,16 +131,16 @@ html, body {
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
 }
 
-/* コントローラー */
+/* ★タッチコントローラー（黒枠の中心に配置） */
 #touch-controls {
     position: absolute;
-    bottom: calc(15px + env(safe-area-inset-bottom));
+    bottom: calc(10vh + env(safe-area-inset-bottom));
     left: 0;
     width: 100%;
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    padding: 0 16px;
+    align-items: center;
+    padding: 0 18px;
     z-index: 10;
 }
 
@@ -163,7 +163,7 @@ html, body {
     align-items: center;
     justify-content: center;
     outline: none;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     transition: transform 0.08s, background-color 0.08s;
 }
 
