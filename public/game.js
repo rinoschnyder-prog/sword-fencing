@@ -266,7 +266,6 @@ class Character {
     update(opponent) {
         this.animFrame++;
 
-        // オンラインの相手キャラは通信データで正確に同期
         if (isOnlineMode && ((myPlayerNumber === 1 && this === p2) || (myPlayerNumber === 2 && this === p1))) {
             return;
         }
@@ -920,9 +919,12 @@ function connectToRoom() {
         }, 1000);
     });
 
-    // ★ 相手データの受信：HPは「減った値（Math.min）」を絶対共有し、絶対に元に戻さない！
+    // ★ 相手データの受信：ラウンド番号を照合し、前ラウンドの残骸データは完全破棄！
     socket.on('opponent_physics', (data) => {
-        if (roundOver) return;
+        if (roundOver || !gameActive) return;
+        // 異なるラウンドの古いパケットなら無視
+        if (data.round !== currentRound) return;
+
         const opp = (myPlayerNumber === 1) ? p2 : p1;
         const myChar = (myPlayerNumber === 1) ? p1 : p2;
         
@@ -935,16 +937,15 @@ function connectToRoom() {
         opp.chargeTimer = data.chargeTimer;
         opp.isHeavyAttack = data.isHeavyAttack;
 
-        // ★ HPの確定共有処理
-        if (typeof data.p1Hp === 'number' && typeof data.p2Hp === 'number') {
-            const oldMyHp = myChar.hp;
-            
-            // HPは「最小値（減った値）」で強制同期！
-            p1.hp = Math.min(p1.hp, data.p1Hp);
-            p2.hp = Math.min(p2.hp, data.p2Hp);
+        // ★ 相手から届いた相手自身の正確なHPを代入
+        if (typeof data.myHp === 'number') {
+            opp.hp = data.myHp;
+        }
 
-            // もし相手からのデータで自分のHPが減っていたら被弾リアクション
-            if (myChar.hp < oldMyHp) {
+        // もし相手が「お前HP減ったぞ」と送ってきた場合（ダメージ同期）
+        if (typeof data.oppHp === 'number') {
+            if (data.oppHp < myChar.hp) {
+                myChar.hp = data.oppHp;
                 const hitX = myChar.x + myChar.width / 2;
                 const hitY = myChar.y + 40;
                 triggerHitEffect(hitX, hitY, myChar.hp === 0, false);
@@ -952,7 +953,8 @@ function connectToRoom() {
                 if (myChar.hp <= 0) {
                     myChar.state = 'hit';
                     myChar.vx = 0;
-                    socket.emit('match_round_over', { winnerNum: (myPlayerNumber === 1) ? 2 : 1 });
+                    // ★ 即座に決着処理を起動（通信待ちを無くす）
+                    endRound(opp);
                 } else {
                     myChar.state = 'flinch';
                     myChar.flinchTimer = 16;
@@ -961,7 +963,6 @@ function connectToRoom() {
             }
         }
 
-        // 相手がガードブレイク中ならポーズ同期
         if (data.oppState === 'break') {
             myChar.state = 'break';
             myChar.breakTimer = 65;
@@ -974,14 +975,8 @@ function connectToRoom() {
     socket.on('round_result', (data) => {
         if (roundOver) return;
         if (data.winnerNum === 1) {
-            p1.state = 'idle';
-            p2.state = 'hit';
-            p2.hp = 0;
             endRound(p1);
         } else if (data.winnerNum === 2) {
-            p1.state = 'hit';
-            p1.hp = 0;
-            p2.state = 'idle';
             endRound(p2);
         } else {
             endRound(null, "TIME UP");
@@ -994,11 +989,14 @@ function connectToRoom() {
     });
 }
 
-// ★ P1とP2両方の最新HPを一緒に送信して完全共有
-function emitMyPhysics(extraOppState) {
+// ★ 自分の情報＋相手に与えたダメージを確実に送信
+function emitMyPhysics(extraOppState, targetOppHp) {
     if (!socket || !isOnlineMode || roundOver) return;
     const myChar = (myPlayerNumber === 1) ? p1 : p2;
+    const oppChar = (myPlayerNumber === 1) ? p2 : p1;
+
     socket.emit('update_physics', {
+        round: currentRound, // ★ 現在のラウンド番号
         xRatio: myChar.x / canvas.width,
         groundOffset: myChar.y - GROUND_Y,
         direction: myChar.direction,
@@ -1007,8 +1005,8 @@ function emitMyPhysics(extraOppState) {
         attackTimer: myChar.attackTimer,
         chargeTimer: myChar.chargeTimer,
         isHeavyAttack: myChar.isHeavyAttack,
-        p1Hp: p1.hp,
-        p2Hp: p2.hp,
+        myHp: myChar.hp,
+        oppHp: typeof targetOppHp === 'number' ? targetOppHp : oppChar.hp,
         oppState: extraOppState || ''
     });
 }
@@ -1040,6 +1038,8 @@ function startRound() {
     for (let key in keys) keys[key] = false;
     p1.reset();
     p2.reset();
+    p1.hp = MAX_HP; // ★ HPの完全初期化
+    p2.hp = MAX_HP;
     particles = [];
     slashes = [];
     updateScoreUI();
@@ -1066,6 +1066,7 @@ function startRound() {
 }
 
 function endRound(winner, reason) {
+    if (roundOver) return; // 二重呼び出し防止
     roundOver = true;
     clearInterval(timerInterval);
 
@@ -1075,9 +1076,13 @@ function endRound(winner, reason) {
     let message = "";
     if (winner === p1) {
         p1Score++;
+        p2.hp = 0;
+        p2.state = 'hit';
         message = isOnlineMode ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN";
     } else if (winner === p2) {
         p2Score++;
+        p1.hp = 0;
+        p1.state = 'hit';
         message = isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : "CPU WIN";
     } else {
         message = reason || "DRAW";
@@ -1151,26 +1156,25 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
 
         if (attacker.isHeavyAttack) {
-            // 溜め攻撃直撃：即座にHP 0（一撃KO）
+            // 溜め攻撃直撃：即死KO
             defender.hp = 0;
             defender.state = 'hit';
             defender.vx = 0;
             updateScoreUI();
 
             if (isOnlineMode) {
-                emitMyPhysics();
+                emitMyPhysics('', 0); // 相手HP 0 を強制送信
                 if (socket) socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
-            } else {
-                endRound(attacker);
             }
+            endRound(attacker);
         } else {
-            // 通常攻撃：1ダメージ確実に減算
+            // 通常攻撃：1ダメージ
             defender.hp = Math.max(0, defender.hp - 1);
             attacker.attackTimer = 22;
             updateScoreUI();
 
             if (isOnlineMode) {
-                emitMyPhysics();
+                emitMyPhysics('', defender.hp); // 減ったHPを相手に送信
             }
 
             if (defender.hp <= 0) {
@@ -1178,9 +1182,8 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
                 defender.vx = 0;
                 if (isOnlineMode && socket) {
                     socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
-                } else {
-                    endRound(attacker);
                 }
+                endRound(attacker);
             } else {
                 defender.state = 'flinch';
                 defender.flinchTimer = 16;
