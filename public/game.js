@@ -11,7 +11,7 @@ const overlayTextEl = document.getElementById('overlay-text');
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
 const GRAVITY = 0.65;
-const ROUND_TIME_LIMIT = 60; 
+const ROUND_TIME_LIMIT = 30; // ★ 30秒に変更
 const MAX_SCORE = 2;
 const MAX_HP = 5;
 const MAX_CHARGE_FRAMES = 45;
@@ -44,11 +44,11 @@ let gameActive = false;
 let roundOver = false;
 let winStreak = 0;
 
-// ★ 画面揺れ（スクリーンシェイク）用変数
+// 画面揺れ用変数
 let screenShakeTimer = 0;
 let screenShakeIntensity = 0;
 
-// ★ パーティクル＆エフェクト管理
+// パーティクル＆エフェクト管理
 let particles = [];
 let slashes = [];
 
@@ -66,7 +66,7 @@ class Particle {
     update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.2; // わずかな重力
+        this.vy += 0.2;
         this.life--;
     }
     draw() {
@@ -113,7 +113,6 @@ class SlashEffect {
         ctx.lineTo(this.length / 2, 0);
         ctx.stroke();
 
-        // 衝撃リング（溜め攻撃時）
         if (this.isHeavy) {
             ctx.strokeStyle = this.color;
             ctx.lineWidth = 3;
@@ -126,10 +125,8 @@ class SlashEffect {
     }
 }
 
-// ヒットエフェクト発生関数
 function triggerHitEffect(x, y, isHeavy, isGuard) {
     if (isGuard) {
-        // ガード時の黄色い火花
         for (let i = 0; i < 10; i++) {
             const angle = (Math.random() * Math.PI) - (Math.PI / 2);
             const speed = 3 + Math.random() * 5;
@@ -145,7 +142,6 @@ function triggerHitEffect(x, y, isHeavy, isGuard) {
         screenShakeTimer = 4;
         screenShakeIntensity = 2.5;
     } else {
-        // ヒット時のサイバー閃光＆スパーク
         const count = isHeavy ? 35 : 18;
         const color = isHeavy ? '#ffd32a' : '#ff3838';
 
@@ -162,11 +158,9 @@ function triggerHitEffect(x, y, isHeavy, isGuard) {
             ));
         }
 
-        // 鋭い斬撃スラッシュ線
         const slashAngle = (Math.random() - 0.5) * 0.8;
         slashes.push(new SlashEffect(x, y, slashAngle, isHeavy ? 100 : 65, color, isHeavy));
 
-        // 画面揺れ発動
         screenShakeTimer = isHeavy ? 16 : 8;
         screenShakeIntensity = isHeavy ? 9 : 4.5;
     }
@@ -1094,12 +1088,10 @@ function returnToTitle() {
     updateRankingUI();
 }
 
-// ヒット・ガード・ダメージ処理
 function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     const isFacing = (attacker.x < defender.x && defender.direction === -1) || (attacker.x > defender.x && defender.direction === 1);
 
     if (defender.guardActive && isFacing) {
-        // ガード時の火花エフェクト
         triggerHitEffect(hitX, hitY, false, true);
 
         if (attacker.isHeavyAttack) {
@@ -1112,7 +1104,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             attacker.attackTimer = 22; 
         }
     } else {
-        // ★ ヒット時のサイバースパーク＆画面揺れ
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
 
         if (attacker.isHeavyAttack) {
@@ -1180,7 +1171,6 @@ function checkHits() {
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // ★ 画面揺れ（スクリーンシェイク）の適用
     ctx.save();
     if (screenShakeTimer > 0) {
         const shakeX = (Math.random() - 0.5) * screenShakeIntensity;
@@ -1189,7 +1179,6 @@ function gameLoop() {
         screenShakeTimer--;
     }
 
-    // 地面描画
     const groundGrad = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
     groundGrad.addColorStop(0, 'rgba(30, 39, 46, 0.85)');
     groundGrad.addColorStop(1, 'rgba(10, 15, 20, 0.98)');
@@ -1214,21 +1203,19 @@ function gameLoop() {
     p1.draw();
     p2.draw();
 
-    // ★ スラッシュ斬撃エフェクトの更新＆描画
     for (let i = slashes.length - 1; i >= 0; i--) {
         slashes[i].update();
         slashes[i].draw();
         if (slashes[i].life <= 0) slashes.splice(i, 1);
     }
 
-    // ★ パーティクル（火花・光の破片）の更新＆描画
     for (let i = particles.length - 1; i >= 0; i--) {
         particles[i].update();
         particles[i].draw();
         if (particles[i].life <= 0) particles.splice(i, 1);
     }
 
-    ctx.restore(); // スクリーンシェイク解除
+    ctx.restore();
 
     requestAnimationFrame(gameLoop);
 }
