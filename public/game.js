@@ -13,8 +13,8 @@ let GROUND_Y = 0;
 const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 60; 
 const MAX_SCORE = 2;
-const MAX_HP = 5; // 通常5回被弾でKO
-const MAX_CHARGE_FRAMES = 45; // 溜め完了までの時間（約0.75秒）
+const MAX_HP = 5;
+const MAX_CHARGE_FRAMES = 45;
 
 function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -44,6 +44,134 @@ let gameActive = false;
 let roundOver = false;
 let winStreak = 0;
 
+// ★ 画面揺れ（スクリーンシェイク）用変数
+let screenShakeTimer = 0;
+let screenShakeIntensity = 0;
+
+// ★ パーティクル＆エフェクト管理
+let particles = [];
+let slashes = [];
+
+class Particle {
+    constructor(x, y, vx, vy, color, size, life) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.color = color;
+        this.size = size;
+        this.life = life;
+        this.maxLife = life;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.2; // わずかな重力
+        this.life--;
+    }
+    draw() {
+        const alpha = Math.max(0, this.life / this.maxLife);
+        ctx.save();
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = alpha;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+class SlashEffect {
+    constructor(x, y, angle, length, color, isHeavy) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.length = length;
+        this.color = color;
+        this.isHeavy = isHeavy;
+        this.life = isHeavy ? 14 : 9;
+        this.maxLife = this.life;
+    }
+    update() {
+        this.life--;
+    }
+    draw() {
+        const alpha = this.life / this.maxLife;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = this.isHeavy ? 6 : 3.5;
+        ctx.shadowBlur = this.isHeavy ? 20 : 10;
+        ctx.shadowColor = this.color;
+
+        ctx.beginPath();
+        ctx.moveTo(-this.length / 2, 0);
+        ctx.lineTo(this.length / 2, 0);
+        ctx.stroke();
+
+        // 衝撃リング（溜め攻撃時）
+        if (this.isHeavy) {
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, (1 - alpha) * 45, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+
+// ヒットエフェクト発生関数
+function triggerHitEffect(x, y, isHeavy, isGuard) {
+    if (isGuard) {
+        // ガード時の黄色い火花
+        for (let i = 0; i < 10; i++) {
+            const angle = (Math.random() * Math.PI) - (Math.PI / 2);
+            const speed = 3 + Math.random() * 5;
+            particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                '#ffd32a',
+                3,
+                15 + Math.random() * 8
+            ));
+        }
+        screenShakeTimer = 4;
+        screenShakeIntensity = 2.5;
+    } else {
+        // ヒット時のサイバー閃光＆スパーク
+        const count = isHeavy ? 35 : 18;
+        const color = isHeavy ? '#ffd32a' : '#ff3838';
+
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = (isHeavy ? 4 : 2.5) + Math.random() * (isHeavy ? 9 : 6);
+            particles.push(new Particle(
+                x, y,
+                Math.cos(angle) * speed,
+                Math.sin(angle) * speed,
+                Math.random() > 0.3 ? color : '#ffffff',
+                (isHeavy ? 4 : 2.5) + Math.random() * 2,
+                18 + Math.random() * 12
+            ));
+        }
+
+        // 鋭い斬撃スラッシュ線
+        const slashAngle = (Math.random() - 0.5) * 0.8;
+        slashes.push(new SlashEffect(x, y, slashAngle, isHeavy ? 100 : 65, color, isHeavy));
+
+        // 画面揺れ発動
+        screenShakeTimer = isHeavy ? 16 : 8;
+        screenShakeIntensity = isHeavy ? 9 : 4.5;
+    }
+}
+
 // オンライン用変数
 let socket = null;
 let isOnlineMode = false;
@@ -52,7 +180,6 @@ const SERVER_URL = window.location.origin;
 
 const keys = { a: false, d: false, w: false, s: false, f: false };
 
-// PCキーボード操作
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     if (key in keys) keys[key] = true;
@@ -62,7 +189,6 @@ window.addEventListener('keyup', (e) => {
     if (key in keys) keys[key] = false;
 });
 
-// スマホタッチ操作対応
 const touchBinds = [
     { btnId: 'btn-left', key: 'a' },
     { btnId: 'btn-right', key: 'd' },
@@ -109,7 +235,7 @@ class Character {
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = false;
         
-        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'flinch', 'break', 'hit'
+        this.state = 'idle'; 
         this.isAirAttack = false;
         this.isHeavyAttack = false;
         this.chargeTimer = 0;
@@ -150,7 +276,6 @@ class Character {
             this.vy += GRAVITY;
         }
 
-        // 被弾硬直
         if (this.state === 'flinch') {
             this.flinchTimer--;
             this.vx *= 0.85;
@@ -160,7 +285,6 @@ class Character {
             }
         }
 
-        // ガードブレイク硬直
         if (this.state === 'break') {
             this.breakTimer--;
             this.vx = 0;
@@ -170,7 +294,6 @@ class Character {
             }
         }
 
-        // 攻撃突進処理
         if (this.state === 'attack') {
             this.attackTimer++;
 
@@ -180,7 +303,6 @@ class Character {
                     this.vy = 5.0;
                 }
             } else if (this.isHeavyAttack) {
-                // 溜め攻撃の超高速突進
                 if (this.attackTimer < 12) {
                     this.vx = this.direction * 8.5;
                 } else {
@@ -208,7 +330,6 @@ class Character {
             this.attackCooldown--;
         }
 
-        // 入力処理
         if (this.state !== 'hit' && this.state !== 'flinch' && this.state !== 'break' && !roundOver) {
             if (isOnlineMode) {
                 if ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) {
@@ -228,7 +349,6 @@ class Character {
         this.x += this.vx;
         this.y += this.vy;
 
-        // 地面判定
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
@@ -238,12 +358,10 @@ class Character {
             this.isGrounded = false;
         }
 
-        // 画面端制限
         const margin = 12;
         if (this.x < margin) this.x = margin;
         if (this.x + this.width > canvas.width - margin) this.x = canvas.width - this.width - margin;
 
-        // 向き合わせ
         if (this.state !== 'attack' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
         }
@@ -252,13 +370,11 @@ class Character {
     updatePlayer() {
         this.vx = 0;
 
-        // 溜め状態の継続判定（地上でFキー長押し中）
         if (this.state === 'charge') {
             if (keys.f) {
                 this.chargeTimer++;
-                return; // 溜め中は移動不可
+                return;
             } else {
-                // ボタンを離した瞬間に発動
                 if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
                     this.state = 'attack';
                     this.isHeavyAttack = true;
@@ -277,7 +393,6 @@ class Character {
             }
         }
 
-        // ガード
         if (keys.s && this.isGrounded && this.state !== 'attack' && this.state !== 'charge') {
             this.state = 'guard';
             this.guardActive = true;
@@ -287,7 +402,6 @@ class Character {
             if (this.state === 'guard') this.state = 'idle';
         }
 
-        // 攻撃キー押下
         if (keys.f && this.attackCooldown === 0 && this.state !== 'attack') {
             if (this.isGrounded) {
                 this.state = 'charge';
@@ -302,7 +416,6 @@ class Character {
             }
         }
 
-        // 移動
         if (this.state !== 'attack' && this.state !== 'charge') {
             if (keys.a) {
                 this.vx = -4.5;
@@ -314,7 +427,6 @@ class Character {
                 if (this.isGrounded && this.state === 'walk') this.state = 'idle';
             }
 
-            // ジャンプ
             if (keys.w && this.isGrounded) {
                 this.vy = -12.5;
                 this.isGrounded = false;
@@ -463,7 +575,7 @@ class Character {
 
         const dir = this.direction;
 
-        // ★発光エフェクト（溜め中）
+        // 溜め発光
         if (this.state === 'charge') {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
@@ -517,27 +629,20 @@ class Character {
             swordEnd = { x: rightHand.x - dir * 25, y: rightHand.y - 15 };
         }
         else if (this.state === 'charge') {
-            // ★改良：突き出した剣を後ろ深くに引き絞る力強い溜めポーズ
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
-            // 溜めの進行度に応じて手元をさらに後ろへ引く
             const pullBack = Math.min(12, this.chargeTimer * 0.3);
-            // フルチャージ時は力みで小刻みに震える
             const shake = isFull ? (Math.random() - 0.5) * 2.5 : 0;
 
             headY = cy - 66 + shake;
             chestY = cy - 48 + shake;
             hipY = cy - 28;
 
-            // 後ろ足に重心を乗せて踏ん張る
             leftFoot = { x: cx - dir * 20, y: cy };
             rightFoot = { x: cx + dir * 16, y: cy };
 
-            // 剣を持つ手（rightHand）を体の後ろ側へ深く引き絞る
             rightHand = { x: cx - dir * (20 + pullBack) + shake, y: cy - 44 + shake };
-            // もう片方の手（leftHand）は前でバランスを取り間合いを測る
             leftHand = { x: cx + dir * 16, y: cy - 48 };
 
-            // 剣の切っ先は相手に向けたまま、手元だけが後ろに引かれている
             swordStart = { x: rightHand.x, y: rightHand.y };
             swordEnd = { x: rightHand.x + dir * 55, y: rightHand.y - 4 };
         }
@@ -614,19 +719,16 @@ class Character {
             swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         }
 
-        // 頭
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
         ctx.fill();
 
-        // 胴体
         ctx.beginPath();
         ctx.moveTo(cx, headY + 11);
         ctx.lineTo(cx, hipY);
         ctx.stroke();
 
-        // 足
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
         ctx.lineTo(leftFoot.x, leftFoot.y);
@@ -636,7 +738,6 @@ class Character {
         ctx.lineTo(rightFoot.x, rightFoot.y);
         ctx.stroke();
 
-        // 腕
         ctx.beginPath();
         ctx.moveTo(cx, chestY);
         ctx.lineTo(leftHand.x, leftHand.y);
@@ -646,7 +747,6 @@ class Character {
         ctx.lineTo(rightHand.x, rightHand.y);
         ctx.stroke();
 
-        // 剣
         if (this.state !== 'hit') {
             ctx.save();
             ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
@@ -656,7 +756,6 @@ class Character {
             ctx.lineTo(swordEnd.x, swordEnd.y);
             ctx.stroke();
 
-            // 鍔
             ctx.strokeStyle = '#ffd32a';
             ctx.lineWidth = 5;
             ctx.beginPath();
@@ -904,6 +1003,8 @@ function startRound() {
     for (let key in keys) keys[key] = false;
     p1.reset();
     p2.reset();
+    particles = [];
+    slashes = [];
     updateScoreUI();
 
     roundTimer = ROUND_TIME_LIMIT;
@@ -993,12 +1094,15 @@ function returnToTitle() {
     updateRankingUI();
 }
 
-function handleHit(attacker, defender, isP1Attacker) {
+// ヒット・ガード・ダメージ処理
+function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     const isFacing = (attacker.x < defender.x && defender.direction === -1) || (attacker.x > defender.x && defender.direction === 1);
 
     if (defender.guardActive && isFacing) {
+        // ガード時の火花エフェクト
+        triggerHitEffect(hitX, hitY, false, true);
+
         if (attacker.isHeavyAttack) {
-            // ガードブレイク
             defender.state = 'break';
             defender.breakTimer = 65;
             defender.vx = defender.direction * -15;
@@ -1008,8 +1112,10 @@ function handleHit(attacker, defender, isP1Attacker) {
             attacker.attackTimer = 22; 
         }
     } else {
+        // ★ ヒット時のサイバースパーク＆画面揺れ
+        triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
+
         if (attacker.isHeavyAttack) {
-            // 溜め攻撃直撃：即KO
             defender.hp = 0;
             defender.state = 'hit';
             defender.vx = 0;
@@ -1055,20 +1161,33 @@ function checkHits() {
     if (p1Attack && p2.state !== 'flinch' && p2.state !== 'hit') {
         const p2Body = { x: p2.x, y: p2.y, width: p2.width, height: p2.height };
         if (checkCollision(p1Attack, p2Body)) {
-            handleHit(p1, p2, true);
+            const hitX = p1.direction === 1 ? p2.x + 8 : p2.x + p2.width - 8;
+            const hitY = p1Attack.y + p1Attack.height / 2;
+            handleHit(p1, p2, true, hitX, hitY);
         }
     }
 
     if (p2Attack && p1.state !== 'flinch' && p1.state !== 'hit') {
         const p1Body = { x: p1.x, y: p1.y, width: p1.width, height: p1.height };
         if (checkCollision(p2Attack, p1Body)) {
-            handleHit(p2, p1, false);
+            const hitX = p2.direction === 1 ? p1.x + 8 : p1.x + p1.width - 8;
+            const hitY = p2Attack.y + p2Attack.height / 2;
+            handleHit(p2, p1, false, hitX, hitY);
         }
     }
 }
 
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ★ 画面揺れ（スクリーンシェイク）の適用
+    ctx.save();
+    if (screenShakeTimer > 0) {
+        const shakeX = (Math.random() - 0.5) * screenShakeIntensity;
+        const shakeY = (Math.random() - 0.5) * screenShakeIntensity;
+        ctx.translate(shakeX, shakeY);
+        screenShakeTimer--;
+    }
 
     // 地面描画
     const groundGrad = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
@@ -1094,6 +1213,22 @@ function gameLoop() {
 
     p1.draw();
     p2.draw();
+
+    // ★ スラッシュ斬撃エフェクトの更新＆描画
+    for (let i = slashes.length - 1; i >= 0; i--) {
+        slashes[i].update();
+        slashes[i].draw();
+        if (slashes[i].life <= 0) slashes.splice(i, 1);
+    }
+
+    // ★ パーティクル（火花・光の破片）の更新＆描画
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+
+    ctx.restore(); // スクリーンシェイク解除
 
     requestAnimationFrame(gameLoop);
 }
