@@ -131,10 +131,10 @@ html, body {
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
 }
 
-/* ★タッチコントローラー（黒枠の中心に配置） */
+/* ★タッチコントローラー（下の黒枠中央へさらに引き上げ：14vh） */
 #touch-controls {
     position: absolute;
-    bottom: calc(10vh + env(safe-area-inset-bottom));
+    bottom: calc(14vh + env(safe-area-inset-bottom));
     left: 0;
     width: 100%;
     display: flex;
