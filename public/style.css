@@ -1,219 +1,147 @@
-/* 全体でiOSの選択や長押しジェスチャーを禁止 */
 * {
-    -webkit-touch-callout: none; /* 長押しメニュー禁止 */
-    -webkit-user-select: none;   /* コピー・選択禁止 */
-    -khtml-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
     user-select: none;
-    /* タップ時の青いハイライトを削除 */
-    -webkit-tap-highlight-color: rgba(0, 0, 0, 0); 
+    -webkit-tap-highlight-color: transparent;
     box-sizing: border-box;
 }
 
-body {
+html, body {
     margin: 0;
-    padding: 10px;
-    background-color: #1a1a1a;
-    color: #ffffff;
-    font-family: 'Helvetica Neue', Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    overflow: hidden;
-    touch-action: none; /* ダブルタップズームや画面スクロールを防ぐ */
-}
-
-/* ゲームコンテナのレスポンシブ対応 */
-#game-container {
-    position: relative;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    width: 100%;
-    max-width: 800px;
-    aspect-ratio: 2 / 1; /* 800x400の比率を固定 */
-}
-
-canvas {
-    background-color: #2c3e50;
-    display: block;
-    border: 4px solid #34495e;
-    border-radius: 4px;
+    padding: 0;
     width: 100%;
     height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    position: fixed;
+    touch-action: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* UI表示 */
-#ui-layer {
-    position: absolute;
-    top: 15px;
-    left: 0;
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 40px;
-    box-sizing: border-box;
-    pointer-events: none;
-    font-weight: bold;
-    font-size: 24px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-    z-index: 10;
-    display: none; 
+#game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
 }
 
-/* スマホだと文字サイズを少し縮小 */
-@media (max-width: 600px) {
-    #ui-layer {
-        font-size: 16px;
-        padding: 0 15px;
-    }
-    #timer {
-        font-size: 22px;
-    }
-}
-
-.score {
-    display: flex;
-    gap: 8px;
-    margin-top: 5px;
-}
-
-.dot {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background-color: #444;
-    border: 2px solid #fff;
-}
-
-.dot.active.p1 { background-color: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
-.dot.active.p2 { background-color: #3498db; box-shadow: 0 0 10px #3498db; }
-
-#timer-container {
-    text-align: center;
-}
-#timer {
-    font-size: 32px;
-    color: #f1c40f;
-}
-#streak-counter {
-    font-size: 14px;
-    color: #2ecc71;
-    margin-top: 2px;
-}
-
-/* 画面オーバーレイ */
-.screen {
+/* 全画面Canvas */
+#gameCanvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
+    display: block;
+    background-image: url('background.jpg');
+    background-size: cover;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+}
+
+/* UIレイヤー */
+#ui-layer {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0 16px;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+}
+
+.player-info {
     display: flex;
     flex-direction: column;
+    width: 120px;
+}
+
+.name-score {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    box-sizing: border-box;
-    z-index: 20;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 14px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.8);
 }
 
-/* タイトル画面 */
-#title-screen {
-    background: radial-gradient(circle, #2c3e50 0%, #1a1a1a 100%);
-    border: 4px solid #34495e;
-    border-radius: 4px;
-}
-
-#title-screen h1 {
-    font-size: min(5.5vw, 40px);
-    margin: 0 0 10px 0;
-    text-shadow: 3px 3px 5px rgba(0,0,0,0.8);
-    letter-spacing: 2px;
-    color: #f1c40f;
-}
-
-.subtitle {
-    font-size: min(2.8vw, 15px);
-    color: #bdc3c7;
-    margin-bottom: 20px;
-}
-
-.menu-btn {
-    width: min(70vw, 250px);
-    padding: 10px 0;
-    margin: 6px;
-    font-size: 16px;
-    font-weight: bold;
-    color: #fff;
-    background-color: #e74c3c;
-    border: none;
-    border-radius: 25px;
-    cursor: pointer;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    transition: all 0.2s;
-}
-
-.menu-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 7px 20px rgba(231, 76, 60, 0.4);
-}
-
-.menu-btn.disabled {
-    background-color: #7f8c8d;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-/* ランキングボード */
-#ranking-board {
-    margin-top: 15px;
-    background: rgba(0,0,0,0.4);
-    padding: 10px 15px;
-    border-radius: 10px;
-    width: min(80vw, 260px);
-    font-size: 13px;
-    border: 1px solid #444;
-}
-#ranking-board h3 {
-    margin: 0 0 6px 0;
-    text-align: center;
-    color: #2ecc71;
-}
-.ranking-row {
+.score {
     display: flex;
-    justify-content: space-between;
-    margin: 4px 0;
-    font-family: monospace;
+    gap: 4px;
 }
 
-/* ゲーム中オーバーレイ */
-#game-overlay {
-    background: rgba(0,0,0,0.7);
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s;
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1.5px solid #fff;
 }
-#game-overlay.show {
-    opacity: 1;
-}
-#overlay-text {
-    font-size: min(8vw, 44px);
-    color: #fff;
-    font-weight: bold;
-    text-align: center;
-    white-space: pre-line;
-}
+.dot.active.p1 { background-color: #ff5252; box-shadow: 0 0 8px #ff5252; }
+.dot.active.p2 { background-color: #40c4ff; box-shadow: 0 0 8px #40c4ff; }
 
-/* スマホ用タッチコントローラー */
-#touch-controls {
+/* 5分割HPゲージ */
+.hp-bar {
     display: flex;
-    justify-content: space-between;
+    gap: 3px;
+    margin-top: 5px;
     width: 100%;
-    max-width: 800px;
-    margin-top: 15px;
-    padding: 0 10px;
-    box-sizing: border-box;
+    height: 9px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 1.5px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.hp-block {
+    flex: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.p1-info .hp-block.active {
+    background: linear-gradient(to bottom, #ff7675, #d63031);
+    box-shadow: 0 0 4px #ff7675;
+}
+.p2-info .hp-block.active {
+    background: linear-gradient(to bottom, #74b9ff, #0984e3);
+    box-shadow: 0 0 4px #74b9ff;
+}
+
+#timer-container {
+    text-align: center;
+}
+#timer {
+    font-size: 28px;
+    font-weight: 900;
+    color: #ffd32a;
+    line-height: 1;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+#streak-counter {
+    font-size: 11px;
+    font-weight: bold;
+    color: #0be881;
+    margin-top: 3px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+/* コントローラー */
+#touch-controls {
+    position: absolute;
+    bottom: calc(15px + env(safe-area-inset-bottom));
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 16px;
+    z-index: 10;
 }
 
 .control-group {
@@ -222,116 +150,178 @@ canvas {
 }
 
 .touch-btn {
-    width: 54px;
-    height: 54px;
-    background-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.15);
     border: 2px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-radius: 50%;
-    color: #fff;
-    font-size: 20px;
+    color: #ffffff;
+    font-size: 24px;
     font-weight: bold;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     outline: none;
-    touch-action: none; 
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: transform 0.08s, background-color 0.08s;
 }
 
 .touch-btn:active {
-    background-color: rgba(255, 255, 255, 0.4);
-    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.45);
+    transform: scale(0.92);
+}
+
+.left-group .touch-btn {
+    width: 64px;
+    height: 64px;
 }
 
 .action-btn {
     width: 60px;
     height: 60px;
     font-size: 11px;
-    border-radius: 12px;
+    font-weight: 800;
+    border-radius: 18px;
 }
-.action-btn.red { background-color: rgba(231, 76, 60, 0.6); border-color: #e74c3c; }
-.action-btn.yellow { background-color: rgba(241, 196, 15, 0.6); border-color: #f1c40f; }
-.action-btn.blue { background-color: rgba(52, 152, 219, 0.6); border-color: #3498db; }
 
-.action-btn.red:active { background-color: #e74c3c; }
-.action-btn.yellow:active { background-color: #f1c40f; }
-.action-btn.blue:active { background-color: #3498db; }
+.action-btn.red {
+    background: rgba(255, 82, 82, 0.5);
+    border-color: rgba(255, 82, 82, 0.9);
+}
+.action-btn.yellow {
+    background: rgba(255, 211, 42, 0.5);
+    border-color: rgba(255, 211, 42, 0.9);
+    color: #fff;
+}
+.action-btn.blue {
+    background: rgba(64, 196, 255, 0.5);
+    border-color: rgba(64, 196, 255, 0.9);
+}
 
-#controls-info {
-    margin-top: 15px;
-    color: #ccc;
+.action-btn.red:active { background: rgba(255, 82, 82, 0.9); }
+.action-btn.yellow:active { background: rgba(255, 211, 42, 0.9); }
+.action-btn.blue:active { background: rgba(64, 196, 255, 0.9); }
+
+/* 全画面オーバーレイ */
+.screen {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    padding: 20px;
+    background: rgba(15, 20, 25, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.game-title {
+    font-size: clamp(22px, 6.5vw, 34px);
+    text-align: center;
+    color: #ffd32a;
+    margin: 0 0 6px 0;
+    line-height: 1.25;
+    text-shadow: 0 4px 15px rgba(255, 211, 42, 0.3);
+}
+
+.subtitle {
+    font-size: 12px;
+    color: #d2dae2;
+    margin-bottom: 22px;
+    text-align: center;
+}
+
+.menu-btn {
+    width: min(80vw, 240px);
+    padding: 12px 0;
+    margin: 6px 0;
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff;
+    background: linear-gradient(135deg, #ff5252, #eb2f06);
+    border: none;
+    border-radius: 28px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(235, 47, 6, 0.4);
+    transition: transform 0.15s;
+}
+
+.menu-btn:active {
+    transform: scale(0.95);
+}
+
+#ranking-board {
+    margin-top: 16px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 10px 16px;
+    border-radius: 12px;
+    width: min(85vw, 260px);
+    font-size: 12px;
+}
+#ranking-board h3 {
+    margin: 0 0 6px 0;
+    text-align: center;
+    color: #0be881;
+    font-size: 13px;
+}
+.ranking-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 3px 0;
+    font-family: ui-monospace, monospace;
+}
+
+#online-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(80vw, 260px);
+}
+#online-form input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    text-align: center;
+    font-size: 15px;
+}
+.form-buttons {
+    display: flex;
+    gap: 8px;
+}
+.form-buttons .menu-btn {
+    flex: 1;
+    width: auto;
+}
+#online-status {
+    margin-top: 12px;
+    color: #ffd32a;
     font-size: 12px;
     text-align: center;
-    line-height: 1.5;
 }
 
-/* ========================================================
-   ★ 追加：スマホの横画面など「画面の高さが低い」環境用の調整
-   ======================================================== */
-@media (max-height: 500px) {
-    body {
-        padding: 5px;
-    }
-
-    /* 横幅基準ではなく、画面の高さに合わせてゲーム画面全体を縮小 */
-    #game-container {
-        height: 72vh; /* 画面全体の高さの72%に収める */
-        width: auto;
-        aspect-ratio: 2 / 1;
-    }
-
-    /* 各種タイトルの余白と文字サイズを極力小さくする */
-    #title-screen h1 {
-        font-size: 26px;
-        margin: 0 0 2px 0;
-    }
-
-    .subtitle {
-        font-size: 11px;
-        margin-bottom: 8px;
-    }
-
-    .menu-btn {
-        width: 180px;
-        padding: 6px 0;
-        margin: 3px;
-        font-size: 13px;
-    }
-
-    /* ランキングボードもかなりコンパクトに */
-    #ranking-board {
-        margin-top: 5px;
-        padding: 5px 12px;
-        width: 220px;
-        font-size: 11px;
-    }
-
-    #ranking-board h3 {
-        margin: 0 0 2px 0;
-    }
-
-    .ranking-row {
-        margin: 1px 0;
-    }
-
-    /* バーチャルパッドのボタンサイズも一回り小さくして隙間に収める */
-    #touch-controls {
-        margin-top: 5px;
-    }
-
-    .touch-btn {
-        width: 44px;
-        height: 44px;
-        font-size: 16px;
-    }
-
-    .action-btn {
-        width: 48px;
-        height: 48px;
-        font-size: 9px;
-    }
-
-    /* 不要な解説テキストを非表示にして縦スペースを確保 */
-    #controls-info {
-        display: none;
-    }
+#game-overlay {
+    background: rgba(0, 0, 0, 0.65);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+#game-overlay.show {
+    opacity: 1;
+}
+#overlay-text {
+    font-size: clamp(26px, 7vw, 40px);
+    color: #fff;
+    font-weight: 900;
+    text-align: center;
+    white-space: pre-line;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.9);
 }
