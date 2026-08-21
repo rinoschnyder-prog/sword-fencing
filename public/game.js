@@ -8,11 +8,31 @@ const onlineScreen = document.getElementById('online-screen');
 const gameOverlay = document.getElementById('game-overlay');
 const overlayTextEl = document.getElementById('overlay-text');
 
-// ゲーム設定
-const GRAVITY = 0.6;
-const GROUND_Y = 320;
+// 全画面動的リサイズ設定
+let GROUND_Y = 0;
+const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 60; 
-const MAX_SCORE = 2; // 2本先取
+const MAX_SCORE = 2;
+const MAX_HP = 5; // 通常5回被弾でKO
+const MAX_CHARGE_FRAMES = 45; // 溜め完了までの時間（約0.75秒）
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    GROUND_Y = Math.floor(canvas.height * 0.68);
+    
+    if (typeof p1 !== 'undefined' && typeof p2 !== 'undefined') {
+        p1.startX = canvas.width * 0.2;
+        p2.startX = canvas.width * 0.8 - p2.width;
+        if (!gameActive) {
+            p1.x = p1.startX;
+            p1.y = GROUND_Y - p1.height;
+            p2.x = p2.startX;
+            p2.y = GROUND_Y - p2.height;
+        }
+    }
+}
+window.addEventListener('resize', resizeCanvas);
 
 // ゲーム状態
 let p1Score = 0;
@@ -22,41 +42,27 @@ let roundTimer = ROUND_TIME_LIMIT;
 let timerInterval = null;
 let gameActive = false;
 let roundOver = false;
-
-// 連勝システム
 let winStreak = 0;
 
 // オンライン用変数
 let socket = null;
 let isOnlineMode = false;
-let myPlayerNumber = 0; // 1: PLAYER 1, 2: PLAYER 2, 0: ローカル
-const SERVER_URL = window.location.origin; // 自動的にデプロイ先のURLに接続します
+let myPlayerNumber = 0;
+const SERVER_URL = window.location.origin;
 
-const keys = {
-    a: false,
-    d: false,
-    w: false,
-    s: false,
-    f: false
-};
+const keys = { a: false, d: false, w: false, s: false, f: false };
 
-// PCキーボード監視
+// PCキーボード操作
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     if (key in keys) keys[key] = true;
 });
-
 window.addEventListener('keyup', (e) => {
     const key = e.key.toLowerCase();
     if (key in keys) keys[key] = false;
 });
 
 // スマホタッチ操作対応
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-if (isTouchDevice) {
-    document.getElementById('touch-controls').style.display = 'flex';
-}
-
 const touchBinds = [
     { btnId: 'btn-left', key: 'a' },
     { btnId: 'btn-right', key: 'd' },
@@ -87,69 +93,114 @@ touchBinds.forEach(bind => {
 
 // キャラクター クラス
 class Character {
-    constructor(x, y, color, isCPU) {
-        this.startX = x;
-        this.startY = y;
-        this.x = x;
-        this.y = y;
-        this.vx = 0;
-        this.vy = 0;
-        this.width = 40;
-        this.height = 80;
+    constructor(color, isCPU) {
+        this.width = 44;
+        this.height = 88;
         this.color = color;
         this.isCPU = isCPU;
+        this.startX = 0;
+        this.startY = 0;
+        this.x = 0;
+        this.y = 0;
+        this.vx = 0;
+        this.vy = 0;
 
+        this.hp = MAX_HP;
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = false;
         
-        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'attack', 'hit'
+        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'flinch', 'break', 'hit'
+        this.isAirAttack = false;
+        this.isHeavyAttack = false;
+        this.chargeTimer = 0;
         this.attackTimer = 0;
         this.attackCooldown = 0;
+        this.flinchTimer = 0;
+        this.breakTimer = 0;
         this.guardActive = false;
-
         this.animFrame = 0;
 
-        // CPU用パラメータ
         this.cpuActionTimer = 0;
         this.cpuDecision = 'idle';
     }
 
     reset() {
         this.x = this.startX;
-        this.y = this.startY;
+        this.y = GROUND_Y - this.height;
         this.vx = 0;
         this.vy = 0;
+        this.hp = MAX_HP;
         this.state = 'idle';
+        this.isAirAttack = false;
+        this.isHeavyAttack = false;
+        this.chargeTimer = 0;
         this.attackTimer = 0;
         this.attackCooldown = 0;
+        this.flinchTimer = 0;
+        this.breakTimer = 0;
         this.guardActive = false;
-        this.isGrounded = false;
+        this.isGrounded = true;
         this.animFrame = 0;
     }
 
     update(opponent) {
         this.animFrame++;
 
-        // 重力
         if (!this.isGrounded) {
             this.vy += GRAVITY;
         }
 
-        // 攻撃の硬直・判定時間処理
-        if (this.state === 'attack') {
-            this.attackTimer++;
-            
-            // 突き時の短い慣性スライド
-            if (this.attackTimer < 8) {
-                this.vx = this.direction * 5;
-            } else {
+        // 被弾硬直
+        if (this.state === 'flinch') {
+            this.flinchTimer--;
+            this.vx *= 0.85;
+            if (this.flinchTimer <= 0) {
+                this.state = 'idle';
                 this.vx = 0;
             }
+        }
 
-            if (this.attackTimer > 22) { 
+        // ガードブレイク硬直
+        if (this.state === 'break') {
+            this.breakTimer--;
+            this.vx = 0;
+            this.guardActive = false;
+            if (this.breakTimer <= 0) {
                 this.state = 'idle';
+            }
+        }
+
+        // 攻撃突進処理
+        if (this.state === 'attack') {
+            this.attackTimer++;
+
+            if (this.isAirAttack) {
+                if (this.attackTimer < 12) {
+                    this.vx = this.direction * 5.5;
+                    this.vy = 5.0;
+                }
+            } else if (this.isHeavyAttack) {
+                // 溜め攻撃の超高速突進
+                if (this.attackTimer < 12) {
+                    this.vx = this.direction * 8.5;
+                } else {
+                    this.vx = 0;
+                }
+            } else {
+                if (this.attackTimer < 8) {
+                    this.vx = this.direction * 5;
+                } else {
+                    this.vx = 0;
+                }
+            }
+
+            const limit = this.isHeavyAttack ? 28 : 22;
+            if (this.attackTimer > limit) { 
+                this.state = 'idle';
+                this.isAirAttack = false;
+                this.isHeavyAttack = false;
                 this.attackTimer = 0;
-                this.attackCooldown = 15; 
+                this.attackCooldown = 14; 
             }
         }
 
@@ -157,8 +208,8 @@ class Character {
             this.attackCooldown--;
         }
 
-        // 入力の更新
-        if (this.state !== 'hit' && !roundOver) {
+        // 入力処理
+        if (this.state !== 'hit' && this.state !== 'flinch' && this.state !== 'break' && !roundOver) {
             if (isOnlineMode) {
                 if ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) {
                     this.updatePlayer(); 
@@ -170,31 +221,30 @@ class Character {
                     this.updatePlayer();
                 }
             }
-        } else {
+        } else if (this.state === 'hit' || this.state === 'break') {
             this.vx = 0;
         }
 
         this.x += this.vx;
         this.y += this.vy;
 
-        // 地面衝突
+        // 地面判定
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
             this.isGrounded = true;
-            if (this.state === 'jump') {
-                this.state = 'idle';
-            }
+            if (this.state === 'jump') this.state = 'idle';
         } else {
             this.isGrounded = false;
         }
 
         // 画面端制限
-        if (this.x < 10) this.x = 10;
-        if (this.x + this.width > canvas.width - 10) this.x = canvas.width - this.width - 10;
+        const margin = 12;
+        if (this.x < margin) this.x = margin;
+        if (this.x + this.width > canvas.width - margin) this.x = canvas.width - this.width - margin;
 
-        // 向きの固定
-        if (this.state !== 'attack' && this.state !== 'hit' && !roundOver) {
+        // 向き合わせ
+        if (this.state !== 'attack' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
         }
     }
@@ -202,8 +252,33 @@ class Character {
     updatePlayer() {
         this.vx = 0;
 
-        // ガード（Sキー）
-        if (keys.s && this.isGrounded && this.state !== 'attack') {
+        // 溜め状態の継続判定（地上でFキー長押し中）
+        if (this.state === 'charge') {
+            if (keys.f) {
+                this.chargeTimer++;
+                return; // 溜め中は移動不可
+            } else {
+                // ボタンを離した瞬間に発動
+                if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
+                    this.state = 'attack';
+                    this.isHeavyAttack = true;
+                    this.isAirAttack = false;
+                    this.attackTimer = 0;
+                    this.chargeTimer = 0;
+                    return;
+                } else {
+                    this.state = 'attack';
+                    this.isHeavyAttack = false;
+                    this.isAirAttack = false;
+                    this.attackTimer = 0;
+                    this.chargeTimer = 0;
+                    return;
+                }
+            }
+        }
+
+        // ガード
+        if (keys.s && this.isGrounded && this.state !== 'attack' && this.state !== 'charge') {
             this.state = 'guard';
             this.guardActive = true;
             return;
@@ -212,15 +287,23 @@ class Character {
             if (this.state === 'guard') this.state = 'idle';
         }
 
-        // 攻撃（Fキー）
+        // 攻撃キー押下
         if (keys.f && this.attackCooldown === 0 && this.state !== 'attack') {
-            this.state = 'attack';
-            this.attackTimer = 0;
-            return;
+            if (this.isGrounded) {
+                this.state = 'charge';
+                this.chargeTimer = 0;
+                return;
+            } else {
+                this.state = 'attack';
+                this.isAirAttack = true;
+                this.isHeavyAttack = false;
+                this.attackTimer = 0;
+                return;
+            }
         }
 
         // 移動
-        if (this.state !== 'attack') {
+        if (this.state !== 'attack' && this.state !== 'charge') {
             if (keys.a) {
                 this.vx = -4.5;
                 this.state = this.isGrounded ? 'walk' : this.state;
@@ -228,14 +311,12 @@ class Character {
                 this.vx = 4.5;
                 this.state = this.isGrounded ? 'walk' : this.state;
             } else {
-                if (this.isGrounded && this.state === 'walk') {
-                    this.state = 'idle';
-                }
+                if (this.isGrounded && this.state === 'walk') this.state = 'idle';
             }
 
-            // ジャンプ（Wキー）
+            // ジャンプ
             if (keys.w && this.isGrounded) {
-                this.vy = -12;
+                this.vy = -12.5;
                 this.isGrounded = false;
                 this.state = 'jump';
             }
@@ -246,35 +327,53 @@ class Character {
         this.vx = 0;
         this.guardActive = false;
         if (this.state === 'guard') this.state = 'idle';
+
+        if (this.state === 'charge') {
+            this.chargeTimer++;
+            if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
+                this.state = 'attack';
+                this.isHeavyAttack = true;
+                this.isAirAttack = false;
+                this.attackTimer = 0;
+                this.chargeTimer = 0;
+            }
+            return;
+        }
+
         if (this.state === 'attack') return;
 
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
         this.cpuActionTimer--;
         
         if (this.cpuActionTimer <= 0) {
-            const speedFactor = Math.max(5, 20 - winStreak);
+            const speedFactor = Math.max(4, 18 - winStreak);
             this.cpuActionTimer = 8 + Math.random() * speedFactor;
             
             const rand = Math.random();
 
-            if (distance < 135) {
+            if (distance < 130) {
                 const guardChance = Math.min(0.85, 0.5 + winStreak * 0.05);
 
                 if (opponent.state === 'attack' && rand < guardChance) {
                     this.cpuDecision = 'guard';
-                } else if (rand < 0.45) {
+                } else if (opponent.state === 'charge' && rand < 0.6) {
+                    this.cpuDecision = (rand < 0.3) ? 'attack' : 'backstep';
+                } else if (rand < 0.35) {
                     this.cpuDecision = 'attack';
-                } else if (rand < 0.75) {
+                } else if (rand < 0.50 && this.isGrounded) {
+                    this.cpuDecision = 'charge';
+                } else if (rand < 0.70 && this.isGrounded) {
+                    this.vy = -12;
+                    this.isGrounded = false;
+                    this.state = 'jump';
+                    this.cpuDecision = 'air_attack';
+                } else if (rand < 0.85) {
                     this.cpuDecision = 'backstep';
                 } else {
                     this.cpuDecision = 'idle';
                 }
             } else {
-                if (rand < 0.8) {
-                    this.cpuDecision = 'approach';
-                } else {
-                    this.cpuDecision = 'idle';
-                }
+                this.cpuDecision = (rand < 0.8) ? 'approach' : 'idle';
             }
         }
 
@@ -287,8 +386,20 @@ class Character {
         } else if (this.cpuDecision === 'guard' && this.isGrounded) {
             this.state = 'guard';
             this.guardActive = true;
+        } else if (this.cpuDecision === 'charge' && this.isGrounded && this.attackCooldown === 0) {
+            this.state = 'charge';
+            this.chargeTimer = 0;
+            this.cpuDecision = 'idle';
         } else if (this.cpuDecision === 'attack' && this.attackCooldown === 0) {
             this.state = 'attack';
+            this.isAirAttack = false;
+            this.isHeavyAttack = false;
+            this.attackTimer = 0;
+            this.cpuDecision = 'idle';
+        } else if (this.cpuDecision === 'air_attack' && !this.isGrounded && this.attackCooldown === 0) {
+            this.state = 'attack';
+            this.isAirAttack = true;
+            this.isHeavyAttack = false;
             this.attackTimer = 0;
             this.cpuDecision = 'idle';
         }
@@ -297,12 +408,26 @@ class Character {
     getAttackBox() {
         if (this.state !== 'attack') return null;
 
-        if (this.attackTimer >= 6 && this.attackTimer <= 13) {
-            const boxWidth = 70;
-            const boxHeight = 12;
-            const x = (this.direction === 1) ? (this.x + this.width) : (this.x - boxWidth);
-            const y = this.y + 35; 
-            return { x, y, width: boxWidth, height: boxHeight };
+        if (this.attackTimer >= 6 && this.attackTimer <= 14) {
+            if (this.isAirAttack) {
+                const boxWidth = 65;
+                const boxHeight = 45;
+                const x = (this.direction === 1) ? (this.x + this.width * 0.5) : (this.x - boxWidth + this.width * 0.5);
+                const y = this.y + 40; 
+                return { x, y, width: boxWidth, height: boxHeight };
+            } else if (this.isHeavyAttack) {
+                const boxWidth = 85;
+                const boxHeight = 18;
+                const x = (this.direction === 1) ? (this.x + this.width) : (this.x - boxWidth);
+                const y = this.y + 36; 
+                return { x, y, width: boxWidth, height: boxHeight };
+            } else {
+                const boxWidth = 70;
+                const boxHeight = 14;
+                const x = (this.direction === 1) ? (this.x + this.width) : (this.x - boxWidth);
+                const y = this.y + 38; 
+                return { x, y, width: boxWidth, height: boxHeight };
+            }
         }
         return null;
     }
@@ -319,87 +444,166 @@ class Character {
         ctx.lineJoin = 'round';
 
         // 影
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
         ctx.beginPath();
-        ctx.ellipse(cx, GROUND_Y, 25, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, GROUND_Y, 24, 6, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        let headY = cy - 70;
-        let chestY = cy - 50;
-        let hipY = cy - 30;
+        let headY = cy - 74;
+        let chestY = cy - 54;
+        let hipY = cy - 32;
 
-        let leftFoot = { x: cx - 12, y: cy };
-        let rightFoot = { x: cx + 12, y: cy };
-        let leftHand = { x: cx - 12, y: cy - 45 };
-        let rightHand = { x: cx + 12, y: cy - 45 };
+        let leftFoot = { x: cx - 13, y: cy };
+        let rightFoot = { x: cx + 13, y: cy };
+        let leftHand = { x: cx - 13, y: cy - 48 };
+        let rightHand = { x: cx + 13, y: cy - 48 };
 
         let swordStart = { x: 0, y: 0 };
         let swordEnd = { x: 0, y: 0 };
 
         const dir = this.direction;
 
+        // ★発光エフェクト（溜め中）
+        if (this.state === 'charge') {
+            const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
+            const flashSpeed = isFull ? 0.4 : 0.18;
+            const alpha = 0.4 + Math.sin(this.animFrame * flashSpeed) * 0.4;
+            
+            ctx.shadowBlur = isFull ? 28 : 14;
+            ctx.shadowColor = isFull ? '#ffd32a' : '#ffffff';
+
+            if (isFull) {
+                ctx.save();
+                ctx.strokeStyle = `rgba(255, 211, 42, ${alpha})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(cx, cy - 40, 44 + Math.sin(this.animFrame * 0.4) * 6, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
         if (this.state === 'hit') {
             headY = cy - 30;
             chestY = cy - 20;
             hipY = cy - 10;
-            leftFoot = { x: cx - 20, y: cy };
-            rightFoot = { x: cx + 15, y: cy };
-            leftHand = { x: cx - 10, y: cy - 5 };
-            rightHand = { x: cx + 10, y: cy - 5 };
+            leftFoot = { x: cx - 22, y: cy };
+            rightFoot = { x: cx + 16, y: cy };
+            leftHand = { x: cx - 12, y: cy - 6 };
+            rightHand = { x: cx + 12, y: cy - 6 };
         } 
-        else if (this.state === 'attack') {
-            const progress = this.attackTimer; 
-            const reach = (progress >= 6 && progress <= 13) ? 35 : 15; 
-
-            headY = cy - 65;
-            chestY = cy - 48;
-            hipY = cy - 28;
-
-            leftFoot = { x: cx - dir * 18, y: cy };
-            rightFoot = { x: cx + dir * 25, y: cy }; 
-
-            rightHand = { x: cx + dir * (30 + reach), y: cy - 40 };
-            leftHand = { x: cx - dir * 18, y: cy - 55 }; 
+        else if (this.state === 'break') {
+            headY = cy - 45;
+            chestY = cy - 32;
+            hipY = cy - 18;
+            leftFoot = { x: cx - dir * 16, y: cy };
+            rightFoot = { x: cx + dir * 6, y: cy };
+            leftHand = { x: cx - dir * 8, y: cy - 20 };
+            rightHand = { x: cx + dir * 14, y: cy - 20 };
 
             swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 60, y: rightHand.y };
+            swordEnd = { x: rightHand.x + dir * 10, y: cy };
+        }
+        else if (this.state === 'flinch') {
+            headY = cy - 70;
+            chestY = cy - 50;
+            hipY = cy - 30;
+            leftFoot = { x: cx - dir * 18, y: cy };
+            rightFoot = { x: cx + dir * 6, y: cy };
+            leftHand = { x: cx - dir * 18, y: cy - 60 };
+            rightHand = { x: cx - dir * 8, y: cy - 55 };
+
+            swordStart = { x: rightHand.x, y: rightHand.y };
+            swordEnd = { x: rightHand.x - dir * 25, y: rightHand.y - 15 };
+        }
+        else if (this.state === 'charge') {
+            // ★改良：突き出した剣を後ろ深くに引き絞る力強い溜めポーズ
+            const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
+            // 溜めの進行度に応じて手元をさらに後ろへ引く
+            const pullBack = Math.min(12, this.chargeTimer * 0.3);
+            // フルチャージ時は力みで小刻みに震える
+            const shake = isFull ? (Math.random() - 0.5) * 2.5 : 0;
+
+            headY = cy - 66 + shake;
+            chestY = cy - 48 + shake;
+            hipY = cy - 28;
+
+            // 後ろ足に重心を乗せて踏ん張る
+            leftFoot = { x: cx - dir * 20, y: cy };
+            rightFoot = { x: cx + dir * 16, y: cy };
+
+            // 剣を持つ手（rightHand）を体の後ろ側へ深く引き絞る
+            rightHand = { x: cx - dir * (20 + pullBack) + shake, y: cy - 44 + shake };
+            // もう片方の手（leftHand）は前でバランスを取り間合いを測る
+            leftHand = { x: cx + dir * 16, y: cy - 48 };
+
+            // 剣の切っ先は相手に向けたまま、手元だけが後ろに引かれている
+            swordStart = { x: rightHand.x, y: rightHand.y };
+            swordEnd = { x: rightHand.x + dir * 55, y: rightHand.y - 4 };
+        }
+        else if (this.state === 'attack') {
+            const progress = this.attackTimer;
+            const reach = (progress >= 6 && progress <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16; 
+
+            if (this.isAirAttack) {
+                headY = cy - 70;
+                chestY = cy - 52;
+                hipY = cy - 32;
+
+                leftFoot = { x: cx - dir * 16, y: cy - 20 };
+                rightFoot = { x: cx + dir * 8, y: cy - 10 };
+                rightHand = { x: cx + dir * (20 + reach * 0.7), y: cy - 36 + (reach * 0.5) };
+                leftHand = { x: cx - dir * 18, y: cy - 60 };
+
+                swordStart = { x: rightHand.x, y: rightHand.y };
+                swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 };
+            } else {
+                headY = cy - 70;
+                chestY = cy - 52;
+                hipY = cy - 30;
+
+                leftFoot = { x: cx - dir * 20, y: cy };
+                rightFoot = { x: cx + dir * 28, y: cy }; 
+                rightHand = { x: cx + dir * (32 + reach), y: cy - 44 };
+                leftHand = { x: cx - dir * 20, y: cy - 58 }; 
+
+                swordStart = { x: rightHand.x, y: rightHand.y };
+                swordEnd = { x: rightHand.x + dir * (this.isHeavyAttack ? 75 : 60), y: rightHand.y };
+            }
         } 
         else if (this.state === 'guard') {
-            headY = cy - 68;
-            chestY = cy - 48;
-            hipY = cy - 28;
-            leftFoot = { x: cx - dir * 8, y: cy };
-            rightFoot = { x: cx + dir * 8, y: cy };
-
-            rightHand = { x: cx + dir * 15, y: cy - 50 };
-            leftHand = { x: cx + dir * 8, y: cy - 46 };
+            headY = cy - 72;
+            chestY = cy - 52;
+            hipY = cy - 30;
+            leftFoot = { x: cx - dir * 9, y: cy };
+            rightFoot = { x: cx + dir * 9, y: cy };
+            rightHand = { x: cx + dir * 16, y: cy - 54 };
+            leftHand = { x: cx + dir * 8, y: cy - 50 };
 
             swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 10, y: rightHand.y - 45 };
+            swordEnd = { x: rightHand.x + dir * 10, y: rightHand.y - 48 };
         } 
         else if (this.state === 'walk') {
             const cycle = Math.sin(this.animFrame * 0.25);
-            leftFoot = { x: cx - 12 + (cycle * 12), y: cy };
-            rightFoot = { x: cx + 12 - (cycle * 12), y: cy };
-            
-            leftHand = { x: cx - 10 - (cycle * 8), y: cy - 45 };
-            rightHand = { x: cx + 10 + (cycle * 8), y: cy - 45 };
+            leftFoot = { x: cx - 13 + (cycle * 13), y: cy };
+            rightFoot = { x: cx + 13 - (cycle * 13), y: cy };
+            leftHand = { x: cx - 11 - (cycle * 9), y: cy - 48 };
+            rightHand = { x: cx + 11 + (cycle * 9), y: cy - 48 };
 
             swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 20, y: rightHand.y - 30 };
+            swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         } 
         else if (this.state === 'jump') {
-            headY = cy - 73;
-            chestY = cy - 53;
-            hipY = cy - 33;
-            leftFoot = { x: cx - 10, y: cy - 10 };
-            rightFoot = { x: cx + 10, y: cy - 15 };
-
-            leftHand = { x: cx - 15, y: cy - 60 };
-            rightHand = { x: cx + 15, y: cy - 55 };
+            headY = cy - 78;
+            chestY = cy - 58;
+            hipY = cy - 36;
+            leftFoot = { x: cx - 11, y: cy - 12 };
+            rightFoot = { x: cx + 11, y: cy - 16 };
+            leftHand = { x: cx - 16, y: cy - 64 };
+            rightHand = { x: cx + 16, y: cy - 58 };
 
             swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 30, y: rightHand.y - 20 };
+            swordEnd = { x: rightHand.x + dir * 32, y: rightHand.y - 22 };
         }
         else {
             const breathe = Math.sin(this.animFrame * 0.05) * 1.5;
@@ -407,18 +611,18 @@ class Character {
             chestY += breathe * 0.5;
 
             swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 20, y: rightHand.y - 30 };
+            swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         }
 
         // 頭
         ctx.beginPath();
-        ctx.arc(cx, headY, 10, 0, Math.PI * 2);
+        ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fillStyle = this.color;
         ctx.fill();
 
         // 胴体
         ctx.beginPath();
-        ctx.moveTo(cx, headY + 10);
+        ctx.moveTo(cx, headY + 11);
         ctx.lineTo(cx, hipY);
         ctx.stroke();
 
@@ -445,30 +649,36 @@ class Character {
         // 剣
         if (this.state !== 'hit') {
             ctx.save();
-            ctx.strokeStyle = '#bdc3c7'; 
-            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
+            ctx.lineWidth = this.isHeavyAttack ? 4.5 : 3.8;
             ctx.beginPath();
             ctx.moveTo(swordStart.x, swordStart.y);
             ctx.lineTo(swordEnd.x, swordEnd.y);
             ctx.stroke();
 
             // 鍔
-            ctx.strokeStyle = '#f1c40f';
+            ctx.strokeStyle = '#ffd32a';
             ctx.lineWidth = 5;
             ctx.beginPath();
-            const tsubaDx = (swordEnd.x - swordStart.x) * 0.12;
-            const tsubaDy = (swordEnd.y - swordStart.y) * 0.12;
-            ctx.moveTo(swordStart.x - tsubaDy, swordStart.y + tsubaDx);
-            ctx.lineTo(swordStart.x + tsubaDy, swordStart.y - tsubaDx);
+            const sDx = swordEnd.x - swordStart.x;
+            const sDy = swordEnd.y - swordStart.y;
+            const sLen = Math.hypot(sDx, sDy) || 1;
+            const perpX = (-sDy / sLen) * 7;
+            const perpY = (sDx / sLen) * 7;
+            const tsubaX = swordStart.x + (sDx / sLen) * 6;
+            const tsubaY = swordStart.y + (sDy / sLen) * 6;
+
+            ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
+            ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
             ctx.stroke();
             ctx.restore();
         }
 
         if (this.state === 'guard') {
-            ctx.strokeStyle = 'rgba(241, 196, 15, 0.4)';
+            ctx.strokeStyle = 'rgba(255, 211, 42, 0.45)';
             ctx.lineWidth = 6;
             ctx.beginPath();
-            ctx.arc(cx + dir * 20, cy - 40, 25, -Math.PI/2, Math.PI/2, dir === -1);
+            ctx.arc(cx + dir * 20, cy - 44, 25, -Math.PI/2, Math.PI/2, dir === -1);
             ctx.stroke();
         }
 
@@ -476,9 +686,10 @@ class Character {
     }
 }
 
-// キャラクター生成
-const p1 = new Character(150, GROUND_Y - 80, '#e74c3c', false); 
-const p2 = new Character(610, GROUND_Y - 80, '#3498db', true);  
+// キャラクター初期化
+const p1 = new Character('#ff5252', false); 
+const p2 = new Character('#40c4ff', true);  
+resizeCanvas();
 
 function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width &&
@@ -490,16 +701,13 @@ function checkCollision(rect1, rect2) {
 function updateScoreUI() {
     const p1Dots = document.querySelectorAll('#p1-score .dot');
     const p2Dots = document.querySelectorAll('#p2-score .dot');
+    p1Dots.forEach((dot, idx) => dot.classList.toggle('active', idx < p1Score));
+    p2Dots.forEach((dot, idx) => dot.classList.toggle('active', idx < p2Score));
 
-    p1Dots.forEach((dot, idx) => {
-        if (idx < p1Score) dot.classList.add('active', 'p1');
-        else dot.classList.remove('active', 'p1');
-    });
-
-    p2Dots.forEach((dot, idx) => {
-        if (idx < p2Score) dot.classList.add('active', 'p2');
-        else dot.classList.remove('active', 'p2');
-    });
+    const p1HpBlocks = document.querySelectorAll('#p1-hp .hp-block');
+    const p2HpBlocks = document.querySelectorAll('#p2-hp .hp-block');
+    p1HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p1.hp));
+    p2HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p2.hp));
 }
 
 function showOverlay(text, duration = 1500, callback) {
@@ -512,7 +720,6 @@ function showOverlay(text, duration = 1500, callback) {
     }, duration);
 }
 
-// ランキング表示の更新
 function updateRankingUI() {
     const rankingList = document.getElementById('ranking-list');
     rankingList.innerHTML = '';
@@ -527,21 +734,18 @@ function updateRankingUI() {
     }
 }
 
-// 記録の保存処理
 function saveScore(streak) {
     if (streak <= 0) return;
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-    
     const isTop3 = records.length < 3 || streak > records[records.length - 1].streak;
     
     if (isTop3) {
         setTimeout(() => {
-            const name = prompt("🎉ハイスコア！歴代TOP3にランクインしました！\n登録する名前を入力してください（最大8文字）:", "PLAYER");
+            const name = prompt("🎉ハイスコア！TOP3入り！\n名前を入力してください（最大8文字）:", "PLAYER");
             const finalName = (name && name.trim() !== "") ? name.substring(0, 8) : "PLAYER";
             
             records.push({ name: finalName, streak: streak });
             records.sort((a, b) => b.streak - a.streak);
-            
             if (records.length > 3) records.length = 3;
             
             localStorage.setItem('fencing_ranking', JSON.stringify(records));
@@ -549,10 +753,6 @@ function saveScore(streak) {
         }, 500);
     }
 }
-
-// ========================
-// UI制御・画面遷移
-// ========================
 
 function showOnlineMenu() {
     titleScreen.style.display = 'none';
@@ -568,10 +768,6 @@ function hideOnlineMenu() {
     }
 }
 
-// ========================
-// オンライン対戦（Socket.io）ロジック
-// ========================
-
 function connectToRoom() {
     const roomId = document.getElementById('room-id-input').value.trim();
     const playerName = document.getElementById('player-name-input').value.trim() || "PLAYER";
@@ -583,7 +779,6 @@ function connectToRoom() {
     }
 
     statusEl.innerText = "サーバーに接続中...";
-
     socket = io(SERVER_URL);
 
     socket.on('connect', () => {
@@ -593,20 +788,20 @@ function connectToRoom() {
 
     socket.on('assigned_player', (data) => {
         myPlayerNumber = data.pNum;
-        statusEl.innerText = `部屋に接続しました。PLAYER ${myPlayerNumber} として待機中...`;
+        statusEl.innerText = `部屋接続: PLAYER ${myPlayerNumber} として待機中...`;
     });
 
     socket.on('waiting_opponent', () => {
-        statusEl.innerText = "対戦相手を待っています（部屋のパスワードを相手に伝えてください）...";
+        statusEl.innerText = "相手を待機中 (パスワードを伝えてください)";
     });
 
     socket.on('room_full', () => {
-        statusEl.innerText = "この部屋はすでに満員です。";
+        statusEl.innerText = "この部屋は満員です。";
         socket.disconnect();
     });
 
     socket.on('start_game', (data) => {
-        statusEl.innerText = "対戦相手が見つかりました！開始します...";
+        statusEl.innerText = "マッチング成功！開始します...";
         isOnlineMode = true;
         winStreak = 0;
         p1Score = 0;
@@ -628,10 +823,8 @@ function connectToRoom() {
         }, 1000);
     });
 
-    // 相手の移動情報の受信同期
     socket.on('opponent_physics', (data) => {
-        if (roundOver) return; // 勝負決定後の上書きを阻止して、倒れるポーズを保つ
-        
+        if (roundOver) return;
         const opp = (myPlayerNumber === 1) ? p2 : p1;
         opp.x = data.x;
         opp.y = data.y;
@@ -639,18 +832,22 @@ function connectToRoom() {
         opp.state = data.state;
         opp.guardActive = data.guardActive;
         opp.attackTimer = data.attackTimer;
+        opp.chargeTimer = data.chargeTimer;
+        opp.isHeavyAttack = data.isHeavyAttack;
+        opp.hp = data.hp;
+        updateScoreUI();
     });
 
-    // 勝敗イベントの受信同期
     socket.on('round_result', (data) => {
         if (roundOver) return;
-        
         if (data.winnerNum === 1) {
             p1.state = 'idle';
             p2.state = 'hit';
+            p2.hp = 0;
             endRound(p1);
         } else if (data.winnerNum === 2) {
             p1.state = 'hit';
+            p1.hp = 0;
             p2.state = 'idle';
             endRound(p2);
         } else {
@@ -666,7 +863,6 @@ function connectToRoom() {
 
 function emitMyPhysics() {
     if (!socket || !isOnlineMode || roundOver) return;
-
     const myChar = (myPlayerNumber === 1) ? p1 : p2;
     socket.emit('update_physics', {
         x: myChar.x,
@@ -674,13 +870,12 @@ function emitMyPhysics() {
         direction: myChar.direction,
         state: myChar.state,
         guardActive: myChar.guardActive,
-        attackTimer: myChar.attackTimer
+        attackTimer: myChar.attackTimer,
+        chargeTimer: myChar.chargeTimer,
+        isHeavyAttack: myChar.isHeavyAttack,
+        hp: myChar.hp
     });
 }
-
-// ========================
-// ローカル（CPUモード）開始用
-// ========================
 
 function startCPUMode() {
     isOnlineMode = false;
@@ -705,16 +900,12 @@ function startCPUMode() {
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
 }
 
-// ========================
-// 共通進行処理
-// ========================
-
 function startRound() {
-    for (let key in keys) {
-        keys[key] = false;
-    }
+    for (let key in keys) keys[key] = false;
     p1.reset();
     p2.reset();
+    updateScoreUI();
+
     roundTimer = ROUND_TIME_LIMIT;
     timerEl.innerText = roundTimer;
     roundOver = false;
@@ -727,9 +918,7 @@ function startRound() {
             timerEl.innerText = roundTimer;
             if (roundTimer <= 0) {
                 if (isOnlineMode) {
-                    if (myPlayerNumber === 1) {
-                        socket.emit('match_round_over', { winnerNum: 0 });
-                    }
+                    if (myPlayerNumber === 1) socket.emit('match_round_over', { winnerNum: 0 });
                 } else {
                     endRound(null, "TIME UP");
                 }
@@ -748,10 +937,10 @@ function endRound(winner, reason) {
     let message = "";
     if (winner === p1) {
         p1Score++;
-        message = (isOnlineMode) ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN";
+        message = isOnlineMode ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN";
     } else if (winner === p2) {
         p2Score++;
-        message = (isOnlineMode) ? `${document.getElementById('p2-name-display').innerText} WIN` : "CPU WIN";
+        message = isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : "CPU WIN";
     } else {
         message = reason || "DRAW";
     }
@@ -761,27 +950,17 @@ function endRound(winner, reason) {
     setTimeout(() => {
         if (p1Score >= MAX_SCORE) {
             if (isOnlineMode) {
-                // ★修正箇所：勝った本人は「VICTORY!」、負けた側は「DEFEAT...」を表示します
-                if (myPlayerNumber === 1) {
-                    showOverlay("VICTORY!", 3000, returnToTitle);
-                } else {
-                    showOverlay("DEFEAT...", 3000, returnToTitle);
-                }
+                showOverlay(myPlayerNumber === 1 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
             } else {
                 winStreak++;
                 streakCounterEl.innerText = `連勝: ${winStreak}`;
-                showOverlay(`VICTORY!\n現在の連勝数: ${winStreak}連勝`, 2000, startNextMatch);
+                showOverlay(`VICTORY!\n${winStreak}連勝`, 2000, startNextMatch);
             }
         } else if (p2Score >= MAX_SCORE) {
             if (isOnlineMode) {
-                // ★修正箇所：勝った本人は「VICTORY!」、負けた側は「DEFEAT...」を表示します
-                if (myPlayerNumber === 2) {
-                    showOverlay("VICTORY!", 3000, returnToTitle);
-                } else {
-                    showOverlay("DEFEAT...", 3000, returnToTitle);
-                }
+                showOverlay(myPlayerNumber === 2 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
             } else {
-                showOverlay(`DEFEAT...\n連勝記録: ${winStreak}`, 3000, () => {
+                showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
                     saveScore(winStreak);
                     returnToTitle();
                 });
@@ -814,8 +993,57 @@ function returnToTitle() {
     updateRankingUI();
 }
 
-function triggerOnlineAlert() {
-    alert("対戦モードは現在オンライン対応準備中です。今しばらくお待ちください。");
+function handleHit(attacker, defender, isP1Attacker) {
+    const isFacing = (attacker.x < defender.x && defender.direction === -1) || (attacker.x > defender.x && defender.direction === 1);
+
+    if (defender.guardActive && isFacing) {
+        if (attacker.isHeavyAttack) {
+            // ガードブレイク
+            defender.state = 'break';
+            defender.breakTimer = 65;
+            defender.vx = defender.direction * -15;
+            attacker.attackTimer = 28;
+        } else {
+            defender.x += defender.direction * -20; 
+            attacker.attackTimer = 22; 
+        }
+    } else {
+        if (attacker.isHeavyAttack) {
+            // 溜め攻撃直撃：即KO
+            defender.hp = 0;
+            defender.state = 'hit';
+            defender.vx = 0;
+            updateScoreUI();
+
+            if (isOnlineMode) {
+                if (myPlayerNumber === (isP1Attacker ? 1 : 2)) {
+                    socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
+                }
+            } else {
+                endRound(attacker);
+            }
+        } else {
+            defender.hp--;
+            updateScoreUI();
+            attacker.attackTimer = 22;
+
+            if (defender.hp <= 0) {
+                defender.state = 'hit';
+                defender.vx = 0;
+                if (isOnlineMode) {
+                    if (myPlayerNumber === (isP1Attacker ? 1 : 2)) {
+                        socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
+                    }
+                } else {
+                    endRound(attacker);
+                }
+            } else {
+                defender.state = 'flinch';
+                defender.flinchTimer = 16;
+                defender.vx = attacker.direction * 6;
+            }
+        }
+    }
 }
 
 function checkHits() {
@@ -824,45 +1052,17 @@ function checkHits() {
     const p1Attack = p1.getAttackBox();
     const p2Attack = p2.getAttackBox();
 
-    if (p1Attack) {
+    if (p1Attack && p2.state !== 'flinch' && p2.state !== 'hit') {
         const p2Body = { x: p2.x, y: p2.y, width: p2.width, height: p2.height };
         if (checkCollision(p1Attack, p2Body)) {
-            const isFacingP1 = (p1.x < p2.x && p2.direction === -1) || (p1.x > p2.x && p2.direction === 1);
-            if (p2.guardActive && isFacingP1) {
-                p2.x += p2.direction * -25; 
-                p1.attackTimer = 22; 
-            } else {
-                if (isOnlineMode) {
-                    if (myPlayerNumber === 1) {
-                        socket.emit('match_round_over', { winnerNum: 1 });
-                    }
-                } else {
-                    p2.state = 'hit';
-                    p2.vx = 0; 
-                    endRound(p1);
-                }
-            }
+            handleHit(p1, p2, true);
         }
     }
 
-    if (p2Attack) {
+    if (p2Attack && p1.state !== 'flinch' && p1.state !== 'hit') {
         const p1Body = { x: p1.x, y: p1.y, width: p1.width, height: p1.height };
         if (checkCollision(p2Attack, p1Body)) {
-            const isFacingP2 = (p2.x < p1.x && p1.direction === -1) || (p2.x > p1.x && p1.direction === 1);
-            if (p1.guardActive && isFacingP2) {
-                p1.x += p1.direction * -25; 
-                p2.attackTimer = 22; 
-            } else {
-                if (isOnlineMode) {
-                    if (myPlayerNumber === 2) {
-                        socket.emit('match_round_over', { winnerNum: 2 });
-                    }
-                } else {
-                    p1.state = 'hit';
-                    p1.vx = 0; 
-                    endRound(p2);
-                }
-            }
+            handleHit(p2, p1, false);
         }
     }
 }
@@ -870,11 +1070,15 @@ function checkHits() {
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 地面の描画
-    ctx.fillStyle = '#34495e';
+    // 地面描画
+    const groundGrad = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
+    groundGrad.addColorStop(0, 'rgba(30, 39, 46, 0.85)');
+    groundGrad.addColorStop(1, 'rgba(10, 15, 20, 0.98)');
+    ctx.fillStyle = groundGrad;
     ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
-    ctx.strokeStyle = '#7f8c8d';
-    ctx.lineWidth = 4;
+
+    ctx.strokeStyle = 'rgba(113, 128, 147, 0.8)';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(0, GROUND_Y);
     ctx.lineTo(canvas.width, GROUND_Y);
@@ -884,9 +1088,7 @@ function gameLoop() {
         p1.update(p2);
         p2.update(p1);
         
-        if (isOnlineMode) {
-            emitMyPhysics();
-        }
+        if (isOnlineMode) emitMyPhysics();
         checkHits();
     }
 
@@ -896,6 +1098,6 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// 起動時の初期化
+// 起動
 updateRankingUI();
 gameLoop();
