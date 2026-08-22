@@ -7,6 +7,7 @@ const titleScreen = document.getElementById('title-screen');
 const onlineScreen = document.getElementById('online-screen');
 const gameOverlay = document.getElementById('game-overlay');
 const overlayTextEl = document.getElementById('overlay-text');
+const onlineCountNumEl = document.getElementById('online-count-num');
 
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
@@ -22,9 +23,7 @@ const CPU_COLORS = [
     '#ff5252', '#1abc9c', '#e056fd', '#f5f6fa', '#30336b'
 ];
 
-// ==========================================
-// ★ オーディオマネージャー（Web Audio & BGM）
-// ==========================================
+// オーディオマネージャー
 class SoundManager {
     constructor() {
         this.ctx = null;
@@ -127,7 +126,6 @@ class SoundManager {
 
 const Sound = new SoundManager();
 
-// ★ 修正：画面を初めてタップ/クリックした瞬間にタイトルBGMを自動再生開始！
 const handleFirstInteraction = () => {
     Sound.unlockAudio();
     if (titleScreen.style.display !== 'none' && !gameActive) {
@@ -295,6 +293,27 @@ let socket = null;
 let isOnlineMode = false;
 let myPlayerNumber = 0;
 const SERVER_URL = window.location.origin;
+
+// ★ 起動時に自動でサーバーに接続してオンライン人数を受信
+function initGlobalSocket() {
+    if (typeof io === 'undefined') return;
+    
+    socket = io(SERVER_URL);
+
+    // サーバーから人数を受信
+    socket.on('online_count', (count) => {
+        if (onlineCountNumEl) {
+            onlineCountNumEl.innerText = count;
+        }
+    });
+
+    socket.on('connect', () => {
+        if (onlineCountNumEl && onlineCountNumEl.innerText === '0') {
+            onlineCountNumEl.innerText = '1';
+        }
+    });
+}
+initGlobalSocket();
 
 const keys = { a: false, d: false, w: false, s: false, f: false };
 
@@ -1115,10 +1134,6 @@ function showOnlineMenu() {
 function hideOnlineMenu() {
     onlineScreen.style.display = 'none';
     titleScreen.style.display = 'flex';
-    if (socket) {
-        socket.disconnect();
-        socket = null;
-    }
     Sound.playBGM('title');
 }
 
@@ -1134,12 +1149,12 @@ function connectToRoom() {
     }
 
     statusEl.innerText = "サーバーに接続中...";
-    socket = io(SERVER_URL);
 
-    socket.on('connect', () => {
-        statusEl.innerText = "部屋を探しています...";
-        socket.emit('join_room', { roomId, playerName });
-    });
+    if (!socket) {
+        socket = io(SERVER_URL);
+    }
+
+    socket.emit('join_room', { roomId, playerName });
 
     socket.on('assigned_player', (data) => {
         myPlayerNumber = data.pNum;
@@ -1152,7 +1167,6 @@ function connectToRoom() {
 
     socket.on('room_full', () => {
         statusEl.innerText = "この部屋は満員です。";
-        socket.disconnect();
     });
 
     socket.on('start_game', (data) => {
@@ -1415,10 +1429,6 @@ function returnToTitle() {
     gameActive = false;
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
-    if (socket) {
-        socket.disconnect();
-        socket = null;
-    }
     Sound.playBGM('title');
     updateRankingUI();
 }
