@@ -287,7 +287,6 @@ html, body {
     font-family: ui-monospace, monospace;
 }
 
-/* ★ クレジットテキストのスタイル */
 .credit-text {
     margin-top: 14px;
     font-size: 11px;
@@ -297,6 +296,40 @@ html, body {
 .credit-text a {
     color: #ffd32a;
     text-decoration: underline;
+}
+
+/* ★ 右下のオンライン人数カウンター */
+#online-counter {
+    position: absolute;
+    bottom: calc(15px + env(safe-area-inset-bottom));
+    right: 18px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(46, 204, 113, 0.4);
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #2ecc71;
+    font-weight: bold;
+    backdrop-filter: blur(4px);
+}
+
+/* 緑のピコピコ点滅ランプ */
+.live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #2ecc71;
+    box-shadow: 0 0 8px #2ecc71;
+    animation: livePulse 1.5s infinite;
+}
+
+@keyframes livePulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+    100% { opacity: 1; transform: scale(1); }
 }
 
 #online-form {
