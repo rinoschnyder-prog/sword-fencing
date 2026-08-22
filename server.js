@@ -8,27 +8,43 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // どのドメインからの接続も許可
+        origin: "*",
         methods: ["GET", "POST"]
     }
 });
 
-// 静的ファイルの提供（HTMLなどを同じサーバーに置く場合）
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ルームごとのプレイヤー管理用
 const rooms = {};
 
+// 部屋からプレイヤーを安全に削除する共通関数
+function removePlayerFromRoom(socket) {
+    const roomId = socket.roomId;
+    if (roomId && rooms[roomId]) {
+        rooms[roomId] = rooms[roomId].filter(p => p.id !== socket.id);
+        if (rooms[roomId].length === 0) {
+            delete rooms[roomId];
+        } else {
+            io.to(roomId).emit('opponent_disconnected');
+        }
+        socket.leave(roomId);
+        socket.roomId = null;
+        socket.playerNumber = null;
+    }
+}
+
 io.on('connection', (socket) => {
     console.log('ユーザーが接続しました:', socket.id);
-
-    // ★ 接続時：現在のオンライン人数を接続者全員にリアルタイム送信
     io.emit('online_count', io.engine.clientsCount);
 
     // ルーム入室リクエスト
     socket.on('join_room', (data) => {
         const { roomId, playerName } = data;
         
+        // 既にどこかの部屋に入っていればまず退室
+        removePlayerFromRoom(socket);
+
         socket.join(roomId);
         
         if (!rooms[roomId]) {
@@ -38,7 +54,6 @@ io.on('connection', (socket) => {
         const roomPlayers = rooms[roomId];
 
         if (roomPlayers.length >= 2) {
-            // すでに満員の場合
             socket.emit('room_full');
             socket.leave(roomId);
             return;
@@ -64,10 +79,14 @@ io.on('connection', (socket) => {
         }
     });
 
-    // プレイヤーデータの同期中継（位置やステート）
+    // ★ 明示的な部屋退室リクエスト
+    socket.on('leave_room', () => {
+        removePlayerFromRoom(socket);
+    });
+
+    // プレイヤーデータの同期中継
     socket.on('update_physics', (data) => {
         if (socket.roomId) {
-            // 自分以外の同じ部屋のメンバーにデータを転送
             socket.to(socket.roomId).emit('opponent_physics', data);
         }
     });
@@ -82,21 +101,8 @@ io.on('connection', (socket) => {
     // 切断時のクリーンアップ
     socket.on('disconnect', () => {
         console.log('ユーザーが切断しました:', socket.id);
-
-        // ★ 切断時：オンライン人数を更新して全員に再送信
+        removePlayerFromRoom(socket);
         io.emit('online_count', io.engine.clientsCount);
-
-        const roomId = socket.roomId;
-        if (roomId && rooms[roomId]) {
-            // 切断したプレイヤーを部屋から除外
-            rooms[roomId] = rooms[roomId].filter(p => p.id !== socket.id);
-            if (rooms[roomId].length === 0) {
-                delete rooms[roomId];
-            } else {
-                // 残されたプレイヤーに相手が去ったことを伝える
-                io.to(roomId).emit('opponent_disconnected');
-            }
-        }
     });
 });
 
