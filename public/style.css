@@ -25,7 +25,6 @@ html, body {
     overflow: hidden;
 }
 
-/* 全画面Canvas */
 #gameCanvas {
     position: absolute;
     top: 0;
@@ -123,6 +122,24 @@ html, body {
     box-shadow: 0 0 8px rgba(64, 196, 255, 0.85);
 }
 
+/* ★ 必殺技（SP）ゲージバー */
+.sp-bar {
+    width: 100%;
+    height: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 3px;
+    margin-top: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+}
+
+.sp-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #9b59b6, #e056fd, #ffd32a);
+    transition: width 0.15s ease-out;
+}
+
 #timer-container {
     text-align: center;
 }
@@ -150,13 +167,13 @@ html, body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 18px;
+    padding: 0 14px;
     z-index: 10;
 }
 
 .control-group {
     display: flex;
-    gap: 10px;
+    gap: 8px;
 }
 
 .touch-btn {
@@ -183,35 +200,42 @@ html, body {
 }
 
 .left-group .touch-btn {
-    width: 64px;
-    height: 64px;
+    width: 60px;
+    height: 60px;
 }
 
 .action-btn {
-    width: 60px;
-    height: 60px;
-    font-size: 11px;
+    width: 56px;
+    height: 56px;
+    font-size: 10px;
     font-weight: 800;
-    border-radius: 18px;
+    border-radius: 16px;
 }
 
-.action-btn.red {
-    background: rgba(255, 82, 82, 0.5);
-    border-color: rgba(255, 82, 82, 0.9);
-}
-.action-btn.yellow {
-    background: rgba(255, 211, 42, 0.5);
-    border-color: rgba(255, 211, 42, 0.9);
-    color: #fff;
-}
-.action-btn.blue {
-    background: rgba(64, 196, 255, 0.5);
-    border-color: rgba(64, 196, 255, 0.9);
+.action-btn.red { background: rgba(255, 82, 82, 0.5); border-color: rgba(255, 82, 82, 0.9); }
+.action-btn.yellow { background: rgba(255, 211, 42, 0.5); border-color: rgba(255, 211, 42, 0.9); color: #fff; }
+.action-btn.blue { background: rgba(64, 196, 255, 0.5); border-color: rgba(64, 196, 255, 0.9); }
+
+/* ★ SPECIAL必殺技ボタン（100%で激しく燃え上がる） */
+.special-btn {
+    background: rgba(100, 100, 100, 0.3);
+    border-color: rgba(150, 150, 150, 0.4);
+    opacity: 0.4;
+    transition: all 0.3s;
 }
 
-.action-btn.red:active { background: rgba(255, 82, 82, 0.9); }
-.action-btn.yellow:active { background: rgba(255, 211, 42, 0.9); }
-.action-btn.blue:active { background: rgba(64, 196, 255, 0.9); }
+.special-btn.ready {
+    opacity: 1;
+    background: linear-gradient(135deg, #ff0055, #ff5500);
+    border-color: #ffd32a;
+    box-shadow: 0 0 15px #ff0055, 0 0 5px #ffd32a;
+    animation: specialPulse 0.9s infinite alternate;
+}
+
+@keyframes specialPulse {
+    0% { transform: scale(1); box-shadow: 0 0 10px #ff0055; }
+    100% { transform: scale(1.08); box-shadow: 0 0 25px #ff5500, 0 0 10px #ffd32a; }
+}
 
 /* 全画面オーバーレイ */
 .screen {
@@ -240,7 +264,7 @@ html, body {
 }
 
 .subtitle {
-    font-size: 12px;
+    font-size: 11px;
     color: #d2dae2;
     margin-bottom: 22px;
     text-align: center;
@@ -287,7 +311,6 @@ html, body {
     font-family: ui-monospace, monospace;
 }
 
-/* ★ タイトル画面のフッター（クレジット＆オンライン人数の並び） */
 .title-footer {
     display: flex;
     flex-direction: column;
@@ -307,7 +330,6 @@ html, body {
     text-decoration: underline;
 }
 
-/* ★ オンライン人数（フッター内にスッキリ収まるスタイル） */
 #online-counter {
     display: flex;
     align-items: center;
