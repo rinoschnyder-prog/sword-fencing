@@ -287,8 +287,17 @@ html, body {
     font-family: ui-monospace, monospace;
 }
 
-.credit-text {
+/* ★ タイトル画面のフッター（クレジット＆オンライン人数の並び） */
+.title-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
     margin-top: 14px;
+    width: min(85vw, 260px);
+}
+
+.credit-text {
     font-size: 11px;
     color: #a4b0be;
     text-align: center;
@@ -298,17 +307,15 @@ html, body {
     text-decoration: underline;
 }
 
-/* ★ 右下のオンライン人数カウンター */
+/* ★ オンライン人数（フッター内にスッキリ収まるスタイル） */
 #online-counter {
-    position: absolute;
-    bottom: calc(15px + env(safe-area-inset-bottom));
-    right: 18px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.45);
     border: 1px solid rgba(46, 204, 113, 0.4);
-    padding: 4px 10px;
+    padding: 4px 12px;
     border-radius: 20px;
     font-size: 11px;
     color: #2ecc71;
@@ -316,7 +323,6 @@ html, body {
     backdrop-filter: blur(4px);
 }
 
-/* 緑のピコピコ点滅ランプ */
 .live-dot {
     width: 7px;
     height: 7px;
