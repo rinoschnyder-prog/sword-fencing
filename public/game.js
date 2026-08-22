@@ -253,8 +253,10 @@ class Character {
         this.guardActive = false;
         this.animFrame = 0;
 
+        // CPU用パラメータ
         this.cpuActionTimer = 0;
         this.cpuDecision = 'idle';
+        this.cpuTargetAirAttack = false;
     }
 
     reset() {
@@ -274,6 +276,7 @@ class Character {
         this.guardActive = false;
         this.isGrounded = true;
         this.animFrame = 0;
+        this.cpuTargetAirAttack = false;
     }
 
     update(opponent) {
@@ -305,6 +308,7 @@ class Character {
             }
         }
 
+        // 攻撃処理
         if (this.state === 'attack') {
             this.attackTimer++;
 
@@ -358,11 +362,15 @@ class Character {
         this.x += this.vx;
         this.y += this.vy;
 
+        // 地面判定
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
             this.isGrounded = true;
             if (this.state === 'jump') this.state = 'idle';
+            if (this.state === 'attack' && this.isAirAttack && this.attackTimer > 10) {
+                this.isAirAttack = false;
+            }
         } else {
             this.isGrounded = false;
         }
@@ -444,11 +452,12 @@ class Character {
         }
     }
 
+    // ★ 超強化された賢いCPUの思考AI（レベル連動・ジャンプ強化・溜め見切り）
     updateCPU(opponent) {
-        this.vx = 0;
-        this.guardActive = false;
-        if (this.state === 'guard') this.state = 'idle';
-
+        const level = winStreak + 1; // CPUレベル (LV.1〜)
+        const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
+        
+        // 溜め中の進行処理
         if (this.state === 'charge') {
             this.chargeTimer++;
             if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
@@ -461,55 +470,111 @@ class Character {
             return;
         }
 
-        if (this.state === 'attack') return;
-
-        const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
-        this.cpuActionTimer--;
-        
-        if (this.cpuActionTimer <= 0) {
-            const speedFactor = Math.max(4, 18 - winStreak);
-            this.cpuActionTimer = 8 + Math.random() * speedFactor;
-            
-            const rand = Math.random();
-
-            if (distance < 130) {
-                const guardChance = Math.min(0.85, 0.5 + winStreak * 0.05);
-
-                if (opponent.state === 'attack' && rand < guardChance) {
-                    this.cpuDecision = 'guard';
-                } else if (opponent.state === 'charge' && rand < 0.6) {
-                    this.cpuDecision = (rand < 0.3) ? 'attack' : 'backstep';
-                } else if (rand < 0.35) {
-                    this.cpuDecision = 'attack';
-                } else if (rand < 0.50 && this.isGrounded) {
-                    this.cpuDecision = 'charge';
-                } else if (rand < 0.70 && this.isGrounded) {
-                    this.vy = -12;
-                    this.isGrounded = false;
-                    this.state = 'jump';
-                    this.cpuDecision = 'air_attack';
-                } else if (rand < 0.85) {
-                    this.cpuDecision = 'backstep';
-                } else {
-                    this.cpuDecision = 'idle';
-                }
-            } else {
-                this.cpuDecision = (rand < 0.8) ? 'approach' : 'idle';
+        // ジャンプ中の空中急降下突き判定
+        if (!this.isGrounded && this.state === 'jump') {
+            if (this.cpuTargetAirAttack && this.vy >= -4 && this.attackCooldown === 0) {
+                this.state = 'attack';
+                this.isAirAttack = true;
+                this.isHeavyAttack = false;
+                this.attackTimer = 0;
+                this.cpuTargetAirAttack = false;
+                return;
             }
         }
 
+        if (this.state === 'attack') return;
+
+        this.cpuActionTimer--;
+        
+        if (this.cpuActionTimer <= 0) {
+            // レベルが高いほど判断速度がアップ
+            const thinkDelay = Math.max(3, 14 - level);
+            this.cpuActionTimer = thinkDelay + Math.random() * 6;
+            
+            const rand = Math.random();
+
+            // 1. 相手がガードブレイク中または隙を晒している時（レベルが高いほど確実に溜めKOを狙う！）
+            if ((opponent.state === 'break' || opponent.state === 'flinch') && this.isGrounded) {
+                const chargeChance = Math.min(0.9, 0.4 + level * 0.1);
+                if (rand < chargeChance && this.attackCooldown === 0) {
+                    this.cpuDecision = 'charge';
+                } else {
+                    this.cpuDecision = (distance > 60) ? 'approach' : 'attack';
+                }
+            }
+            // 2. ★ 相手が溜め攻撃を構えている時（見切り回避 / 先制潰し）
+            else if (opponent.state === 'charge') {
+                const counterIQ = Math.min(0.95, 0.5 + level * 0.08);
+
+                if (rand < counterIQ) {
+                    if (distance < 90) {
+                        // 至近距離なら先制攻撃で溜めを潰す！
+                        this.cpuDecision = 'attack';
+                    } else if (rand < 0.65) {
+                        // 射程外へ素早くバックステップ
+                        this.cpuDecision = 'backstep';
+                    } else if (this.isGrounded) {
+                        // ジャンプで飛び越えて頭上から強襲！
+                        this.cpuDecision = 'jump_forward';
+                    }
+                } else {
+                    this.cpuDecision = 'idle';
+                }
+            }
+            // 3. 相手が攻撃してきた時の見切りガード
+            else if (opponent.state === 'attack' && distance < 140) {
+                const guardRate = Math.min(0.92, 0.45 + level * 0.06);
+                if (rand < guardRate) {
+                    this.cpuDecision = (rand < 0.25 && this.isGrounded) ? 'backstep' : 'guard';
+                } else {
+                    this.cpuDecision = 'idle';
+                }
+            }
+            // 4. 近距離戦（間合いの駆け引き）
+            else if (distance < 125) {
+                if (rand < 0.35 && this.attackCooldown === 0) {
+                    this.cpuDecision = 'attack';
+                } else if (rand < 0.55) {
+                    this.cpuDecision = 'backstep';
+                } else if (rand < 0.75 && this.isGrounded) {
+                    // ★ 飛び込みジャンプ急襲
+                    this.cpuDecision = 'jump_forward';
+                } else if (rand < 0.90 && this.isGrounded && this.attackCooldown === 0) {
+                    this.cpuDecision = (level >= 3 && rand < 0.5) ? 'charge' : 'guard';
+                } else {
+                    this.cpuDecision = 'idle';
+                }
+            }
+            // 5. 中〜遠距離戦（接近 or 前ジャンプ急襲）
+            else {
+                if (rand < 0.35 && this.isGrounded) {
+                    this.cpuDecision = 'jump_forward';
+                } else if (rand < 0.85) {
+                    this.cpuDecision = 'approach';
+                } else {
+                    this.cpuDecision = 'idle';
+                }
+            }
+        }
+
+        // AIの決定に基づいた物理アクション実行
+        this.guardActive = false;
+        if (this.state === 'guard') this.state = 'idle';
+
         if (this.cpuDecision === 'approach') {
-            this.vx = (opponent.x < this.x) ? -3.5 : 3.5;
-            this.state = 'walk';
+            this.vx = (opponent.x < this.x) ? -3.8 : 3.8;
+            if (this.isGrounded) this.state = 'walk';
         } else if (this.cpuDecision === 'backstep') {
-            this.vx = (opponent.x < this.x) ? 4 : -4; 
-            this.state = 'walk';
+            this.vx = (opponent.x < this.x) ? 4.5 : -4.5; 
+            if (this.isGrounded) this.state = 'walk';
         } else if (this.cpuDecision === 'guard' && this.isGrounded) {
             this.state = 'guard';
             this.guardActive = true;
+            this.vx = 0;
         } else if (this.cpuDecision === 'charge' && this.isGrounded && this.attackCooldown === 0) {
             this.state = 'charge';
             this.chargeTimer = 0;
+            this.vx = 0;
             this.cpuDecision = 'idle';
         } else if (this.cpuDecision === 'attack' && this.attackCooldown === 0) {
             this.state = 'attack';
@@ -517,11 +582,13 @@ class Character {
             this.isHeavyAttack = false;
             this.attackTimer = 0;
             this.cpuDecision = 'idle';
-        } else if (this.cpuDecision === 'air_attack' && !this.isGrounded && this.attackCooldown === 0) {
-            this.state = 'attack';
-            this.isAirAttack = true;
-            this.isHeavyAttack = false;
-            this.attackTimer = 0;
+        } else if (this.cpuDecision === 'jump_forward' && this.isGrounded) {
+            // ★ 前方大ジャンプ（空中突きフラグセット）
+            this.vy = -13.0;
+            this.vx = (opponent.x < this.x) ? -4.2 : 4.2;
+            this.isGrounded = false;
+            this.state = 'jump';
+            this.cpuTargetAirAttack = true; // 空中突きを狙う
             this.cpuDecision = 'idle';
         }
     }
@@ -584,7 +651,7 @@ class Character {
 
         const dir = this.direction;
 
-        // ★ 自分（操作プレイヤー）の「YOU ▼」インジケーター
+        // 自分（操作プレイヤー）の「YOU ▼」インジケーター
         const isMyCharacter = isOnlineMode ? 
             ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) : 
             (this === p1);
@@ -640,25 +707,21 @@ class Character {
             const bodyChestX = cx - dir * 18;
             const bodyHipX = cx;
 
-            // ★ 頭部（プレイヤーカラー）
             ctx.fillStyle = this.color;
             ctx.beginPath();
             ctx.arc(headX, headY, 11, 0, Math.PI * 2);
             ctx.fill();
 
-            // 胴体
             ctx.beginPath();
             ctx.moveTo(headX + dir * 10, headY);
             ctx.lineTo(bodyHipX, cy - 6);
             ctx.stroke();
 
-            // 腕
             ctx.beginPath();
             ctx.moveTo(bodyChestX, cy - 6);
             ctx.lineTo(cx - dir * 10, cy - 14);
             ctx.stroke();
 
-            // 足（＜ の形）
             ctx.beginPath();
             ctx.moveTo(bodyHipX, cy - 6);
             ctx.lineTo(cx + dir * 22, cy - 12);
@@ -670,7 +733,6 @@ class Character {
             ctx.lineTo(cx + dir * 28, cy - 4);
             ctx.stroke();
 
-            // 地面の剣
             ctx.save();
             ctx.strokeStyle = '#ecf0f1';
             ctx.lineWidth = 3.5;
@@ -798,14 +860,14 @@ class Character {
             swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         }
 
-        // ★ 修正：頭部を確実にプレイヤー/CPUカラーで塗りつぶす！
+        // 頭部
         ctx.fillStyle = this.color;
         ctx.strokeStyle = this.color;
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fill();
 
-        // ★ 目元（白い光るバイザー）
+        // 目元バイザー
         ctx.save();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2.5;
@@ -821,7 +883,7 @@ class Character {
         ctx.lineTo(cx, hipY);
         ctx.stroke();
 
-        // 胴体アーマーの厚み
+        // 胴体アーマー
         ctx.save();
         ctx.fillStyle = this.color;
         ctx.beginPath();
@@ -1028,7 +1090,6 @@ function connectToRoom() {
         }, 1000);
     });
 
-    // 相手データ受信
     socket.on('opponent_physics', (data) => {
         if (roundOver || !gameActive) return;
         if (data.round !== currentRound) return;
