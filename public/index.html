@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v9.2</title>
+    <title>ソード・フェンシング v9.3</title>
     
-    <!-- ★ 最新バージョン v=9.2 -->
-    <link rel="stylesheet" href="style.css?v=9.2">
+    <!-- ★ 最新バージョン v=9.3 -->
+    <link rel="stylesheet" href="style.css?v=9.3">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -87,9 +87,14 @@
                 <div id="ranking-list"></div>
             </div>
 
-            <!-- ★ クレジット表示（タイトル画面の内側に配置） -->
             <div class="credit-text">
                 音楽：<a href="https://az-ho.org" target="_blank" rel="noopener noreferrer">独り音</a>
+            </div>
+
+            <!-- ★ 右下の現在オンライン人数カウンター -->
+            <div id="online-counter">
+                <span class="live-dot"></span>
+                オンライン: <span id="online-count-num">1</span>人
             </div>
         </div>
 
@@ -113,7 +118,7 @@
         </div>
     </div>
 
-    <!-- ★ 最新バージョン v=9.2 -->
-    <script src="game.js?v=9.2"></script>
+    <!-- ★ 最新バージョン v=9.3 -->
+    <script src="game.js?v=9.3"></script>
 </body>
 </html>
