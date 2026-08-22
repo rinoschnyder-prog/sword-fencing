@@ -17,7 +17,6 @@ const MAX_SCORE = 2;
 const MAX_HP = 5;
 const MAX_CHARGE_FRAMES = 45;
 
-// ★ スローモーション倍率（通常1.0、マッチ決着時0.25）
 let timeScale = 1.0;
 
 // CPUの10色カラーパレット
@@ -390,7 +389,7 @@ class Character {
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = true;
         
-        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'flinch', 'break', 'hit', 'blowaway'
+        this.state = 'idle'; 
         this.isAirAttack = false;
         this.isHeavyAttack = false;
         this.chargeTimer = 0;
@@ -401,7 +400,6 @@ class Character {
         this.guardActive = false;
         this.animFrame = 0;
 
-        // ★ 吹っ飛び回転用
         this.rotation = 0;
         this.hasHitWall = false;
 
@@ -435,35 +433,29 @@ class Character {
     update(opponent) {
         this.animFrame += 1 * timeScale;
 
-        // ★ 溜めフィニッシュの45度激痛吹っ飛び＆壁激突落下物理
         if (this.state === 'blowaway') {
             this.rotation += this.direction * -0.15 * timeScale;
             this.x += this.vx * timeScale;
             this.y += this.vy * timeScale;
 
-            // 壁激突前の上昇＆前進
             if (!this.hasHitWall) {
                 this.vy += GRAVITY * 0.4 * timeScale;
 
-                // 画面端の壁に激突
                 const margin = 10;
                 if (this.x <= margin || this.x + this.width >= canvas.width - margin) {
                     this.hasHitWall = true;
                     this.x = (this.x <= margin) ? margin : canvas.width - this.width - margin;
                     this.vx = 0;
-                    this.vy = 2; // 壁に激突して垂直ポトリ落下開始
+                    this.vy = 2;
 
-                    // 壁激突エフェクト＆特大シェイク
                     const wallHitX = (this.x <= margin) ? margin + 15 : canvas.width - margin - 15;
                     triggerHitEffect(wallHitX, this.y + 40, true, false);
                     Sound.playSE('heavy');
                 }
             } else {
-                // 壁激突後の垂直自由落下
                 this.vy += GRAVITY * 1.1 * timeScale;
             }
 
-            // 床に着地してバタリと横倒れ
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
@@ -801,7 +793,6 @@ class Character {
 
         ctx.save();
         
-        // 吹っ飛び回転適用
         if (this.state === 'blowaway' && this.rotation !== 0) {
             ctx.translate(cx, cy - 40);
             ctx.rotate(this.rotation);
@@ -814,7 +805,6 @@ class Character {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // 影
         if (this.state !== 'blowaway') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
@@ -883,7 +873,6 @@ class Character {
             }
         }
 
-        // ★ 吹っ飛び中（大の字で空を舞う）
         if (this.state === 'blowaway') {
             headY = cy - 70;
             chestY = cy - 50;
@@ -893,7 +882,6 @@ class Character {
             leftHand = { x: cx - 25, y: cy - 65 };
             rightHand = { x: cx + 25, y: cy - 65 };
         }
-        // 完全横倒れKOポーズ（O+＜）
         else if (this.state === 'hit') {
             const headX = cx - dir * 35;
             headY = cy - 8;
@@ -1220,6 +1208,9 @@ function showOnlineMenu() {
 function hideOnlineMenu() {
     onlineScreen.style.display = 'none';
     titleScreen.style.display = 'flex';
+    if (socket) {
+        socket.emit('leave_room');
+    }
 }
 
 // オンライン対戦（Socket.io）ロジック
@@ -1406,7 +1397,7 @@ function startCPUMode() {
 
 function startRound() {
     for (let key in keys) keys[key] = false;
-    timeScale = 1.0; // 通常速度に戻す
+    timeScale = 1.0;
     p1.reset();
     p2.reset();
     p1.hp = MAX_HP;
@@ -1437,7 +1428,6 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 決着処理（マッチ勝利時のスロー＆吹っ飛びフィニッシュ判定）
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1459,23 +1449,20 @@ function endRound(winner, reason) {
 
     updateScoreUI();
 
-    // ★ 2本先取のマッチ決着時だけ「スローモーション」＆「KO演出」
+    // ★ マッチ決着時のスロー＆吹っ飛び演出
     if (isMatchPoint && winner) {
-        timeScale = 0.25; // 劇的スローモーション開始！
+        timeScale = 0.25;
 
         if (winner.isHeavyAttack) {
-            // ★ 溜め攻撃フィニッシュ：45度斜め上空へ超吹っ飛び＆壁激突落下！
             loser.state = 'blowaway';
             loser.hasHitWall = false;
             loser.vx = winner.direction * 15;
-            loser.vy = -16; // 45度上空へ
+            loser.vy = -16;
         } else {
-            // 通常攻撃フィニッシュ：スローで横倒れ
             loser.state = 'hit';
             loser.vx = 0;
         }
 
-        // 映画のような決着の余韻（スローなので少し長めに確保）
         setTimeout(() => {
             timeScale = 1.0;
             if (p1Score >= MAX_SCORE) {
@@ -1498,7 +1485,6 @@ function endRound(winner, reason) {
             }
         }, 1800);
     } else {
-        // 通常ラウンド決着（1本目）
         if (winner) {
             loser.state = 'hit';
             loser.vx = 0;
@@ -1541,6 +1527,9 @@ function returnToTitle() {
     timeScale = 1.0;
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
+    if (socket) {
+        socket.emit('leave_room'); // ★ 部屋から確実に退室
+    }
     Sound.playBGM('title');
     updateRankingUI();
 }
