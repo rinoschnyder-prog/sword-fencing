@@ -8,6 +8,7 @@ const onlineScreen = document.getElementById('online-screen');
 const gameOverlay = document.getElementById('game-overlay');
 const overlayTextEl = document.getElementById('overlay-text');
 const onlineCountNumEl = document.getElementById('online-count-num');
+const btnSpecial = document.getElementById('btn-special');
 
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
@@ -15,6 +16,7 @@ const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 30; 
 const MAX_SCORE = 2;
 const MAX_HP = 5;
+const MAX_SP = 100; // 必殺技ゲージ最大値
 const MAX_CHARGE_FRAMES = 45;
 
 let timeScale = 1.0;
@@ -40,7 +42,8 @@ class SoundManager {
             heavy: 'se/se_heavy.wav',
             guard: 'se/se_guard.wav',
             break: 'se/se_break.wav',
-            swing: 'se/se_swing.wav'
+            swing: 'se/se_swing.wav',
+            bom: 'se/se_bom.wav' // ★ レーザー大爆発音
         };
 
         this.bgmFiles = {
@@ -332,14 +335,16 @@ function initGlobalSocket() {
 }
 initGlobalSocket();
 
-const keys = { a: false, d: false, w: false, s: false, f: false };
+const keys = { a: false, d: false, w: false, s: false, f: false, space: false };
 
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
+    if (key === ' ') keys.space = true;
     if (key in keys) keys[key] = true;
 });
 window.addEventListener('keyup', (e) => {
     const key = e.key.toLowerCase();
+    if (key === ' ') keys.space = false;
     if (key in keys) keys[key] = false;
 });
 
@@ -348,7 +353,8 @@ const touchBinds = [
     { btnId: 'btn-right', key: 'd' },
     { btnId: 'btn-jump', key: 'w' },
     { btnId: 'btn-guard', key: 's' },
-    { btnId: 'btn-attack', key: 'f' }
+    { btnId: 'btn-attack', key: 'f' },
+    { btnId: 'btn-special', key: 'space' } // ★ 必殺技ボタン
 ];
 
 touchBinds.forEach(bind => {
@@ -386,12 +392,15 @@ class Character {
         this.vy = 0;
 
         this.hp = MAX_HP;
+        this.sp = 0; // ★ 必殺技ゲージ（0〜100）
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = true;
         
-        this.state = 'idle'; 
+        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'laser', 'flinch', 'break', 'hit', 'blowaway'
         this.isAirAttack = false;
         this.isHeavyAttack = false;
+        this.isLaserAttack = false; // ★ レーザー必殺技フラグ
+        this.laserTimer = 0;
         this.chargeTimer = 0;
         this.attackTimer = 0;
         this.attackCooldown = 0;
@@ -399,9 +408,6 @@ class Character {
         this.breakTimer = 0;
         this.guardActive = false;
         this.animFrame = 0;
-
-        this.rotation = 0;
-        this.hasHitWall = false;
 
         this.cpuActionTimer = 0;
         this.cpuDecision = 'idle';
@@ -417,6 +423,8 @@ class Character {
         this.state = 'idle';
         this.isAirAttack = false;
         this.isHeavyAttack = false;
+        this.isLaserAttack = false;
+        this.laserTimer = 0;
         this.chargeTimer = 0;
         this.attackTimer = 0;
         this.attackCooldown = 0;
@@ -425,43 +433,49 @@ class Character {
         this.guardActive = false;
         this.isGrounded = true;
         this.animFrame = 0;
-        this.rotation = 0;
-        this.hasHitWall = false;
         this.cpuTargetAirAttack = false;
+    }
+
+    addSP(amount) {
+        this.sp = Math.min(MAX_SP, this.sp + amount);
+        updateScoreUI();
     }
 
     update(opponent) {
         this.animFrame += 1 * timeScale;
 
+        // ★ 真上打ち上げKO吹っ飛び
         if (this.state === 'blowaway') {
-            this.rotation += this.direction * -0.15 * timeScale;
-            this.x += this.vx * timeScale;
             this.y += this.vy * timeScale;
+            this.vy += GRAVITY * 0.8 * timeScale;
 
-            if (!this.hasHitWall) {
-                this.vy += GRAVITY * 0.4 * timeScale;
-
-                const margin = 10;
-                if (this.x <= margin || this.x + this.width >= canvas.width - margin) {
-                    this.hasHitWall = true;
-                    this.x = (this.x <= margin) ? margin : canvas.width - this.width - margin;
-                    this.vx = 0;
-                    this.vy = 2;
-
-                    const wallHitX = (this.x <= margin) ? margin + 15 : canvas.width - margin - 15;
-                    triggerHitEffect(wallHitX, this.y + 40, true, false);
-                    Sound.playSE('heavy');
-                }
-            } else {
-                this.vy += GRAVITY * 1.1 * timeScale;
-            }
-
+            // 地面着地で横倒れ
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
                 this.vx = 0;
-                this.rotation = 0;
                 this.state = 'hit';
+            }
+            return;
+        }
+
+        // ★ レーザー必殺技処理
+        if (this.state === 'laser') {
+            this.laserTimer += 1 * timeScale;
+            this.vx = 0;
+            this.vy = 0;
+
+            if (this.laserTimer === 16) {
+                Sound.playSE('bom');
+                screenShakeTimer = 20;
+                screenShakeIntensity = 12;
+            }
+
+            if (this.laserTimer > 42) {
+                this.state = 'idle';
+                this.isLaserAttack = false;
+                this.laserTimer = 0;
+                this.attackCooldown = 20;
             }
             return;
         }
@@ -561,13 +575,23 @@ class Character {
         if (this.x < margin) this.x = margin;
         if (this.x + this.width > canvas.width - margin) this.x = canvas.width - this.width - margin;
 
-        if (this.state !== 'attack' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
+        if (this.state !== 'attack' && this.state !== 'laser' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
         }
     }
 
     updatePlayer() {
         this.vx = 0;
+
+        // ★ SPECIAL必殺技の発動（SPACEキーまたはSPECIALボタン）
+        if (keys.space && this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'laser') {
+            this.state = 'laser';
+            this.isLaserAttack = true;
+            this.laserTimer = 0;
+            this.sp = 0; // ゲージ消費
+            updateScoreUI();
+            return;
+        }
 
         if (this.state === 'charge') {
             if (keys.f) {
@@ -594,7 +618,7 @@ class Character {
             }
         }
 
-        if (keys.s && this.isGrounded && this.state !== 'attack' && this.state !== 'charge') {
+        if (keys.s && this.isGrounded && this.state !== 'attack' && this.state !== 'charge' && this.state !== 'laser') {
             this.state = 'guard';
             this.guardActive = true;
             return;
@@ -603,7 +627,7 @@ class Character {
             if (this.state === 'guard') this.state = 'idle';
         }
 
-        if (keys.f && this.attackCooldown <= 0 && this.state !== 'attack') {
+        if (keys.f && this.attackCooldown <= 0 && this.state !== 'attack' && this.state !== 'laser') {
             if (this.isGrounded) {
                 this.state = 'charge';
                 this.chargeTimer = 0;
@@ -618,7 +642,7 @@ class Character {
             }
         }
 
-        if (this.state !== 'attack' && this.state !== 'charge') {
+        if (this.state !== 'attack' && this.state !== 'charge' && this.state !== 'laser') {
             if (keys.a) {
                 this.vx = -4.5;
                 this.state = this.isGrounded ? 'walk' : this.state;
@@ -641,6 +665,18 @@ class Character {
         const level = winStreak + 1;
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
         
+        // ★ CPUの必殺技発動判定
+        if (this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'laser') {
+            if (Math.random() < 0.7) {
+                this.state = 'laser';
+                this.isLaserAttack = true;
+                this.laserTimer = 0;
+                this.sp = 0;
+                updateScoreUI();
+                return;
+            }
+        }
+
         if (this.state === 'charge') {
             this.chargeTimer++;
             if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
@@ -666,7 +702,7 @@ class Character {
             }
         }
 
-        if (this.state === 'attack') return;
+        if (this.state === 'attack' || this.state === 'laser') return;
 
         this.cpuActionTimer--;
         
@@ -761,6 +797,14 @@ class Character {
     }
 
     getAttackBox() {
+        // ★ レーザー攻撃の判定（画面端まで突き抜ける超長射程）
+        if (this.state === 'laser' && this.laserTimer >= 16 && this.laserTimer <= 30) {
+            const beamWidth = canvas.width;
+            const x = (this.direction === 1) ? (this.x + this.width / 2) : (this.x + this.width / 2 - beamWidth);
+            const y = this.y + 20;
+            return { x, y, width: beamWidth, height: 40 };
+        }
+
         if (this.state !== 'attack') return null;
 
         if (this.attackTimer >= 6 && this.attackTimer <= 14) {
@@ -792,19 +836,13 @@ class Character {
         const cy = this.y + this.height;    
 
         ctx.save();
-        
-        if (this.state === 'blowaway' && this.rotation !== 0) {
-            ctx.translate(cx, cy - 40);
-            ctx.rotate(this.rotation);
-            ctx.translate(-cx, -(cy - 40));
-        }
-
         ctx.strokeStyle = this.color;
         ctx.fillStyle = this.color;
         ctx.lineWidth = 5.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
+        // 影
         if (this.state !== 'blowaway') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
@@ -854,6 +892,7 @@ class Character {
             ctx.restore();
         }
 
+        // 溜め発光
         if (this.state === 'charge') {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
@@ -873,15 +912,75 @@ class Character {
             }
         }
 
-        if (this.state === 'blowaway') {
-            headY = cy - 70;
+        // ★ レーザー必殺技の描画（暗転＆発光＆極太ビーム）
+        if (this.state === 'laser') {
+            headY = cy - 68;
             chestY = cy - 50;
             hipY = cy - 30;
-            leftFoot = { x: cx - 20, y: cy - 10 };
-            rightFoot = { x: cx + 20, y: cy - 10 };
-            leftHand = { x: cx - 25, y: cy - 65 };
-            rightHand = { x: cx + 25, y: cy - 65 };
+
+            leftFoot = { x: cx - dir * 22, y: cy };
+            rightFoot = { x: cx + dir * 30, y: cy };
+            rightHand = { x: cx + dir * 35, y: cy - 44 };
+            leftHand = { x: cx - dir * 18, y: cy - 54 };
+
+            swordStart = { x: rightHand.x, y: rightHand.y };
+            swordEnd = { x: rightHand.x + dir * 65, y: rightHand.y };
+
+            // 1. 構え中の暗転＆目のキラーン発光
+            if (this.laserTimer < 16) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+                ctx.fillRect(-100, -100, canvas.width + 200, canvas.height + 200);
+
+                // 目のカットイン閃光
+                ctx.strokeStyle = '#ff0055';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff0055';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(cx + dir * 2, headY - 1);
+                ctx.lineTo(cx + dir * 25, headY - 1);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // 2. 極太レーザー光線発射
+            if (this.laserTimer >= 16 && this.laserTimer <= 32) {
+                const beamProgress = (this.laserTimer - 16) / 16;
+                const beamAlpha = 1 - beamProgress * 0.6;
+                const beamHeight = 35 + Math.sin(this.laserTimer) * 8;
+
+                ctx.save();
+                ctx.globalAlpha = beamAlpha;
+
+                // レーザー外側オーラ
+                ctx.fillStyle = 'rgba(255, 0, 85, 0.4)';
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#ff0055';
+                const beamX = (dir === 1) ? swordEnd.x : 0;
+                const beamW = (dir === 1) ? (canvas.width - swordEnd.x) : swordEnd.x;
+                ctx.fillRect(beamX, swordEnd.y - beamHeight / 2, beamW, beamHeight);
+
+                // レーザー芯（純白の極太コア）
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ffffff';
+                ctx.fillRect(beamX, swordEnd.y - beamHeight / 4, beamW, beamHeight / 2);
+
+                ctx.restore();
+            }
         }
+        // 真上吹っ飛び中
+        else if (this.state === 'blowaway') {
+            headY = cy - 80;
+            chestY = cy - 60;
+            hipY = cy - 40;
+            leftFoot = { x: cx - 10, y: cy - 10 };
+            rightFoot = { x: cx + 10, y: cy - 10 };
+            leftHand = { x: cx - 25, y: cy - 75 };
+            rightHand = { x: cx + 25, y: cy - 75 };
+        }
+        // 完全横倒れKOポーズ（O+＜）
         else if (this.state === 'hit') {
             const headX = cx - dir * 35;
             headY = cy - 8;
@@ -1154,6 +1253,22 @@ function updateScoreUI() {
     const p2HpBlocks = document.querySelectorAll('#p2-hp .hp-block');
     p1HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p1.hp));
     p2HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p2.hp));
+
+    // ★ SP必殺技ゲージバーの更新
+    const p1SpEl = document.getElementById('p1-sp');
+    const p2SpEl = document.getElementById('p2-sp');
+    if (p1SpEl) p1SpEl.style.width = `${p1.sp}%`;
+    if (p2SpEl) p2SpEl.style.width = `${p2.sp}%`;
+
+    // ★ 自分のSPがMAXならSPECIALボタンを発光活性化
+    const myChar = isOnlineMode ? (myPlayerNumber === 1 ? p1 : p2) : p1;
+    if (btnSpecial) {
+        if (myChar.sp >= MAX_SP) {
+            btnSpecial.classList.add('ready');
+        } else {
+            btnSpecial.classList.remove('ready');
+        }
+    }
 }
 
 function showOverlay(text, duration = 1500, callback) {
@@ -1288,7 +1403,10 @@ function connectToRoom() {
         opp.guardActive = data.guardActive;
         opp.attackTimer = data.attackTimer;
         opp.chargeTimer = data.chargeTimer;
+        opp.laserTimer = data.laserTimer;
         opp.isHeavyAttack = data.isHeavyAttack;
+        opp.isLaserAttack = data.isLaserAttack;
+        opp.sp = data.sp || 0;
 
         if (typeof data.myHp === 'number') {
             opp.hp = data.myHp;
@@ -1358,7 +1476,10 @@ function emitMyPhysics(extraOppState, targetOppHp) {
         guardActive: myChar.guardActive,
         attackTimer: myChar.attackTimer,
         chargeTimer: myChar.chargeTimer,
+        laserTimer: myChar.laserTimer,
         isHeavyAttack: myChar.isHeavyAttack,
+        isLaserAttack: myChar.isLaserAttack,
+        sp: myChar.sp,
         myHp: myChar.hp,
         oppHp: typeof targetOppHp === 'number' ? targetOppHp : oppChar.hp,
         oppState: extraOppState || ''
@@ -1449,15 +1570,15 @@ function endRound(winner, reason) {
 
     updateScoreUI();
 
-    // ★ マッチ決着時のスロー＆吹っ飛び演出
+    // ★ マッチ決着時のスロー演出
     if (isMatchPoint && winner) {
         timeScale = 0.25;
 
-        if (winner.isHeavyAttack) {
+        if (winner.isLaserAttack || winner.isHeavyAttack) {
+            // ★ 真上へ天高く吹っ飛ぶ！
             loser.state = 'blowaway';
-            loser.hasHitWall = false;
-            loser.vx = winner.direction * 15;
-            loser.vy = -16;
+            loser.vx = 0;
+            loser.vy = -22;
         } else {
             loser.state = 'hit';
             loser.vx = 0;
@@ -1485,9 +1606,17 @@ function endRound(winner, reason) {
             }
         }, 1800);
     } else {
+        // 通常ラウンド決着（1本目）
         if (winner) {
-            loser.state = 'hit';
-            loser.vx = 0;
+            if (winner.isLaserAttack) {
+                // 通常ラウンドでのレーザー直撃：真上に高く上がって落ちる
+                loser.state = 'blowaway';
+                loser.vx = 0;
+                loser.vy = -16;
+            } else {
+                loser.state = 'hit';
+                loser.vx = 0;
+            }
         }
 
         setTimeout(() => {
@@ -1528,7 +1657,7 @@ function returnToTitle() {
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
     if (socket) {
-        socket.emit('leave_room'); // ★ 部屋から確実に退室
+        socket.emit('leave_room');
     }
     Sound.playBGM('title');
     updateRankingUI();
@@ -1537,8 +1666,12 @@ function returnToTitle() {
 function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     const isFacing = (attacker.x < defender.x && defender.direction === -1) || (attacker.x > defender.x && defender.direction === 1);
 
-    if (defender.guardActive && isFacing) {
+    if (defender.guardActive && isFacing && !attacker.isLaserAttack) {
         triggerHitEffect(hitX, hitY, false, true);
+
+        // ガード成功時：守った側にSP+10、攻撃側にSP+5
+        defender.addSP(10);
+        attacker.addSP(5);
 
         if (attacker.isHeavyAttack) {
             defender.state = 'break';
@@ -1553,12 +1686,21 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             Sound.playSE('guard');
         }
     } else {
-        triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
+        triggerHitEffect(hitX, hitY, attacker.isHeavyAttack || attacker.isLaserAttack, false);
 
-        if (attacker.isHeavyAttack) {
+        // ヒット時：攻撃者にSP+20、被弾者にSP+25
+        attacker.addSP(20);
+        defender.addSP(25);
+
+        // 溜め攻撃 または レーザー必殺技：一撃KO！
+        if (attacker.isHeavyAttack || attacker.isLaserAttack) {
             defender.hp = 0;
             updateScoreUI();
-            Sound.playSE('heavy');
+            if (attacker.isLaserAttack) {
+                Sound.playSE('bom');
+            } else {
+                Sound.playSE('heavy');
+            }
 
             if (isOnlineMode) {
                 emitMyPhysics('', 0);
