@@ -23,9 +23,7 @@ const CPU_COLORS = [
     '#ff5252', '#1abc9c', '#e056fd', '#f5f6fa', '#30336b'
 ];
 
-// ==========================================
-// ★ オーディオマネージャー（永久ループ＆高速SE）
-// ==========================================
+// オーディオマネージャー
 class SoundManager {
     constructor() {
         this.ctx = null;
@@ -49,14 +47,12 @@ class SoundManager {
             game2: 'bgm/back-bgm2.mp3'
         };
 
-        // BGMプレイヤーを固定生成（iOSのオーディオ破棄バグ防止）
         this.bgmAudioElements = {};
         for (const [key, url] of Object.entries(this.bgmFiles)) {
             const audio = new Audio(url);
             audio.loop = true;
             audio.volume = this.bgmVolume;
             
-            // ★ iPhoneのループ停止バグ対策：曲が終わったら手動で巻き戻して再開
             audio.addEventListener('ended', () => {
                 audio.currentTime = 0;
                 audio.play().catch(() => {});
@@ -112,16 +108,13 @@ class SoundManager {
         }
     }
 
-    // ★ BGM再生（途切れず永久ループ）
     playBGM(type) {
         this.unlockAudio();
 
-        // バトル中（game）で既にバトルBGMが再生中なら、曲を止めずにそのまま流し続ける
         if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) {
             return;
         }
 
-        // タイトルBGMが再生中ならそのまま維持
         if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) {
             return;
         }
@@ -155,13 +148,9 @@ class SoundManager {
 
 const Sound = new SoundManager();
 
+// ★ 初回操作時はオーディオの準備（アンロック）だけを行い、タイトルBGMは鳴らさない
 const handleFirstInteraction = () => {
     Sound.unlockAudio();
-    if (titleScreen.style.display !== 'none' && !gameActive) {
-        if (!Sound.currentBgm || Sound.currentBgm.paused) {
-            Sound.playBGM('title');
-        }
-    }
 };
 
 window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
@@ -1161,7 +1150,6 @@ function showOnlineMenu() {
 function hideOnlineMenu() {
     onlineScreen.style.display = 'none';
     titleScreen.style.display = 'flex';
-    Sound.playBGM('title');
 }
 
 // オンライン対戦（Socket.io）ロジック
@@ -1338,7 +1326,6 @@ function startCPUMode() {
     streakCounterEl.style.display = 'block';
     streakCounterEl.innerText = `連勝: ${winStreak}`;
     
-    // ★ バトルBGM再生（試合中ずっとループ）
     Sound.playBGM('game');
 
     p1.reset();
@@ -1444,7 +1431,6 @@ function startNextMatch() {
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
     document.getElementById('p2-name-display').style.color = p2.color;
 
-    // ★ 次のCPU戦へ進む際も途切れずループ再生
     Sound.playBGM('game');
 
     p1.reset();
@@ -1458,6 +1444,7 @@ function returnToTitle() {
     gameActive = false;
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
+    // ★ ゲーム終了後にタイトルに戻ってきた時だけタイトルBGMを再生
     Sound.playBGM('title');
     updateRankingUI();
 }
@@ -1620,5 +1607,4 @@ function gameLoop() {
 
 // 起動
 updateRankingUI();
-Sound.playBGM('title');
 gameLoop();
