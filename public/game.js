@@ -22,7 +22,11 @@ const MAX_SP = 100;
 const MAX_CHARGE_FRAMES = 45;
 
 let timeScale = 1.0;
-let isWatchMode = false; // ★ 観戦モードフラグ
+let isWatchMode = false;
+
+// ★ タイマーID管理（タイトル復帰時に完全破棄するため）
+let roundEndTimeout = null;
+let overlayTimeout = null;
 
 // CPUの10色カラーパレット
 const CPU_COLORS = [
@@ -100,6 +104,7 @@ class SoundManager {
     }
 
     playSE(name) {
+        if (!gameActive && !isWatchMode && name !== 'swing') return; // ゲーム外でのSE暴発を防止
         this.unlockAudio();
         if (!this.ctx || !this.buffers[name]) return;
 
@@ -423,6 +428,7 @@ class Character {
         this.vx = 0;
         this.vy = 0;
         this.hp = MAX_HP;
+        this.sp = 0; // ★ 毎試合・毎ラウンド確実にSPゲージを0%にリセット！
         this.state = 'idle';
         this.isAirAttack = false;
         this.isHeavyAttack = false;
@@ -661,7 +667,7 @@ class Character {
     }
 
     updateCPU(opponent) {
-        const level = isWatchMode ? 8 : (winStreak + 1); // 観戦モードは高レベルAI同士
+        const level = isWatchMode ? 8 : (winStreak + 1);
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
         const isOpponentSpReady = opponent.sp >= MAX_SP;
         const isNearWall = (this.x <= 40 || this.x >= canvas.width - 80);
@@ -914,6 +920,7 @@ class Character {
             }
         }
 
+        // レーザー必殺技の描画
         if (this.state === 'laser') {
             headY = cy - 68;
             chestY = cy - 50;
@@ -1255,7 +1262,7 @@ function updateScoreUI() {
 
     const myChar = isOnlineMode ? (myPlayerNumber === 1 ? p1 : p2) : p1;
     if (btnSpecial) {
-        if (myChar.sp >= MAX_SP) {
+        if (!isWatchMode && myChar.sp >= MAX_SP) {
             btnSpecial.classList.add('ready');
         } else {
             btnSpecial.classList.remove('ready');
@@ -1264,12 +1271,14 @@ function updateScoreUI() {
 }
 
 function showOverlay(text, duration = 1500, callback) {
+    if (!gameActive && !isWatchMode) return; // 終了後は表示をブロック
     overlayTextEl.innerText = text;
     gameOverlay.classList.add('show');
     
-    setTimeout(() => {
+    if (overlayTimeout) clearTimeout(overlayTimeout);
+    overlayTimeout = setTimeout(() => {
         gameOverlay.classList.remove('show');
-        if (callback) callback();
+        if (callback && (gameActive || isWatchMode)) callback();
     }, duration);
 }
 
@@ -1515,7 +1524,7 @@ function startCPUMode() {
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
 }
 
-// ★ 観戦モード（CPU vs CPU）の開始
+// 観戦モード
 function startWatchMode() {
     isOnlineMode = false;
     isWatchMode = true;
@@ -1525,7 +1534,7 @@ function startWatchMode() {
     currentRound = 1;
     timeScale = 1.0;
 
-    p1.isCPU = true;  // 両方CPUにする
+    p1.isCPU = true;
     p2.isCPU = true;
 
     p1.color = '#ff5252';
@@ -1536,7 +1545,6 @@ function startWatchMode() {
     document.getElementById('p2-name-display').innerText = "CPU 2";
     document.getElementById('p2-name-display').style.color = p2.color;
 
-    // コントローラーを隠して「観戦終了」ボタンを表示
     if (touchControls) touchControls.style.display = 'none';
     if (btnExitWatch) btnExitWatch.style.display = 'block';
 
@@ -1618,11 +1626,11 @@ function endRound(winner, reason) {
             loser.vx = 0;
         }
 
-        setTimeout(() => {
+        if (roundEndTimeout) clearTimeout(roundEndTimeout);
+        roundEndTimeout = setTimeout(() => {
             timeScale = 1.0;
             if (p1Score >= MAX_SCORE || p2Score >= MAX_SCORE) {
                 if (isWatchMode) {
-                    // 観戦モードなら次のランダムCPUマッチへ自動遷移
                     showOverlay(`${message}!\nNEXT MATCH...`, 2500, startWatchMode);
                 } else if (isOnlineMode) {
                     showOverlay(myPlayerNumber === (p1Score >= MAX_SCORE ? 1 : 2) ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
@@ -1652,7 +1660,8 @@ function endRound(winner, reason) {
             }
         }
 
-        setTimeout(() => {
+        if (roundEndTimeout) clearTimeout(roundEndTimeout);
+        roundEndTimeout = setTimeout(() => {
             p1.reset();
             p2.reset();
             updateScoreUI();
@@ -1684,19 +1693,34 @@ function startNextMatch() {
     showOverlay(`ROUND ${currentRound}\n(VS CPU LV.${winStreak + 1})`, 2000, startRound);
 }
 
+// ★ タイトルへ戻る処理（完全クリーンアップで裏対戦を遮断）
 function returnToTitle() {
     gameActive = false;
     isWatchMode = false;
+    roundOver = true;
     timeScale = 1.0;
+
+    // 進行中のすべてのタイマーを全消去
+    if (timerInterval) clearInterval(timerInterval);
+    if (roundEndTimeout) clearTimeout(roundEndTimeout);
+    if (overlayTimeout) clearTimeout(overlayTimeout);
+
+    // オーバーレイを即座に非表示
+    gameOverlay.classList.remove('show');
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
     if (touchControls) touchControls.style.display = 'flex';
 
+    p1.reset();
+    p2.reset();
+
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
+
     if (socket) {
         socket.emit('leave_room');
     }
+
     Sound.playBGM('title');
     updateRankingUI();
 }
