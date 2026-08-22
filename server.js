@@ -22,6 +22,9 @@ const rooms = {};
 io.on('connection', (socket) => {
     console.log('ユーザーが接続しました:', socket.id);
 
+    // ★ 接続時：現在のオンライン人数を接続者全員にリアルタイム送信
+    io.emit('online_count', io.engine.clientsCount);
+
     // ルーム入室リクエスト
     socket.on('join_room', (data) => {
         const { roomId, playerName } = data;
@@ -79,6 +82,10 @@ io.on('connection', (socket) => {
     // 切断時のクリーンアップ
     socket.on('disconnect', () => {
         console.log('ユーザーが切断しました:', socket.id);
+
+        // ★ 切断時：オンライン人数を更新して全員に再送信
+        io.emit('online_count', io.engine.clientsCount);
+
         const roomId = socket.roomId;
         if (roomId && rooms[roomId]) {
             // 切断したプレイヤーを部屋から除外
