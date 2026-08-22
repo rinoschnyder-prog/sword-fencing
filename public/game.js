@@ -58,14 +58,12 @@ class SoundManager {
         }
     }
 
-    // iPhone等のオーディオブロック解除
     unlockAudio() {
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume();
         }
     }
 
-    // SEを起動時にメモリプリロード（遅延ゼロ化）
     async loadAllSE() {
         if (!this.ctx) return;
         for (const [key, url] of Object.entries(this.seFiles)) {
@@ -79,7 +77,6 @@ class SoundManager {
         }
     }
 
-    // SE再生（超高速・多重再生可能）
     playSE(name) {
         this.unlockAudio();
         if (!this.ctx || !this.buffers[name]) return;
@@ -97,7 +94,6 @@ class SoundManager {
         }
     }
 
-    // BGM再生
     playBGM(type) {
         this.unlockAudio();
         let targetUrl = '';
@@ -105,12 +101,11 @@ class SoundManager {
         if (type === 'title') {
             targetUrl = this.bgmFiles.title;
         } else if (type === 'game') {
-            // game1 と game2 をランダムで選択
             targetUrl = Math.random() < 0.5 ? this.bgmFiles.game1 : this.bgmFiles.game2;
         }
 
-        if (this.currentBgm && this.currentBgm.src.includes(targetUrl)) {
-            return; // 既に同じ曲が再生中なら維持
+        if (this.currentBgm && this.currentBgm.src.includes(targetUrl) && !this.currentBgm.paused) {
+            return;
         }
 
         this.stopBGM();
@@ -132,9 +127,19 @@ class SoundManager {
 
 const Sound = new SoundManager();
 
-// 初回画面タッチでオーディオ解除
-window.addEventListener('touchstart', () => Sound.unlockAudio(), { once: true });
-window.addEventListener('mousedown', () => Sound.unlockAudio(), { once: true });
+// ★ 修正：画面を初めてタップ/クリックした瞬間にタイトルBGMを自動再生開始！
+const handleFirstInteraction = () => {
+    Sound.unlockAudio();
+    if (titleScreen.style.display !== 'none' && !gameActive) {
+        if (!Sound.currentBgm || Sound.currentBgm.paused) {
+            Sound.playBGM('title');
+        }
+    }
+};
+
+window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+window.addEventListener('mousedown', handleFirstInteraction);
+window.addEventListener('click', handleFirstInteraction);
 
 function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -739,7 +744,6 @@ class Character {
 
         const dir = this.direction;
 
-        // 自分（操作プレイヤー）の「YOU ▼」インジケーター
         const isMyCharacter = isOnlineMode ? 
             ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) : 
             (this === p1);
@@ -768,7 +772,6 @@ class Character {
             ctx.restore();
         }
 
-        // 溜め発光
         if (this.state === 'charge') {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
@@ -788,7 +791,6 @@ class Character {
             }
         }
 
-        // 完全横倒れKOポーズ（O+＜）
         if (this.state === 'hit') {
             const headX = cx - dir * 35;
             headY = cy - 8;
