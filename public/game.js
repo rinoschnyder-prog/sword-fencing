@@ -16,6 +16,20 @@ const MAX_SCORE = 2;
 const MAX_HP = 5;
 const MAX_CHARGE_FRAMES = 45;
 
+// CPUの10色カラーパレット
+const CPU_COLORS = [
+    '#40c4ff', // 1: シアンブルー
+    '#2ecc71', // 2: エメラルドグリーン
+    '#9b59b6', // 3: アメジストパープル
+    '#e67e22', // 4: バーニングオレンジ
+    '#ffd32a', // 5: シャイニングゴールド
+    '#ff5252', // 6: クリムゾンレッド
+    '#1abc9c', // 7: ターコイズ
+    '#e056fd', // 8: ネオンピンク
+    '#f5f6fa', // 9: プラチナシルバー
+    '#30336b'  // 10: ディープネイビー
+];
+
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -44,11 +58,10 @@ let gameActive = false;
 let roundOver = false;
 let winStreak = 0;
 
-// 画面揺れ用変数
+let youMarkerTimer = 0;
 let screenShakeTimer = 0;
 let screenShakeIntensity = 0;
 
-// パーティクル＆エフェクト管理
 let particles = [];
 let slashes = [];
 
@@ -547,14 +560,14 @@ class Character {
         ctx.save();
         ctx.strokeStyle = this.color;
         ctx.fillStyle = this.color;
-        ctx.lineWidth = 4.5;
+        ctx.lineWidth = 5.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
         // 影
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.beginPath();
-        ctx.ellipse(cx, GROUND_Y, 24, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, GROUND_Y, this.state === 'hit' ? 40 : 25, 6, 0, 0, Math.PI * 2);
         ctx.fill();
 
         let headY = cy - 74;
@@ -570,6 +583,35 @@ class Character {
         let swordEnd = { x: 0, y: 0 };
 
         const dir = this.direction;
+
+        // ★ 自分（操作プレイヤー）の「YOU ▼」インジケーター
+        const isMyCharacter = isOnlineMode ? 
+            ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) : 
+            (this === p1);
+
+        if (isMyCharacter && gameActive && this.state !== 'hit' && youMarkerTimer > 0) {
+            const bob = Math.sin(this.animFrame * 0.15) * 4;
+            const markerY = headY - 26 + bob;
+            const alpha = Math.min(1, youMarkerTimer / 30);
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = 'bold 12px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#ffd32a';
+            ctx.textAlign = 'center';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#ffd32a';
+            
+            ctx.fillText('YOU', cx, markerY);
+            
+            ctx.beginPath();
+            ctx.moveTo(cx - 5, markerY + 4);
+            ctx.lineTo(cx + 5, markerY + 4);
+            ctx.lineTo(cx, markerY + 9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
 
         // 溜め発光
         if (this.state === 'charge') {
@@ -591,14 +633,55 @@ class Character {
             }
         }
 
+        // 完全横倒れKOポーズ（O+＜）
         if (this.state === 'hit') {
-            headY = cy - 30;
-            chestY = cy - 20;
-            hipY = cy - 10;
-            leftFoot = { x: cx - 22, y: cy };
-            rightFoot = { x: cx + 16, y: cy };
-            leftHand = { x: cx - 12, y: cy - 6 };
-            rightHand = { x: cx + 12, y: cy - 6 };
+            const headX = cx - dir * 35;
+            headY = cy - 8;
+            const bodyChestX = cx - dir * 18;
+            const bodyHipX = cx;
+
+            // ★ 頭部（プレイヤーカラー）
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(headX, headY, 11, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 胴体
+            ctx.beginPath();
+            ctx.moveTo(headX + dir * 10, headY);
+            ctx.lineTo(bodyHipX, cy - 6);
+            ctx.stroke();
+
+            // 腕
+            ctx.beginPath();
+            ctx.moveTo(bodyChestX, cy - 6);
+            ctx.lineTo(cx - dir * 10, cy - 14);
+            ctx.stroke();
+
+            // 足（＜ の形）
+            ctx.beginPath();
+            ctx.moveTo(bodyHipX, cy - 6);
+            ctx.lineTo(cx + dir * 22, cy - 12);
+            ctx.lineTo(cx + dir * 35, cy - 4);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(bodyHipX, cy - 6);
+            ctx.lineTo(cx + dir * 28, cy - 4);
+            ctx.stroke();
+
+            // 地面の剣
+            ctx.save();
+            ctx.strokeStyle = '#ecf0f1';
+            ctx.lineWidth = 3.5;
+            ctx.beginPath();
+            ctx.moveTo(cx - dir * 10, cy - 3);
+            ctx.lineTo(cx + dir * 30, cy - 3);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.restore();
+            return;
         } 
         else if (this.state === 'break') {
             headY = cy - 45;
@@ -715,16 +798,38 @@ class Character {
             swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         }
 
+        // ★ 修正：頭部を確実にプレイヤー/CPUカラーで塗りつぶす！
+        ctx.fillStyle = this.color;
+        ctx.strokeStyle = this.color;
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
         ctx.fill();
 
+        // ★ 目元（白い光るバイザー）
+        ctx.save();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(cx + dir * 2, headY - 1);
+        ctx.lineTo(cx + dir * 10, headY - 1);
+        ctx.stroke();
+        ctx.restore();
+
+        // 胴体
         ctx.beginPath();
         ctx.moveTo(cx, headY + 11);
         ctx.lineTo(cx, hipY);
         ctx.stroke();
 
+        // 胴体アーマーの厚み
+        ctx.save();
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 足
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
         ctx.lineTo(leftFoot.x, leftFoot.y);
@@ -734,6 +839,7 @@ class Character {
         ctx.lineTo(rightFoot.x, rightFoot.y);
         ctx.stroke();
 
+        // 腕
         ctx.beginPath();
         ctx.moveTo(cx, chestY);
         ctx.lineTo(leftHand.x, leftHand.y);
@@ -743,31 +849,31 @@ class Character {
         ctx.lineTo(rightHand.x, rightHand.y);
         ctx.stroke();
 
-        if (this.state !== 'hit') {
-            ctx.save();
-            ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
-            ctx.lineWidth = this.isHeavyAttack ? 4.5 : 3.8;
-            ctx.beginPath();
-            ctx.moveTo(swordStart.x, swordStart.y);
-            ctx.lineTo(swordEnd.x, swordEnd.y);
-            ctx.stroke();
+        // 剣
+        ctx.save();
+        ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
+        ctx.lineWidth = this.isHeavyAttack ? 4.5 : 3.8;
+        ctx.beginPath();
+        ctx.moveTo(swordStart.x, swordStart.y);
+        ctx.lineTo(swordEnd.x, swordEnd.y);
+        ctx.stroke();
 
-            ctx.strokeStyle = '#ffd32a';
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            const sDx = swordEnd.x - swordStart.x;
-            const sDy = swordEnd.y - swordStart.y;
-            const sLen = Math.hypot(sDx, sDy) || 1;
-            const perpX = (-sDy / sLen) * 7;
-            const perpY = (sDx / sLen) * 7;
-            const tsubaX = swordStart.x + (sDx / sLen) * 6;
-            const tsubaY = swordStart.y + (sDy / sLen) * 6;
+        // 鍔
+        ctx.strokeStyle = '#ffd32a';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        const sDx = swordEnd.x - swordStart.x;
+        const sDy = swordEnd.y - swordStart.y;
+        const sLen = Math.hypot(sDx, sDy) || 1;
+        const perpX = (-sDy / sLen) * 7;
+        const perpY = (sDx / sLen) * 7;
+        const tsubaX = swordStart.x + (sDx / sLen) * 6;
+        const tsubaY = swordStart.y + (sDy / sLen) * 6;
 
-            ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
-            ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
-            ctx.stroke();
-            ctx.restore();
-        }
+        ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
+        ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
+        ctx.stroke();
+        ctx.restore();
 
         if (this.state === 'guard') {
             ctx.strokeStyle = 'rgba(255, 211, 42, 0.45)';
@@ -783,7 +889,7 @@ class Character {
 
 // キャラクター初期化
 const p1 = new Character('#ff5252', false); 
-const p2 = new Character('#40c4ff', true);  
+const p2 = new Character(CPU_COLORS[0], true);  
 resizeCanvas();
 
 function checkCollision(rect1, rect2) {
@@ -906,6 +1012,7 @@ function connectToRoom() {
 
         p1.isCPU = false;
         p2.isCPU = false;
+        p2.color = CPU_COLORS[0];
 
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
@@ -914,15 +1021,16 @@ function connectToRoom() {
             onlineScreen.style.display = 'none';
             uiLayer.style.display = 'flex';
             streakCounterEl.style.display = 'none'; 
+            p1.reset();
+            p2.reset();
             updateScoreUI();
             showOverlay(`ROUND ${currentRound}`, 1500, startRound);
         }, 1000);
     });
 
-    // ★ 相手データの受信：ラウンド番号を照合し、前ラウンドの残骸データは完全破棄！
+    // 相手データ受信
     socket.on('opponent_physics', (data) => {
         if (roundOver || !gameActive) return;
-        // 異なるラウンドの古いパケットなら無視
         if (data.round !== currentRound) return;
 
         const opp = (myPlayerNumber === 1) ? p2 : p1;
@@ -937,12 +1045,10 @@ function connectToRoom() {
         opp.chargeTimer = data.chargeTimer;
         opp.isHeavyAttack = data.isHeavyAttack;
 
-        // ★ 相手から届いた相手自身の正確なHPを代入
         if (typeof data.myHp === 'number') {
             opp.hp = data.myHp;
         }
 
-        // もし相手が「お前HP減ったぞ」と送ってきた場合（ダメージ同期）
         if (typeof data.oppHp === 'number') {
             if (data.oppHp < myChar.hp) {
                 myChar.hp = data.oppHp;
@@ -953,7 +1059,6 @@ function connectToRoom() {
                 if (myChar.hp <= 0) {
                     myChar.state = 'hit';
                     myChar.vx = 0;
-                    // ★ 即座に決着処理を起動（通信待ちを無くす）
                     endRound(opp);
                 } else {
                     myChar.state = 'flinch';
@@ -989,14 +1094,13 @@ function connectToRoom() {
     });
 }
 
-// ★ 自分の情報＋相手に与えたダメージを確実に送信
 function emitMyPhysics(extraOppState, targetOppHp) {
     if (!socket || !isOnlineMode || roundOver) return;
     const myChar = (myPlayerNumber === 1) ? p1 : p2;
     const oppChar = (myPlayerNumber === 1) ? p2 : p1;
 
     socket.emit('update_physics', {
-        round: currentRound, // ★ 現在のラウンド番号
+        round: currentRound,
         xRatio: myChar.x / canvas.width,
         groundOffset: myChar.y - GROUND_Y,
         direction: myChar.direction,
@@ -1022,14 +1126,18 @@ function startCPUMode() {
     p1.isCPU = false;
     p2.isCPU = true; 
 
+    p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
     document.getElementById('p1-name-display').innerText = "PLAYER 1";
-    document.getElementById('p2-name-display').innerText = "CPU";
+    document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
+    document.getElementById('p2-name-display').style.color = p2.color;
 
     titleScreen.style.display = 'none';
     uiLayer.style.display = 'flex';
     streakCounterEl.style.display = 'block';
     streakCounterEl.innerText = `連勝: ${winStreak}`;
     
+    p1.reset();
+    p2.reset();
     updateScoreUI();
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
 }
@@ -1038,10 +1146,11 @@ function startRound() {
     for (let key in keys) keys[key] = false;
     p1.reset();
     p2.reset();
-    p1.hp = MAX_HP; // ★ HPの完全初期化
+    p1.hp = MAX_HP;
     p2.hp = MAX_HP;
     particles = [];
     slashes = [];
+    youMarkerTimer = 150;
     updateScoreUI();
 
     roundTimer = ROUND_TIME_LIMIT;
@@ -1066,7 +1175,7 @@ function startRound() {
 }
 
 function endRound(winner, reason) {
-    if (roundOver) return; // 二重呼び出し防止
+    if (roundOver) return;
     roundOver = true;
     clearInterval(timerInterval);
 
@@ -1083,7 +1192,7 @@ function endRound(winner, reason) {
         p2Score++;
         p1.hp = 0;
         p1.state = 'hit';
-        message = isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : "CPU WIN";
+        message = isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : `${document.getElementById('p2-name-display').innerText} WIN`;
     } else {
         message = reason || "DRAW";
     }
@@ -1097,7 +1206,7 @@ function endRound(winner, reason) {
             } else {
                 winStreak++;
                 streakCounterEl.innerText = `連勝: ${winStreak}`;
-                showOverlay(`VICTORY!\n${winStreak}連勝`, 2000, startNextMatch);
+                showOverlay(`VICTORY!\n${winStreak}連勝達成！`, 2000, startNextMatch);
             }
         } else if (p2Score >= MAX_SCORE) {
             if (isOnlineMode) {
@@ -1109,6 +1218,10 @@ function endRound(winner, reason) {
                 });
             }
         } else {
+            p1.reset();
+            p2.reset();
+            updateScoreUI();
+
             showOverlay(message, 1500, () => {
                 currentRound++;
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
@@ -1121,7 +1234,15 @@ function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
     currentRound = 1;
+
+    p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
+    document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
+    document.getElementById('p2-name-display').style.color = p2.color;
+
+    p1.reset();
+    p2.reset();
     updateScoreUI();
+
     showOverlay(`ROUND ${currentRound}\n(VS CPU LV.${winStreak + 1})`, 2000, startRound);
 }
 
@@ -1156,25 +1277,23 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
 
         if (attacker.isHeavyAttack) {
-            // 溜め攻撃直撃：即死KO
             defender.hp = 0;
             defender.state = 'hit';
             defender.vx = 0;
             updateScoreUI();
 
             if (isOnlineMode) {
-                emitMyPhysics('', 0); // 相手HP 0 を強制送信
+                emitMyPhysics('', 0);
                 if (socket) socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
             }
             endRound(attacker);
         } else {
-            // 通常攻撃：1ダメージ
             defender.hp = Math.max(0, defender.hp - 1);
             attacker.attackTimer = 22;
             updateScoreUI();
 
             if (isOnlineMode) {
-                emitMyPhysics('', defender.hp); // 減ったHPを相手に送信
+                emitMyPhysics('', defender.hp);
             }
 
             if (defender.hp <= 0) {
@@ -1236,6 +1355,10 @@ function checkHits() {
 
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (youMarkerTimer > 0) {
+        youMarkerTimer--;
+    }
 
     ctx.save();
     if (screenShakeTimer > 0) {
