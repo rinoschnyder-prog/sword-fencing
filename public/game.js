@@ -17,6 +17,9 @@ const MAX_SCORE = 2;
 const MAX_HP = 5;
 const MAX_CHARGE_FRAMES = 45;
 
+// ★ スローモーション倍率（通常1.0、マッチ決着時0.25）
+let timeScale = 1.0;
+
 // CPUの10色カラーパレット
 const CPU_COLORS = [
     '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22', '#ffd32a',
@@ -148,7 +151,6 @@ class SoundManager {
 
 const Sound = new SoundManager();
 
-// ★ 初回操作時はオーディオの準備（アンロック）だけを行い、タイトルBGMは鳴らさない
 const handleFirstInteraction = () => {
     Sound.unlockAudio();
 };
@@ -204,10 +206,10 @@ class Particle {
         this.maxLife = life;
     }
     update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        this.vy += 0.2;
-        this.life--;
+        this.x += this.vx * timeScale;
+        this.y += this.vy * timeScale;
+        this.vy += 0.2 * timeScale;
+        this.life -= 1 * timeScale;
     }
     draw() {
         const alpha = Math.max(0, this.life / this.maxLife);
@@ -235,10 +237,10 @@ class SlashEffect {
         this.maxLife = this.life;
     }
     update() {
-        this.life--;
+        this.life -= 1 * timeScale;
     }
     draw() {
-        const alpha = this.life / this.maxLife;
+        const alpha = Math.max(0, this.life / this.maxLife);
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -388,7 +390,7 @@ class Character {
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = true;
         
-        this.state = 'idle'; 
+        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'flinch', 'break', 'hit', 'blowaway'
         this.isAirAttack = false;
         this.isHeavyAttack = false;
         this.chargeTimer = 0;
@@ -398,6 +400,10 @@ class Character {
         this.breakTimer = 0;
         this.guardActive = false;
         this.animFrame = 0;
+
+        // ★ 吹っ飛び回転用
+        this.rotation = 0;
+        this.hasHitWall = false;
 
         this.cpuActionTimer = 0;
         this.cpuDecision = 'idle';
@@ -421,22 +427,63 @@ class Character {
         this.guardActive = false;
         this.isGrounded = true;
         this.animFrame = 0;
+        this.rotation = 0;
+        this.hasHitWall = false;
         this.cpuTargetAirAttack = false;
     }
 
     update(opponent) {
-        this.animFrame++;
+        this.animFrame += 1 * timeScale;
+
+        // ★ 溜めフィニッシュの45度激痛吹っ飛び＆壁激突落下物理
+        if (this.state === 'blowaway') {
+            this.rotation += this.direction * -0.15 * timeScale;
+            this.x += this.vx * timeScale;
+            this.y += this.vy * timeScale;
+
+            // 壁激突前の上昇＆前進
+            if (!this.hasHitWall) {
+                this.vy += GRAVITY * 0.4 * timeScale;
+
+                // 画面端の壁に激突
+                const margin = 10;
+                if (this.x <= margin || this.x + this.width >= canvas.width - margin) {
+                    this.hasHitWall = true;
+                    this.x = (this.x <= margin) ? margin : canvas.width - this.width - margin;
+                    this.vx = 0;
+                    this.vy = 2; // 壁に激突して垂直ポトリ落下開始
+
+                    // 壁激突エフェクト＆特大シェイク
+                    const wallHitX = (this.x <= margin) ? margin + 15 : canvas.width - margin - 15;
+                    triggerHitEffect(wallHitX, this.y + 40, true, false);
+                    Sound.playSE('heavy');
+                }
+            } else {
+                // 壁激突後の垂直自由落下
+                this.vy += GRAVITY * 1.1 * timeScale;
+            }
+
+            // 床に着地してバタリと横倒れ
+            if (this.y + this.height >= GROUND_Y) {
+                this.y = GROUND_Y - this.height;
+                this.vy = 0;
+                this.vx = 0;
+                this.rotation = 0;
+                this.state = 'hit';
+            }
+            return;
+        }
 
         if (isOnlineMode && ((myPlayerNumber === 1 && this === p2) || (myPlayerNumber === 2 && this === p1))) {
             return;
         }
 
         if (!this.isGrounded) {
-            this.vy += GRAVITY;
+            this.vy += GRAVITY * timeScale;
         }
 
         if (this.state === 'flinch') {
-            this.flinchTimer--;
+            this.flinchTimer -= 1 * timeScale;
             this.vx *= 0.85;
             if (this.flinchTimer <= 0) {
                 this.state = 'idle';
@@ -445,7 +492,7 @@ class Character {
         }
 
         if (this.state === 'break') {
-            this.breakTimer--;
+            this.breakTimer -= 1 * timeScale;
             this.vx = 0;
             this.guardActive = false;
             if (this.breakTimer <= 0) {
@@ -454,7 +501,7 @@ class Character {
         }
 
         if (this.state === 'attack') {
-            this.attackTimer++;
+            this.attackTimer += 1 * timeScale;
 
             if (this.isAirAttack) {
                 if (this.attackTimer < 12) {
@@ -486,7 +533,7 @@ class Character {
         }
 
         if (this.attackCooldown > 0) {
-            this.attackCooldown--;
+            this.attackCooldown -= 1 * timeScale;
         }
 
         if (this.state !== 'hit' && this.state !== 'flinch' && this.state !== 'break' && !roundOver) {
@@ -503,8 +550,8 @@ class Character {
             this.vx = 0;
         }
 
-        this.x += this.vx;
-        this.y += this.vy;
+        this.x += this.vx * timeScale;
+        this.y += this.vy * timeScale;
 
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
@@ -564,7 +611,7 @@ class Character {
             if (this.state === 'guard') this.state = 'idle';
         }
 
-        if (keys.f && this.attackCooldown === 0 && this.state !== 'attack') {
+        if (keys.f && this.attackCooldown <= 0 && this.state !== 'attack') {
             if (this.isGrounded) {
                 this.state = 'charge';
                 this.chargeTimer = 0;
@@ -616,7 +663,7 @@ class Character {
         }
 
         if (!this.isGrounded && this.state === 'jump') {
-            if (this.cpuTargetAirAttack && this.vy >= -4 && this.attackCooldown === 0) {
+            if (this.cpuTargetAirAttack && this.vy >= -4 && this.attackCooldown <= 0) {
                 this.state = 'attack';
                 this.isAirAttack = true;
                 this.isHeavyAttack = false;
@@ -638,7 +685,7 @@ class Character {
 
             if ((opponent.state === 'break' || opponent.state === 'flinch') && this.isGrounded) {
                 const chargeChance = Math.min(0.9, 0.4 + level * 0.1);
-                if (rand < chargeChance && this.attackCooldown === 0) {
+                if (rand < chargeChance && this.attackCooldown <= 0) {
                     this.cpuDecision = 'charge';
                 } else {
                     this.cpuDecision = (distance > 60) ? 'approach' : 'attack';
@@ -664,13 +711,13 @@ class Character {
                     this.cpuDecision = 'idle';
                 }
             } else if (distance < 125) {
-                if (rand < 0.35 && this.attackCooldown === 0) {
+                if (rand < 0.35 && this.attackCooldown <= 0) {
                     this.cpuDecision = 'attack';
                 } else if (rand < 0.55) {
                     this.cpuDecision = 'backstep';
                 } else if (rand < 0.75 && this.isGrounded) {
                     this.cpuDecision = 'jump_forward';
-                } else if (rand < 0.90 && this.isGrounded && this.attackCooldown === 0) {
+                } else if (rand < 0.90 && this.isGrounded && this.attackCooldown <= 0) {
                     this.cpuDecision = (level >= 3 && rand < 0.5) ? 'charge' : 'guard';
                 } else {
                     this.cpuDecision = 'idle';
@@ -699,12 +746,12 @@ class Character {
             this.state = 'guard';
             this.guardActive = true;
             this.vx = 0;
-        } else if (this.cpuDecision === 'charge' && this.isGrounded && this.attackCooldown === 0) {
+        } else if (this.cpuDecision === 'charge' && this.isGrounded && this.attackCooldown <= 0) {
             this.state = 'charge';
             this.chargeTimer = 0;
             this.vx = 0;
             this.cpuDecision = 'idle';
-        } else if (this.cpuDecision === 'attack' && this.attackCooldown === 0) {
+        } else if (this.cpuDecision === 'attack' && this.attackCooldown <= 0) {
             this.state = 'attack';
             this.isAirAttack = false;
             this.isHeavyAttack = false;
@@ -753,6 +800,14 @@ class Character {
         const cy = this.y + this.height;    
 
         ctx.save();
+        
+        // 吹っ飛び回転適用
+        if (this.state === 'blowaway' && this.rotation !== 0) {
+            ctx.translate(cx, cy - 40);
+            ctx.rotate(this.rotation);
+            ctx.translate(-cx, -(cy - 40));
+        }
+
         ctx.strokeStyle = this.color;
         ctx.fillStyle = this.color;
         ctx.lineWidth = 5.5;
@@ -760,10 +815,12 @@ class Character {
         ctx.lineJoin = 'round';
 
         // 影
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(cx, GROUND_Y, this.state === 'hit' ? 40 : 25, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
+        if (this.state !== 'blowaway') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.beginPath();
+            ctx.ellipse(cx, GROUND_Y, this.state === 'hit' ? 40 : 25, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         let headY = cy - 74;
         let chestY = cy - 54;
@@ -783,7 +840,7 @@ class Character {
             ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) : 
             (this === p1);
 
-        if (isMyCharacter && gameActive && this.state !== 'hit' && youMarkerTimer > 0) {
+        if (isMyCharacter && gameActive && this.state !== 'hit' && this.state !== 'blowaway' && youMarkerTimer > 0) {
             const bob = Math.sin(this.animFrame * 0.15) * 4;
             const markerY = headY - 26 + bob;
             const alpha = Math.min(1, youMarkerTimer / 30);
@@ -826,7 +883,18 @@ class Character {
             }
         }
 
-        if (this.state === 'hit') {
+        // ★ 吹っ飛び中（大の字で空を舞う）
+        if (this.state === 'blowaway') {
+            headY = cy - 70;
+            chestY = cy - 50;
+            hipY = cy - 30;
+            leftFoot = { x: cx - 20, y: cy - 10 };
+            rightFoot = { x: cx + 20, y: cy - 10 };
+            leftHand = { x: cx - 25, y: cy - 65 };
+            rightHand = { x: cx + 25, y: cy - 65 };
+        }
+        // 完全横倒れKOポーズ（O+＜）
+        else if (this.state === 'hit') {
             const headX = cx - dir * 35;
             headY = cy - 8;
             const bodyChestX = cx - dir * 18;
@@ -1037,30 +1105,32 @@ class Character {
         ctx.stroke();
 
         // 剣
-        ctx.save();
-        ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
-        ctx.lineWidth = this.isHeavyAttack ? 4.5 : 3.8;
-        ctx.beginPath();
-        ctx.moveTo(swordStart.x, swordStart.y);
-        ctx.lineTo(swordEnd.x, swordEnd.y);
-        ctx.stroke();
+        if (this.state !== 'blowaway') {
+            ctx.save();
+            ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
+            ctx.lineWidth = this.isHeavyAttack ? 4.5 : 3.8;
+            ctx.beginPath();
+            ctx.moveTo(swordStart.x, swordStart.y);
+            ctx.lineTo(swordEnd.x, swordEnd.y);
+            ctx.stroke();
 
-        // 鍔
-        ctx.strokeStyle = '#ffd32a';
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        const sDx = swordEnd.x - swordStart.x;
-        const sDy = swordEnd.y - swordStart.y;
-        const sLen = Math.hypot(sDx, sDy) || 1;
-        const perpX = (-sDy / sLen) * 7;
-        const perpY = (sDx / sLen) * 7;
-        const tsubaX = swordStart.x + (sDx / sLen) * 6;
-        const tsubaY = swordStart.y + (sDy / sLen) * 6;
+            // 鍔
+            ctx.strokeStyle = '#ffd32a';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            const sDx = swordEnd.x - swordStart.x;
+            const sDy = swordEnd.y - swordStart.y;
+            const sLen = Math.hypot(sDx, sDy) || 1;
+            const perpX = (-sDy / sLen) * 7;
+            const perpY = (sDx / sLen) * 7;
+            const tsubaX = swordStart.x + (sDx / sLen) * 6;
+            const tsubaY = swordStart.y + (sDy / sLen) * 6;
 
-        ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
-        ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
-        ctx.stroke();
-        ctx.restore();
+            ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
+            ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         if (this.state === 'guard') {
             ctx.strokeStyle = 'rgba(255, 211, 42, 0.45)';
@@ -1191,6 +1261,7 @@ function connectToRoom() {
         p1Score = 0;
         p2Score = 0;
         currentRound = 1;
+        timeScale = 1.0;
 
         p1.isCPU = false;
         p2.isCPU = false;
@@ -1246,8 +1317,6 @@ function connectToRoom() {
                 }
 
                 if (myChar.hp <= 0) {
-                    myChar.state = 'hit';
-                    myChar.vx = 0;
                     endRound(opp);
                 } else {
                     myChar.state = 'flinch';
@@ -1312,6 +1381,7 @@ function startCPUMode() {
     p1Score = 0;
     p2Score = 0;
     currentRound = 1;
+    timeScale = 1.0;
 
     p1.isCPU = false;
     p2.isCPU = true; 
@@ -1336,6 +1406,7 @@ function startCPUMode() {
 
 function startRound() {
     for (let key in keys) keys[key] = false;
+    timeScale = 1.0; // 通常速度に戻す
     p1.reset();
     p2.reset();
     p1.hp = MAX_HP;
@@ -1366,24 +1437,21 @@ function startRound() {
     }, 1000);
 }
 
+// ★ 決着処理（マッチ勝利時のスロー＆吹っ飛びフィニッシュ判定）
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
     clearInterval(timerInterval);
 
-    p1.vx = 0;
-    p2.vx = 0;
+    const isMatchPoint = (winner === p1 && p1Score === MAX_SCORE - 1) || (winner === p2 && p2Score === MAX_SCORE - 1);
+    const loser = (winner === p1) ? p2 : p1;
 
     let message = "";
     if (winner === p1) {
         p1Score++;
-        p2.hp = 0;
-        p2.state = 'hit';
         message = isOnlineMode ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN";
     } else if (winner === p2) {
         p2Score++;
-        p1.hp = 0;
-        p1.state = 'hit';
         message = isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : `${document.getElementById('p2-name-display').innerText} WIN`;
     } else {
         message = reason || "DRAW";
@@ -1391,25 +1459,52 @@ function endRound(winner, reason) {
 
     updateScoreUI();
 
-    setTimeout(() => {
-        if (p1Score >= MAX_SCORE) {
-            if (isOnlineMode) {
-                showOverlay(myPlayerNumber === 1 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
-            } else {
-                winStreak++;
-                streakCounterEl.innerText = `連勝: ${winStreak}`;
-                showOverlay(`VICTORY!\n${winStreak}連勝達成！`, 2000, startNextMatch);
-            }
-        } else if (p2Score >= MAX_SCORE) {
-            if (isOnlineMode) {
-                showOverlay(myPlayerNumber === 2 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
-            } else {
-                showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
-                    saveScore(winStreak);
-                    returnToTitle();
-                });
-            }
+    // ★ 2本先取のマッチ決着時だけ「スローモーション」＆「KO演出」
+    if (isMatchPoint && winner) {
+        timeScale = 0.25; // 劇的スローモーション開始！
+
+        if (winner.isHeavyAttack) {
+            // ★ 溜め攻撃フィニッシュ：45度斜め上空へ超吹っ飛び＆壁激突落下！
+            loser.state = 'blowaway';
+            loser.hasHitWall = false;
+            loser.vx = winner.direction * 15;
+            loser.vy = -16; // 45度上空へ
         } else {
+            // 通常攻撃フィニッシュ：スローで横倒れ
+            loser.state = 'hit';
+            loser.vx = 0;
+        }
+
+        // 映画のような決着の余韻（スローなので少し長めに確保）
+        setTimeout(() => {
+            timeScale = 1.0;
+            if (p1Score >= MAX_SCORE) {
+                if (isOnlineMode) {
+                    showOverlay(myPlayerNumber === 1 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
+                } else {
+                    winStreak++;
+                    streakCounterEl.innerText = `連勝: ${winStreak}`;
+                    showOverlay(`VICTORY!\n${winStreak}連勝達成！`, 2500, startNextMatch);
+                }
+            } else if (p2Score >= MAX_SCORE) {
+                if (isOnlineMode) {
+                    showOverlay(myPlayerNumber === 2 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
+                } else {
+                    showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
+                        saveScore(winStreak);
+                        returnToTitle();
+                    });
+                }
+            }
+        }, 1800);
+    } else {
+        // 通常ラウンド決着（1本目）
+        if (winner) {
+            loser.state = 'hit';
+            loser.vx = 0;
+        }
+
+        setTimeout(() => {
             p1.reset();
             p2.reset();
             updateScoreUI();
@@ -1418,14 +1513,15 @@ function endRound(winner, reason) {
                 currentRound++;
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
             });
-        }
-    }, 800);
+        }, 800);
+    }
 }
 
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
     currentRound = 1;
+    timeScale = 1.0;
 
     p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
@@ -1442,9 +1538,9 @@ function startNextMatch() {
 
 function returnToTitle() {
     gameActive = false;
+    timeScale = 1.0;
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
-    // ★ ゲーム終了後にタイトルに戻ってきた時だけタイトルBGMを再生
     Sound.playBGM('title');
     updateRankingUI();
 }
@@ -1472,8 +1568,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
 
         if (attacker.isHeavyAttack) {
             defender.hp = 0;
-            defender.state = 'hit';
-            defender.vx = 0;
             updateScoreUI();
             Sound.playSE('heavy');
 
@@ -1493,8 +1587,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             }
 
             if (defender.hp <= 0) {
-                defender.state = 'hit';
-                defender.vx = 0;
                 if (isOnlineMode && socket) {
                     socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
                 }
@@ -1516,7 +1608,7 @@ function checkHits() {
         const oppChar = (myPlayerNumber === 1) ? p2 : p1;
         const myAttack = myChar.getAttackBox();
 
-        if (myAttack && oppChar.state !== 'flinch' && oppChar.state !== 'hit') {
+        if (myAttack && oppChar.state !== 'flinch' && oppChar.state !== 'hit' && oppChar.state !== 'blowaway') {
             const oppBody = { x: oppChar.x, y: oppChar.y, width: oppChar.width, height: oppChar.height };
             if (checkCollision(myAttack, oppBody)) {
                 const hitX = myChar.direction === 1 ? oppChar.x + 8 : oppChar.x + oppChar.width - 8;
@@ -1530,7 +1622,7 @@ function checkHits() {
     const p1Attack = p1.getAttackBox();
     const p2Attack = p2.getAttackBox();
 
-    if (p1Attack && p2.state !== 'flinch' && p2.state !== 'hit') {
+    if (p1Attack && p2.state !== 'flinch' && p2.state !== 'hit' && p2.state !== 'blowaway') {
         const p2Body = { x: p2.x, y: p2.y, width: p2.width, height: p2.height };
         if (checkCollision(p1Attack, p2Body)) {
             const hitX = p1.direction === 1 ? p2.x + 8 : p2.x + p2.width - 8;
@@ -1539,7 +1631,7 @@ function checkHits() {
         }
     }
 
-    if (p2Attack && p1.state !== 'flinch' && p1.state !== 'hit') {
+    if (p2Attack && p1.state !== 'flinch' && p1.state !== 'hit' && p1.state !== 'blowaway') {
         const p1Body = { x: p1.x, y: p1.y, width: p1.width, height: p1.height };
         if (checkCollision(p2Attack, p1Body)) {
             const hitX = p2.direction === 1 ? p1.x + 8 : p1.x + p1.width - 8;
@@ -1553,7 +1645,7 @@ function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (youMarkerTimer > 0) {
-        youMarkerTimer--;
+        youMarkerTimer -= 1 * timeScale;
     }
 
     ctx.save();
@@ -1561,7 +1653,7 @@ function gameLoop() {
         const shakeX = (Math.random() - 0.5) * screenShakeIntensity;
         const shakeY = (Math.random() - 0.5) * screenShakeIntensity;
         ctx.translate(shakeX, shakeY);
-        screenShakeTimer--;
+        screenShakeTimer -= 1 * timeScale;
     }
 
     const groundGrad = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
