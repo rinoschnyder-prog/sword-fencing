@@ -23,12 +23,15 @@ const CPU_COLORS = [
     '#ff5252', '#1abc9c', '#e056fd', '#f5f6fa', '#30336b'
 ];
 
-// オーディオマネージャー
+// ==========================================
+// ★ オーディオマネージャー（永久ループ＆高速SE）
+// ==========================================
 class SoundManager {
     constructor() {
         this.ctx = null;
         this.buffers = {};
         this.currentBgm = null;
+        this.currentBgmType = null;
         this.bgmVolume = 0.45;
         this.seVolume = 0.7;
 
@@ -45,6 +48,22 @@ class SoundManager {
             game1: 'bgm/back-bgm1.mp3',
             game2: 'bgm/back-bgm2.mp3'
         };
+
+        // BGMプレイヤーを固定生成（iOSのオーディオ破棄バグ防止）
+        this.bgmAudioElements = {};
+        for (const [key, url] of Object.entries(this.bgmFiles)) {
+            const audio = new Audio(url);
+            audio.loop = true;
+            audio.volume = this.bgmVolume;
+            
+            // ★ iPhoneのループ停止バグ対策：曲が終わったら手動で巻き戻して再開
+            audio.addEventListener('ended', () => {
+                audio.currentTime = 0;
+                audio.play().catch(() => {});
+            });
+
+            this.bgmAudioElements[key] = audio;
+        }
 
         this.initAudioContext();
     }
@@ -93,26 +112,35 @@ class SoundManager {
         }
     }
 
+    // ★ BGM再生（途切れず永久ループ）
     playBGM(type) {
         this.unlockAudio();
-        let targetUrl = '';
 
-        if (type === 'title') {
-            targetUrl = this.bgmFiles.title;
-        } else if (type === 'game') {
-            targetUrl = Math.random() < 0.5 ? this.bgmFiles.game1 : this.bgmFiles.game2;
+        // バトル中（game）で既にバトルBGMが再生中なら、曲を止めずにそのまま流し続ける
+        if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) {
+            return;
         }
 
-        if (this.currentBgm && this.currentBgm.src.includes(targetUrl) && !this.currentBgm.paused) {
+        // タイトルBGMが再生中ならそのまま維持
+        if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) {
             return;
         }
 
         this.stopBGM();
 
-        this.currentBgm = new Audio(targetUrl);
-        this.currentBgm.loop = true;
-        this.currentBgm.volume = this.bgmVolume;
-        this.currentBgm.play().catch(() => {});
+        let targetKey = 'title';
+        if (type === 'game') {
+            targetKey = Math.random() < 0.5 ? 'game1' : 'game2';
+        }
+
+        const audio = this.bgmAudioElements[targetKey];
+        if (audio) {
+            audio.currentTime = 0;
+            audio.volume = this.bgmVolume;
+            audio.play().catch(() => {});
+            this.currentBgm = audio;
+            this.currentBgmType = type;
+        }
     }
 
     stopBGM() {
@@ -120,6 +148,7 @@ class SoundManager {
             this.currentBgm.pause();
             this.currentBgm.currentTime = 0;
             this.currentBgm = null;
+            this.currentBgmType = null;
         }
     }
 }
@@ -294,13 +323,11 @@ let isOnlineMode = false;
 let myPlayerNumber = 0;
 const SERVER_URL = window.location.origin;
 
-// ★ 起動時に自動でサーバーに接続してオンライン人数を受信
 function initGlobalSocket() {
     if (typeof io === 'undefined') return;
     
     socket = io(SERVER_URL);
 
-    // サーバーから人数を受信
     socket.on('online_count', (count) => {
         if (onlineCountNumEl) {
             onlineCountNumEl.innerText = count;
@@ -1311,6 +1338,7 @@ function startCPUMode() {
     streakCounterEl.style.display = 'block';
     streakCounterEl.innerText = `連勝: ${winStreak}`;
     
+    // ★ バトルBGM再生（試合中ずっとループ）
     Sound.playBGM('game');
 
     p1.reset();
@@ -1416,6 +1444,7 @@ function startNextMatch() {
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
     document.getElementById('p2-name-display').style.color = p2.color;
 
+    // ★ 次のCPU戦へ進む際も途切れずループ再生
     Sound.playBGM('game');
 
     p1.reset();
