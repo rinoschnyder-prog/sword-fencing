@@ -18,17 +18,123 @@ const MAX_CHARGE_FRAMES = 45;
 
 // CPUの10色カラーパレット
 const CPU_COLORS = [
-    '#40c4ff', // 1: シアンブルー
-    '#2ecc71', // 2: エメラルドグリーン
-    '#9b59b6', // 3: アメジストパープル
-    '#e67e22', // 4: バーニングオレンジ
-    '#ffd32a', // 5: シャイニングゴールド
-    '#ff5252', // 6: クリムゾンレッド
-    '#1abc9c', // 7: ターコイズ
-    '#e056fd', // 8: ネオンピンク
-    '#f5f6fa', // 9: プラチナシルバー
-    '#30336b'  // 10: ディープネイビー
+    '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22', '#ffd32a',
+    '#ff5252', '#1abc9c', '#e056fd', '#f5f6fa', '#30336b'
 ];
+
+// ==========================================
+// ★ オーディオマネージャー（Web Audio & BGM）
+// ==========================================
+class SoundManager {
+    constructor() {
+        this.ctx = null;
+        this.buffers = {};
+        this.currentBgm = null;
+        this.bgmVolume = 0.45;
+        this.seVolume = 0.7;
+
+        this.seFiles = {
+            hit: 'se/se_hit.wav',
+            heavy: 'se/se_heavy.wav',
+            guard: 'se/se_guard.wav',
+            break: 'se/se_break.wav',
+            swing: 'se/se_swing.wav'
+        };
+
+        this.bgmFiles = {
+            title: 'bgm/top-iimhero.mp3',
+            game1: 'bgm/back-bgm1.mp3',
+            game2: 'bgm/back-bgm2.mp3'
+        };
+
+        this.initAudioContext();
+    }
+
+    initAudioContext() {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            this.ctx = new AudioCtx();
+            this.loadAllSE();
+        }
+    }
+
+    // iPhone等のオーディオブロック解除
+    unlockAudio() {
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    // SEを起動時にメモリプリロード（遅延ゼロ化）
+    async loadAllSE() {
+        if (!this.ctx) return;
+        for (const [key, url] of Object.entries(this.seFiles)) {
+            try {
+                const res = await fetch(url);
+                const arrayBuffer = await res.arrayBuffer();
+                this.buffers[key] = await this.ctx.decodeAudioData(arrayBuffer);
+            } catch (e) {
+                console.warn(`SE読み込みスキップ: ${url}`, e);
+            }
+        }
+    }
+
+    // SE再生（超高速・多重再生可能）
+    playSE(name) {
+        this.unlockAudio();
+        if (!this.ctx || !this.buffers[name]) return;
+
+        try {
+            const source = this.ctx.createBufferSource();
+            const gain = this.ctx.createGain();
+            source.buffer = this.buffers[name];
+            gain.gain.value = this.seVolume;
+            source.connect(gain);
+            gain.connect(this.ctx.destination);
+            source.start(0);
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+
+    // BGM再生
+    playBGM(type) {
+        this.unlockAudio();
+        let targetUrl = '';
+
+        if (type === 'title') {
+            targetUrl = this.bgmFiles.title;
+        } else if (type === 'game') {
+            // game1 と game2 をランダムで選択
+            targetUrl = Math.random() < 0.5 ? this.bgmFiles.game1 : this.bgmFiles.game2;
+        }
+
+        if (this.currentBgm && this.currentBgm.src.includes(targetUrl)) {
+            return; // 既に同じ曲が再生中なら維持
+        }
+
+        this.stopBGM();
+
+        this.currentBgm = new Audio(targetUrl);
+        this.currentBgm.loop = true;
+        this.currentBgm.volume = this.bgmVolume;
+        this.currentBgm.play().catch(() => {});
+    }
+
+    stopBGM() {
+        if (this.currentBgm) {
+            this.currentBgm.pause();
+            this.currentBgm.currentTime = 0;
+            this.currentBgm = null;
+        }
+    }
+}
+
+const Sound = new SoundManager();
+
+// 初回画面タッチでオーディオ解除
+window.addEventListener('touchstart', () => Sound.unlockAudio(), { once: true });
+window.addEventListener('mousedown', () => Sound.unlockAudio(), { once: true });
 
 function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -253,7 +359,6 @@ class Character {
         this.guardActive = false;
         this.animFrame = 0;
 
-        // CPU用パラメータ
         this.cpuActionTimer = 0;
         this.cpuDecision = 'idle';
         this.cpuTargetAirAttack = false;
@@ -308,7 +413,6 @@ class Character {
             }
         }
 
-        // 攻撃処理
         if (this.state === 'attack') {
             this.attackTimer++;
 
@@ -362,7 +466,6 @@ class Character {
         this.x += this.vx;
         this.y += this.vy;
 
-        // 地面判定
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
@@ -398,6 +501,7 @@ class Character {
                     this.isAirAttack = false;
                     this.attackTimer = 0;
                     this.chargeTimer = 0;
+                    Sound.playSE('swing');
                     return;
                 } else {
                     this.state = 'attack';
@@ -405,6 +509,7 @@ class Character {
                     this.isAirAttack = false;
                     this.attackTimer = 0;
                     this.chargeTimer = 0;
+                    Sound.playSE('swing');
                     return;
                 }
             }
@@ -429,6 +534,7 @@ class Character {
                 this.isAirAttack = true;
                 this.isHeavyAttack = false;
                 this.attackTimer = 0;
+                Sound.playSE('swing');
                 return;
             }
         }
@@ -452,12 +558,10 @@ class Character {
         }
     }
 
-    // ★ 超強化された賢いCPUの思考AI（レベル連動・ジャンプ強化・溜め見切り）
     updateCPU(opponent) {
-        const level = winStreak + 1; // CPUレベル (LV.1〜)
+        const level = winStreak + 1;
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
         
-        // 溜め中の進行処理
         if (this.state === 'charge') {
             this.chargeTimer++;
             if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
@@ -466,11 +570,11 @@ class Character {
                 this.isAirAttack = false;
                 this.attackTimer = 0;
                 this.chargeTimer = 0;
+                Sound.playSE('swing');
             }
             return;
         }
 
-        // ジャンプ中の空中急降下突き判定
         if (!this.isGrounded && this.state === 'jump') {
             if (this.cpuTargetAirAttack && this.vy >= -4 && this.attackCooldown === 0) {
                 this.state = 'attack';
@@ -478,6 +582,7 @@ class Character {
                 this.isHeavyAttack = false;
                 this.attackTimer = 0;
                 this.cpuTargetAirAttack = false;
+                Sound.playSE('swing');
                 return;
             }
         }
@@ -487,13 +592,10 @@ class Character {
         this.cpuActionTimer--;
         
         if (this.cpuActionTimer <= 0) {
-            // レベルが高いほど判断速度がアップ
             const thinkDelay = Math.max(3, 14 - level);
             this.cpuActionTimer = thinkDelay + Math.random() * 6;
-            
             const rand = Math.random();
 
-            // 1. 相手がガードブレイク中または隙を晒している時（レベルが高いほど確実に溜めKOを狙う！）
             if ((opponent.state === 'break' || opponent.state === 'flinch') && this.isGrounded) {
                 const chargeChance = Math.min(0.9, 0.4 + level * 0.1);
                 if (rand < chargeChance && this.attackCooldown === 0) {
@@ -501,52 +603,39 @@ class Character {
                 } else {
                     this.cpuDecision = (distance > 60) ? 'approach' : 'attack';
                 }
-            }
-            // 2. ★ 相手が溜め攻撃を構えている時（見切り回避 / 先制潰し）
-            else if (opponent.state === 'charge') {
+            } else if (opponent.state === 'charge') {
                 const counterIQ = Math.min(0.95, 0.5 + level * 0.08);
-
                 if (rand < counterIQ) {
                     if (distance < 90) {
-                        // 至近距離なら先制攻撃で溜めを潰す！
                         this.cpuDecision = 'attack';
                     } else if (rand < 0.65) {
-                        // 射程外へ素早くバックステップ
                         this.cpuDecision = 'backstep';
                     } else if (this.isGrounded) {
-                        // ジャンプで飛び越えて頭上から強襲！
                         this.cpuDecision = 'jump_forward';
                     }
                 } else {
                     this.cpuDecision = 'idle';
                 }
-            }
-            // 3. 相手が攻撃してきた時の見切りガード
-            else if (opponent.state === 'attack' && distance < 140) {
+            } else if (opponent.state === 'attack' && distance < 140) {
                 const guardRate = Math.min(0.92, 0.45 + level * 0.06);
                 if (rand < guardRate) {
                     this.cpuDecision = (rand < 0.25 && this.isGrounded) ? 'backstep' : 'guard';
                 } else {
                     this.cpuDecision = 'idle';
                 }
-            }
-            // 4. 近距離戦（間合いの駆け引き）
-            else if (distance < 125) {
+            } else if (distance < 125) {
                 if (rand < 0.35 && this.attackCooldown === 0) {
                     this.cpuDecision = 'attack';
                 } else if (rand < 0.55) {
                     this.cpuDecision = 'backstep';
                 } else if (rand < 0.75 && this.isGrounded) {
-                    // ★ 飛び込みジャンプ急襲
                     this.cpuDecision = 'jump_forward';
                 } else if (rand < 0.90 && this.isGrounded && this.attackCooldown === 0) {
                     this.cpuDecision = (level >= 3 && rand < 0.5) ? 'charge' : 'guard';
                 } else {
                     this.cpuDecision = 'idle';
                 }
-            }
-            // 5. 中〜遠距離戦（接近 or 前ジャンプ急襲）
-            else {
+            } else {
                 if (rand < 0.35 && this.isGrounded) {
                     this.cpuDecision = 'jump_forward';
                 } else if (rand < 0.85) {
@@ -557,7 +646,6 @@ class Character {
             }
         }
 
-        // AIの決定に基づいた物理アクション実行
         this.guardActive = false;
         if (this.state === 'guard') this.state = 'idle';
 
@@ -582,13 +670,13 @@ class Character {
             this.isHeavyAttack = false;
             this.attackTimer = 0;
             this.cpuDecision = 'idle';
+            Sound.playSE('swing');
         } else if (this.cpuDecision === 'jump_forward' && this.isGrounded) {
-            // ★ 前方大ジャンプ（空中突きフラグセット）
             this.vy = -13.0;
             this.vx = (opponent.x < this.x) ? -4.2 : 4.2;
             this.isGrounded = false;
             this.state = 'jump';
-            this.cpuTargetAirAttack = true; // 空中突きを狙う
+            this.cpuTargetAirAttack = true;
             this.cpuDecision = 'idle';
         }
     }
@@ -1029,6 +1117,7 @@ function hideOnlineMenu() {
         socket.disconnect();
         socket = null;
     }
+    Sound.playBGM('title');
 }
 
 // オンライン対戦（Socket.io）ロジック
@@ -1079,6 +1168,8 @@ function connectToRoom() {
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
 
+        Sound.playBGM('game');
+
         setTimeout(() => {
             onlineScreen.style.display = 'none';
             uiLayer.style.display = 'flex';
@@ -1117,6 +1208,12 @@ function connectToRoom() {
                 const hitY = myChar.y + 40;
                 triggerHitEffect(hitX, hitY, myChar.hp === 0, false);
 
+                if (myChar.hp === 0) {
+                    Sound.playSE('heavy');
+                } else {
+                    Sound.playSE('hit');
+                }
+
                 if (myChar.hp <= 0) {
                     myChar.state = 'hit';
                     myChar.vx = 0;
@@ -1133,6 +1230,7 @@ function connectToRoom() {
             myChar.state = 'break';
             myChar.breakTimer = 65;
             myChar.vx = myChar.direction * -15;
+            Sound.playSE('break');
         }
 
         updateScoreUI();
@@ -1197,6 +1295,8 @@ function startCPUMode() {
     streakCounterEl.style.display = 'block';
     streakCounterEl.innerText = `連勝: ${winStreak}`;
     
+    Sound.playBGM('game');
+
     p1.reset();
     p2.reset();
     updateScoreUI();
@@ -1300,6 +1400,8 @@ function startNextMatch() {
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
     document.getElementById('p2-name-display').style.color = p2.color;
 
+    Sound.playBGM('game');
+
     p1.reset();
     p2.reset();
     updateScoreUI();
@@ -1315,6 +1417,7 @@ function returnToTitle() {
         socket.disconnect();
         socket = null;
     }
+    Sound.playBGM('title');
     updateRankingUI();
 }
 
@@ -1329,10 +1432,12 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.breakTimer = 65;
             defender.vx = defender.direction * -15;
             attacker.attackTimer = 28;
+            Sound.playSE('break');
             if (isOnlineMode) emitMyPhysics('break');
         } else {
             defender.x += defender.direction * -20; 
             attacker.attackTimer = 22; 
+            Sound.playSE('guard');
         }
     } else {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
@@ -1342,6 +1447,7 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.state = 'hit';
             defender.vx = 0;
             updateScoreUI();
+            Sound.playSE('heavy');
 
             if (isOnlineMode) {
                 emitMyPhysics('', 0);
@@ -1352,6 +1458,7 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.hp = Math.max(0, defender.hp - 1);
             attacker.attackTimer = 22;
             updateScoreUI();
+            Sound.playSE('hit');
 
             if (isOnlineMode) {
                 emitMyPhysics('', defender.hp);
@@ -1472,4 +1579,5 @@ function gameLoop() {
 
 // 起動
 updateRankingUI();
+Sound.playBGM('title');
 gameLoop();
