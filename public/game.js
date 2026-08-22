@@ -9,6 +9,8 @@ const gameOverlay = document.getElementById('game-overlay');
 const overlayTextEl = document.getElementById('overlay-text');
 const onlineCountNumEl = document.getElementById('online-count-num');
 const btnSpecial = document.getElementById('btn-special');
+const btnExitWatch = document.getElementById('btn-exit-watch');
+const touchControls = document.getElementById('touch-controls');
 
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
@@ -16,10 +18,11 @@ const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 30; 
 const MAX_SCORE = 2;
 const MAX_HP = 5;
-const MAX_SP = 100; // 必殺技ゲージ最大値
+const MAX_SP = 100;
 const MAX_CHARGE_FRAMES = 45;
 
 let timeScale = 1.0;
+let isWatchMode = false; // ★ 観戦モードフラグ
 
 // CPUの10色カラーパレット
 const CPU_COLORS = [
@@ -43,7 +46,7 @@ class SoundManager {
             guard: 'se/se_guard.wav',
             break: 'se/se_break.wav',
             swing: 'se/se_swing.wav',
-            bom: 'se/se_bom.wav' // ★ レーザー大爆発音
+            bom: 'se/se_bom.wav'
         };
 
         this.bgmFiles = {
@@ -354,7 +357,7 @@ const touchBinds = [
     { btnId: 'btn-jump', key: 'w' },
     { btnId: 'btn-guard', key: 's' },
     { btnId: 'btn-attack', key: 'f' },
-    { btnId: 'btn-special', key: 'space' } // ★ 必殺技ボタン
+    { btnId: 'btn-special', key: 'space' }
 ];
 
 touchBinds.forEach(bind => {
@@ -392,14 +395,14 @@ class Character {
         this.vy = 0;
 
         this.hp = MAX_HP;
-        this.sp = 0; // ★ 必殺技ゲージ（0〜100）
+        this.sp = 0;
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = true;
         
-        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'laser', 'flinch', 'break', 'hit', 'blowaway'
+        this.state = 'idle';
         this.isAirAttack = false;
         this.isHeavyAttack = false;
-        this.isLaserAttack = false; // ★ レーザー必殺技フラグ
+        this.isLaserAttack = false;
         this.laserTimer = 0;
         this.chargeTimer = 0;
         this.attackTimer = 0;
@@ -444,12 +447,10 @@ class Character {
     update(opponent) {
         this.animFrame += 1 * timeScale;
 
-        // ★ 真上打ち上げKO吹っ飛び
         if (this.state === 'blowaway') {
             this.y += this.vy * timeScale;
             this.vy += GRAVITY * 0.8 * timeScale;
 
-            // 地面着地で横倒れ
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
@@ -459,7 +460,6 @@ class Character {
             return;
         }
 
-        // ★ レーザー必殺技処理
         if (this.state === 'laser') {
             this.laserTimer += 1 * timeScale;
             this.vx = 0;
@@ -583,12 +583,11 @@ class Character {
     updatePlayer() {
         this.vx = 0;
 
-        // ★ SPECIAL必殺技の発動（SPACEキーまたはSPECIALボタン）
         if (keys.space && this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'laser') {
             this.state = 'laser';
             this.isLaserAttack = true;
             this.laserTimer = 0;
-            this.sp = 0; // ゲージ消費
+            this.sp = 0;
             updateScoreUI();
             return;
         }
@@ -662,10 +661,11 @@ class Character {
     }
 
     updateCPU(opponent) {
-        const level = winStreak + 1;
+        const level = isWatchMode ? 8 : (winStreak + 1); // 観戦モードは高レベルAI同士
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
+        const isOpponentSpReady = opponent.sp >= MAX_SP;
+        const isNearWall = (this.x <= 40 || this.x >= canvas.width - 80);
         
-        // ★ CPUの必殺技発動判定
         if (this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'laser') {
             if (Math.random() < 0.7) {
                 this.state = 'laser';
@@ -719,29 +719,34 @@ class Character {
                     this.cpuDecision = (distance > 60) ? 'approach' : 'attack';
                 }
             } else if (opponent.state === 'charge') {
-                const counterIQ = Math.min(0.95, 0.5 + level * 0.08);
-                if (rand < counterIQ) {
-                    if (distance < 90) {
+                if (isOpponentSpReady) {
+                    if (distance < 100) {
                         this.cpuDecision = 'attack';
-                    } else if (rand < 0.65) {
-                        this.cpuDecision = 'backstep';
                     } else if (this.isGrounded) {
                         this.cpuDecision = 'jump_forward';
+                    } else {
+                        this.cpuDecision = 'idle';
                     }
+                } else if (isNearWall && this.isGrounded) {
+                    this.cpuDecision = 'jump_forward';
+                } else if (distance < 95) {
+                    this.cpuDecision = 'attack';
+                } else if (distance < 140) {
+                    this.cpuDecision = 'backstep';
                 } else {
                     this.cpuDecision = 'idle';
                 }
             } else if (opponent.state === 'attack' && distance < 140) {
                 const guardRate = Math.min(0.92, 0.45 + level * 0.06);
                 if (rand < guardRate) {
-                    this.cpuDecision = (rand < 0.25 && this.isGrounded) ? 'backstep' : 'guard';
+                    this.cpuDecision = (rand < 0.25 && this.isGrounded && !isNearWall) ? 'backstep' : 'guard';
                 } else {
                     this.cpuDecision = 'idle';
                 }
             } else if (distance < 125) {
                 if (rand < 0.35 && this.attackCooldown <= 0) {
                     this.cpuDecision = 'attack';
-                } else if (rand < 0.55) {
+                } else if (rand < 0.55 && !isNearWall) {
                     this.cpuDecision = 'backstep';
                 } else if (rand < 0.75 && this.isGrounded) {
                     this.cpuDecision = 'jump_forward';
@@ -797,7 +802,6 @@ class Character {
     }
 
     getAttackBox() {
-        // ★ レーザー攻撃の判定（画面端まで突き抜ける超長射程）
         if (this.state === 'laser' && this.laserTimer >= 16 && this.laserTimer <= 30) {
             const beamWidth = canvas.width;
             const x = (this.direction === 1) ? (this.x + this.width / 2) : (this.x + this.width / 2 - beamWidth);
@@ -842,7 +846,6 @@ class Character {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // 影
         if (this.state !== 'blowaway') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
@@ -864,9 +867,9 @@ class Character {
 
         const dir = this.direction;
 
-        const isMyCharacter = isOnlineMode ? 
+        const isMyCharacter = !isWatchMode && (isOnlineMode ? 
             ((myPlayerNumber === 1 && this === p1) || (myPlayerNumber === 2 && this === p2)) : 
-            (this === p1);
+            (this === p1));
 
         if (isMyCharacter && gameActive && this.state !== 'hit' && this.state !== 'blowaway' && youMarkerTimer > 0) {
             const bob = Math.sin(this.animFrame * 0.15) * 4;
@@ -892,7 +895,6 @@ class Character {
             ctx.restore();
         }
 
-        // 溜め発光
         if (this.state === 'charge') {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
@@ -912,7 +914,6 @@ class Character {
             }
         }
 
-        // ★ レーザー必殺技の描画（暗転＆発光＆極太ビーム）
         if (this.state === 'laser') {
             headY = cy - 68;
             chestY = cy - 50;
@@ -926,13 +927,11 @@ class Character {
             swordStart = { x: rightHand.x, y: rightHand.y };
             swordEnd = { x: rightHand.x + dir * 65, y: rightHand.y };
 
-            // 1. 構え中の暗転＆目のキラーン発光
             if (this.laserTimer < 16) {
                 ctx.save();
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
                 ctx.fillRect(-100, -100, canvas.width + 200, canvas.height + 200);
 
-                // 目のカットイン閃光
                 ctx.strokeStyle = '#ff0055';
                 ctx.shadowBlur = 20;
                 ctx.shadowColor = '#ff0055';
@@ -944,7 +943,6 @@ class Character {
                 ctx.restore();
             }
 
-            // 2. 極太レーザー光線発射
             if (this.laserTimer >= 16 && this.laserTimer <= 32) {
                 const beamProgress = (this.laserTimer - 16) / 16;
                 const beamAlpha = 1 - beamProgress * 0.6;
@@ -953,7 +951,6 @@ class Character {
                 ctx.save();
                 ctx.globalAlpha = beamAlpha;
 
-                // レーザー外側オーラ
                 ctx.fillStyle = 'rgba(255, 0, 85, 0.4)';
                 ctx.shadowBlur = 30;
                 ctx.shadowColor = '#ff0055';
@@ -961,7 +958,6 @@ class Character {
                 const beamW = (dir === 1) ? (canvas.width - swordEnd.x) : swordEnd.x;
                 ctx.fillRect(beamX, swordEnd.y - beamHeight / 2, beamW, beamHeight);
 
-                // レーザー芯（純白の極太コア）
                 ctx.fillStyle = '#ffffff';
                 ctx.shadowBlur = 15;
                 ctx.shadowColor = '#ffffff';
@@ -970,7 +966,6 @@ class Character {
                 ctx.restore();
             }
         }
-        // 真上吹っ飛び中
         else if (this.state === 'blowaway') {
             headY = cy - 80;
             chestY = cy - 60;
@@ -980,7 +975,6 @@ class Character {
             leftHand = { x: cx - 25, y: cy - 75 };
             rightHand = { x: cx + 25, y: cy - 75 };
         }
-        // 完全横倒れKOポーズ（O+＜）
         else if (this.state === 'hit') {
             const headX = cx - dir * 35;
             headY = cy - 8;
@@ -1254,13 +1248,11 @@ function updateScoreUI() {
     p1HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p1.hp));
     p2HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p2.hp));
 
-    // ★ SP必殺技ゲージバーの更新
     const p1SpEl = document.getElementById('p1-sp');
     const p2SpEl = document.getElementById('p2-sp');
     if (p1SpEl) p1SpEl.style.width = `${p1.sp}%`;
     if (p2SpEl) p2SpEl.style.width = `${p2.sp}%`;
 
-    // ★ 自分のSPがMAXならSPECIALボタンを発光活性化
     const myChar = isOnlineMode ? (myPlayerNumber === 1 ? p1 : p2) : p1;
     if (btnSpecial) {
         if (myChar.sp >= MAX_SP) {
@@ -1363,6 +1355,7 @@ function connectToRoom() {
     socket.on('start_game', (data) => {
         statusEl.innerText = "マッチング成功！開始します...";
         isOnlineMode = true;
+        isWatchMode = false;
         winStreak = 0;
         p1Score = 0;
         p2Score = 0;
@@ -1488,6 +1481,7 @@ function emitMyPhysics(extraOppState, targetOppHp) {
 
 function startCPUMode() {
     isOnlineMode = false;
+    isWatchMode = false;
     myPlayerNumber = 0;
     winStreak = 0;
     p1Score = 0;
@@ -1497,11 +1491,16 @@ function startCPUMode() {
 
     p1.isCPU = false;
     p2.isCPU = true; 
+    p1.color = '#ff5252';
 
     p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
     document.getElementById('p1-name-display').innerText = "PLAYER 1";
+    document.getElementById('p1-name-display').style.color = p1.color;
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
     document.getElementById('p2-name-display').style.color = p2.color;
+
+    if (btnExitWatch) btnExitWatch.style.display = 'none';
+    if (touchControls) touchControls.style.display = 'flex';
 
     titleScreen.style.display = 'none';
     uiLayer.style.display = 'flex';
@@ -1514,6 +1513,43 @@ function startCPUMode() {
     p2.reset();
     updateScoreUI();
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+}
+
+// ★ 観戦モード（CPU vs CPU）の開始
+function startWatchMode() {
+    isOnlineMode = false;
+    isWatchMode = true;
+    myPlayerNumber = 0;
+    p1Score = 0;
+    p2Score = 0;
+    currentRound = 1;
+    timeScale = 1.0;
+
+    p1.isCPU = true;  // 両方CPUにする
+    p2.isCPU = true;
+
+    p1.color = '#ff5252';
+    p2.color = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
+
+    document.getElementById('p1-name-display').innerText = "CPU 1";
+    document.getElementById('p1-name-display').style.color = p1.color;
+    document.getElementById('p2-name-display').innerText = "CPU 2";
+    document.getElementById('p2-name-display').style.color = p2.color;
+
+    // コントローラーを隠して「観戦終了」ボタンを表示
+    if (touchControls) touchControls.style.display = 'none';
+    if (btnExitWatch) btnExitWatch.style.display = 'block';
+
+    titleScreen.style.display = 'none';
+    uiLayer.style.display = 'flex';
+    streakCounterEl.style.display = 'none';
+
+    Sound.playBGM('game');
+
+    p1.reset();
+    p2.reset();
+    updateScoreUI();
+    showOverlay(`WATCH MATCH\nROUND ${currentRound}`, 1500, startRound);
 }
 
 function startRound() {
@@ -1560,22 +1596,20 @@ function endRound(winner, reason) {
     let message = "";
     if (winner === p1) {
         p1Score++;
-        message = isOnlineMode ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN";
+        message = isWatchMode ? "CPU 1 WIN" : (isOnlineMode ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN");
     } else if (winner === p2) {
         p2Score++;
-        message = isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : `${document.getElementById('p2-name-display').innerText} WIN`;
+        message = isWatchMode ? "CPU 2 WIN" : (isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : `${document.getElementById('p2-name-display').innerText} WIN`);
     } else {
         message = reason || "DRAW";
     }
 
     updateScoreUI();
 
-    // ★ マッチ決着時のスロー演出
     if (isMatchPoint && winner) {
         timeScale = 0.25;
 
         if (winner.isLaserAttack || winner.isHeavyAttack) {
-            // ★ 真上へ天高く吹っ飛ぶ！
             loser.state = 'blowaway';
             loser.vx = 0;
             loser.vy = -22;
@@ -1586,30 +1620,29 @@ function endRound(winner, reason) {
 
         setTimeout(() => {
             timeScale = 1.0;
-            if (p1Score >= MAX_SCORE) {
-                if (isOnlineMode) {
-                    showOverlay(myPlayerNumber === 1 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
+            if (p1Score >= MAX_SCORE || p2Score >= MAX_SCORE) {
+                if (isWatchMode) {
+                    // 観戦モードなら次のランダムCPUマッチへ自動遷移
+                    showOverlay(`${message}!\nNEXT MATCH...`, 2500, startWatchMode);
+                } else if (isOnlineMode) {
+                    showOverlay(myPlayerNumber === (p1Score >= MAX_SCORE ? 1 : 2) ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
                 } else {
-                    winStreak++;
-                    streakCounterEl.innerText = `連勝: ${winStreak}`;
-                    showOverlay(`VICTORY!\n${winStreak}連勝達成！`, 2500, startNextMatch);
-                }
-            } else if (p2Score >= MAX_SCORE) {
-                if (isOnlineMode) {
-                    showOverlay(myPlayerNumber === 2 ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
-                } else {
-                    showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
-                        saveScore(winStreak);
-                        returnToTitle();
-                    });
+                    if (p1Score >= MAX_SCORE) {
+                        winStreak++;
+                        streakCounterEl.innerText = `連勝: ${winStreak}`;
+                        showOverlay(`VICTORY!\n${winStreak}連勝達成！`, 2500, startNextMatch);
+                    } else {
+                        showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
+                            saveScore(winStreak);
+                            returnToTitle();
+                        });
+                    }
                 }
             }
         }, 1800);
     } else {
-        // 通常ラウンド決着（1本目）
         if (winner) {
             if (winner.isLaserAttack) {
-                // 通常ラウンドでのレーザー直撃：真上に高く上がって落ちる
                 loser.state = 'blowaway';
                 loser.vx = 0;
                 loser.vy = -16;
@@ -1653,7 +1686,12 @@ function startNextMatch() {
 
 function returnToTitle() {
     gameActive = false;
+    isWatchMode = false;
     timeScale = 1.0;
+
+    if (btnExitWatch) btnExitWatch.style.display = 'none';
+    if (touchControls) touchControls.style.display = 'flex';
+
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
     if (socket) {
@@ -1669,7 +1707,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     if (defender.guardActive && isFacing && !attacker.isLaserAttack) {
         triggerHitEffect(hitX, hitY, false, true);
 
-        // ガード成功時：守った側にSP+10、攻撃側にSP+5
         defender.addSP(10);
         attacker.addSP(5);
 
@@ -1688,11 +1725,9 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     } else {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack || attacker.isLaserAttack, false);
 
-        // ヒット時：攻撃者にSP+20、被弾者にSP+25
         attacker.addSP(20);
         defender.addSP(25);
 
-        // 溜め攻撃 または レーザー必殺技：一撃KO！
         if (attacker.isHeavyAttack || attacker.isLaserAttack) {
             defender.hp = 0;
             updateScoreUI();
