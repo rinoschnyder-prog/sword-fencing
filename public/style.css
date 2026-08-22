@@ -38,6 +38,27 @@ html, body {
     background-repeat: no-repeat;
 }
 
+/* ★ 観戦終了ボタン */
+#btn-exit-watch {
+    position: absolute;
+    top: calc(14px + env(safe-area-inset-top));
+    left: 16px;
+    z-index: 30;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 6px 12px;
+    border-radius: 16px;
+    backdrop-filter: blur(4px);
+    display: none;
+}
+
+#btn-exit-watch:active {
+    background: rgba(255, 82, 82, 0.8);
+}
+
 /* UIレイヤー */
 #ui-layer {
     position: absolute;
@@ -122,7 +143,6 @@ html, body {
     box-shadow: 0 0 8px rgba(64, 196, 255, 0.85);
 }
 
-/* ★ 必殺技（SP）ゲージバー */
 .sp-bar {
     width: 100%;
     height: 5px;
@@ -216,7 +236,6 @@ html, body {
 .action-btn.yellow { background: rgba(255, 211, 42, 0.5); border-color: rgba(255, 211, 42, 0.9); color: #fff; }
 .action-btn.blue { background: rgba(64, 196, 255, 0.5); border-color: rgba(64, 196, 255, 0.9); }
 
-/* ★ SPECIAL必殺技ボタン（100%で激しく燃え上がる） */
 .special-btn {
     background: rgba(100, 100, 100, 0.3);
     border-color: rgba(150, 150, 150, 0.4);
@@ -266,15 +285,15 @@ html, body {
 .subtitle {
     font-size: 11px;
     color: #d2dae2;
-    margin-bottom: 22px;
+    margin-bottom: 20px;
     text-align: center;
 }
 
 .menu-btn {
     width: min(80vw, 240px);
-    padding: 12px 0;
-    margin: 6px 0;
-    font-size: 15px;
+    padding: 11px 0;
+    margin: 5px 0;
+    font-size: 14px;
     font-weight: bold;
     color: #fff;
     background: linear-gradient(135deg, #ff5252, #eb2f06);
@@ -289,8 +308,14 @@ html, body {
     transform: scale(0.95);
 }
 
+/* ★ 観戦モードボタン専用スタイル */
+.menu-btn.watch-btn {
+    background: linear-gradient(135deg, #8e44ad, #2980b9);
+    box-shadow: 0 6px 20px rgba(142, 68, 173, 0.4);
+}
+
 #ranking-board {
-    margin-top: 16px;
+    margin-top: 14px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     padding: 10px 16px;
@@ -316,7 +341,7 @@ html, body {
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    margin-top: 14px;
+    margin-top: 12px;
     width: min(85vw, 260px);
 }
 
