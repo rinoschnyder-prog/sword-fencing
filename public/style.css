@@ -74,7 +74,6 @@ html, body {
     gap: 5px;
 }
 
-/* ★ 勝敗ドットの基本スタイル */
 .dot {
     width: 11px;
     height: 11px;
@@ -84,7 +83,6 @@ html, body {
     transition: background-color 0.2s, box-shadow 0.2s;
 }
 
-/* ★ 修正：勝利時に確実に点灯するスタイル */
 #p1-score .dot.active {
     background-color: #ff5252 !important;
     box-shadow: 0 0 10px #ff5252, 0 0 4px #fff !important;
@@ -287,6 +285,18 @@ html, body {
     justify-content: space-between;
     margin: 3px 0;
     font-family: ui-monospace, monospace;
+}
+
+/* ★ クレジットテキストのスタイル */
+.credit-text {
+    margin-top: 14px;
+    font-size: 11px;
+    color: #a4b0be;
+    text-align: center;
+}
+.credit-text a {
+    color: #ffd32a;
+    text-decoration: underline;
 }
 
 #online-form {
