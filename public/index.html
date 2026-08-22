@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v10.0</title>
+    <title>ソード・フェンシング v10.5</title>
     
-    <!-- ★ 最新バージョン v=10.0 -->
-    <link rel="stylesheet" href="style.css?v=10.0">
+    <!-- ★ 最新バージョン v=10.5 -->
+    <link rel="stylesheet" href="style.css?v=10.5">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -19,6 +19,9 @@
     <div id="game-container">
         <!-- 全画面ゲームCanvas -->
         <canvas id="gameCanvas"></canvas>
+
+        <!-- 観戦中のみ表示されるタイトル戻るボタン -->
+        <button id="btn-exit-watch" onclick="returnToTitle()">✕ 観戦終了</button>
 
         <!-- スコア・タイマー・HP/SPゲージUI -->
         <div id="ui-layer">
@@ -30,7 +33,6 @@
                         <div class="dot"></div>
                     </div>
                 </div>
-                <!-- 5分割HPバー -->
                 <div class="hp-bar" id="p1-hp">
                     <div class="hp-block active"></div>
                     <div class="hp-block active"></div>
@@ -38,7 +40,6 @@
                     <div class="hp-block active"></div>
                     <div class="hp-block active"></div>
                 </div>
-                <!-- ★ P1 必殺技ゲージ -->
                 <div class="sp-bar">
                     <div class="sp-fill" id="p1-sp"></div>
                 </div>
@@ -57,7 +58,6 @@
                     </div>
                     <span id="p2-name-display" style="color: #40c4ff;">CPU</span>
                 </div>
-                <!-- 5分割HPバー -->
                 <div class="hp-bar" id="p2-hp">
                     <div class="hp-block active"></div>
                     <div class="hp-block active"></div>
@@ -65,14 +65,13 @@
                     <div class="hp-block active"></div>
                     <div class="hp-block active"></div>
                 </div>
-                <!-- ★ P2 必殺技ゲージ -->
                 <div class="sp-bar">
                     <div class="sp-fill" id="p2-sp"></div>
                 </div>
             </div>
         </div>
 
-        <!-- 半透明タッチコントローラー（SPECIALボタン付き） -->
+        <!-- 半透明タッチコントローラー -->
         <div id="touch-controls">
             <div class="control-group left-group">
                 <button id="btn-left" class="touch-btn">◀</button>
@@ -82,7 +81,6 @@
                 <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
                 <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
                 <button id="btn-attack" class="touch-btn action-btn red">ATTACK<br><span style="font-size: 8px;">(長押し溜め)</span></button>
-                <!-- ★ 光り輝く必殺技ボタン -->
                 <button id="btn-special" class="touch-btn action-btn special-btn">SPECIAL<br><span style="font-size: 8px;">(極太レーザー)</span></button>
             </div>
         </div>
@@ -94,6 +92,8 @@
             
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
             <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
+            <!-- ★ 観戦モードボタン -->
+            <button class="menu-btn watch-btn" onclick="startWatchMode()">観戦モード (CPU vs CPU)</button>
 
             <div id="ranking-board">
                 <h3>🏆 歴代連勝記録 TOP 3</h3>
@@ -131,7 +131,7 @@
         </div>
     </div>
 
-    <!-- ★ 最新バージョン v=10.0 -->
-    <script src="game.js?v=10.0"></script>
+    <!-- ★ 最新バージョン v=10.5 -->
+    <script src="game.js?v=10.5"></script>
 </body>
 </html>
