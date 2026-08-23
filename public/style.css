@@ -38,7 +38,7 @@ html, body {
     background-repeat: no-repeat;
 }
 
-/* ★ 観戦終了ボタン */
+/* 観戦終了ボタン */
 #btn-exit-watch {
     position: absolute;
     top: calc(14px + env(safe-area-inset-top));
@@ -178,22 +178,30 @@ html, body {
     text-shadow: 0 2px 6px rgba(0,0,0,0.9);
 }
 
-/* タッチコントローラー */
+/* ★ 2段レイアウトのタッチコントローラー */
 #touch-controls {
     position: absolute;
-    bottom: calc(19vh + env(safe-area-inset-bottom));
+    bottom: calc(14vh + env(safe-area-inset-bottom));
     left: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    z-index: 10;
+}
+
+.controls-row-top {
     width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 14px;
-    z-index: 10;
 }
 
 .control-group {
     display: flex;
-    gap: 8px;
+    gap: 10px;
 }
 
 .touch-btn {
@@ -220,13 +228,13 @@ html, body {
 }
 
 .left-group .touch-btn {
-    width: 60px;
-    height: 60px;
+    width: 62px;
+    height: 62px;
 }
 
 .action-btn {
-    width: 56px;
-    height: 56px;
+    width: 58px;
+    height: 58px;
     font-size: 10px;
     font-weight: 800;
     border-radius: 16px;
@@ -236,15 +244,29 @@ html, body {
 .action-btn.yellow { background: rgba(255, 211, 42, 0.5); border-color: rgba(255, 211, 42, 0.9); color: #fff; }
 .action-btn.blue { background: rgba(64, 196, 255, 0.5); border-color: rgba(64, 196, 255, 0.9); }
 
+/* ★ 下段中央配置のワイドSPECIALボタン */
+.controls-row-bottom {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
 .special-btn {
-    background: rgba(100, 100, 100, 0.3);
-    border-color: rgba(150, 150, 150, 0.4);
-    opacity: 0.4;
-    transition: all 0.3s;
+    width: 220px;
+    height: 38px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 900;
+    background: rgba(80, 80, 80, 0.35);
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.5);
+    opacity: 0.5;
+    transition: all 0.25s ease;
 }
 
 .special-btn.ready {
     opacity: 1;
+    color: #ffffff;
     background: linear-gradient(135deg, #ff0055, #ff5500);
     border-color: #ffd32a;
     box-shadow: 0 0 15px #ff0055, 0 0 5px #ffd32a;
@@ -253,7 +275,7 @@ html, body {
 
 @keyframes specialPulse {
     0% { transform: scale(1); box-shadow: 0 0 10px #ff0055; }
-    100% { transform: scale(1.08); box-shadow: 0 0 25px #ff5500, 0 0 10px #ffd32a; }
+    100% { transform: scale(1.05); box-shadow: 0 0 25px #ff5500, 0 0 10px #ffd32a; }
 }
 
 /* 全画面オーバーレイ */
@@ -308,7 +330,6 @@ html, body {
     transform: scale(0.95);
 }
 
-/* ★ 観戦モードボタン専用スタイル */
 .menu-btn.watch-btn {
     background: linear-gradient(135deg, #8e44ad, #2980b9);
     box-shadow: 0 6px 20px rgba(142, 68, 173, 0.4);
