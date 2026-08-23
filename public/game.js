@@ -18,7 +18,7 @@ let GROUND_Y = 0;
 const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 30; 
 const MAX_SCORE = 2;
-const MAX_HP = 5;
+const MAX_HP = 10; // ★ 最大HPを「10」に設定
 const MAX_SP = 100;
 const MAX_CHARGE_FRAMES = 45;
 
@@ -205,7 +205,6 @@ let particles = [];
 let slashes = [];
 let energyBalls = [];
 
-// ★ 波動拳クラス（発射者番号 ownerNum: 1 or 2 を保持し自爆を完全防止）
 class EnergyBall {
     constructor(x, y, dir, color, ownerNum) {
         this.x = x;
@@ -213,7 +212,7 @@ class EnergyBall {
         this.vx = dir * 6.5;
         this.radius = 22;
         this.color = color;
-        this.ownerNum = ownerNum; // 1: P1発射, 2: P2発射
+        this.ownerNum = ownerNum;
         this.life = 70;
     }
     update() {
@@ -510,7 +509,6 @@ class Character {
             return;
         }
 
-        // 波動拳発射シークエンス
         if (this.state === 'hadouken') {
             this.hadouTimer += 1 * timeScale;
             this.vx = 0;
@@ -1271,16 +1269,18 @@ function checkCollision(rect1, rect2) {
            rect1.y + rect1.height > rect2.y;
 }
 
+// ★ 滑らかなHPバー（パーセント連動）の更新
 function updateScoreUI() {
     const p1Dots = document.querySelectorAll('#p1-score .dot');
     const p2Dots = document.querySelectorAll('#p2-score .dot');
     p1Dots.forEach((dot, idx) => dot.classList.toggle('active', idx < p1Score));
     p2Dots.forEach((dot, idx) => dot.classList.toggle('active', idx < p2Score));
 
-    const p1HpBlocks = document.querySelectorAll('#p1-hp .hp-block');
-    const p2HpBlocks = document.querySelectorAll('#p2-hp .hp-block');
-    p1HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p1.hp));
-    p2HpBlocks.forEach((block, idx) => block.classList.toggle('active', idx < p2.hp));
+    // ★ 1本の体力バー（パーセント計算）
+    const p1HpEl = document.getElementById('p1-hp');
+    const p2HpEl = document.getElementById('p2-hp');
+    if (p1HpEl) p1HpEl.style.width = `${(p1.hp / MAX_HP) * 100}%`;
+    if (p2HpEl) p2HpEl.style.width = `${(p2.hp / MAX_HP) * 100}%`;
 
     const p1SpEl = document.getElementById('p1-sp');
     const p2SpEl = document.getElementById('p2-sp');
@@ -1448,12 +1448,6 @@ function connectToRoom() {
                 const hitX = myChar.x + myChar.width / 2;
                 const hitY = myChar.y + 40;
                 triggerHitEffect(hitX, hitY, myChar.hp === 0, false);
-
-                if (myChar.hp === 0) {
-                    Sound.playSE('heavy');
-                } else {
-                    Sound.playSE('hit');
-                }
 
                 if (myChar.hp <= 0) {
                     endRound(opp);
@@ -1773,10 +1767,11 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     } else {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
 
-        attacker.addSP(20);
-        defender.addSP(25);
+        attacker.addSP(15);
+        defender.addSP(20);
 
         if (attacker.isHeavyAttack) {
+            // ★ 溜め攻撃直撃：一撃即死KO！
             defender.hp = 0;
             updateScoreUI();
             Sound.playSE('heavy');
@@ -1787,6 +1782,7 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             }
             endRound(attacker);
         } else {
+            // ★ 通常攻撃：1ダメージ
             defender.hp = Math.max(0, defender.hp - 1);
             attacker.attackTimer = 22;
             updateScoreUI();
@@ -1810,7 +1806,7 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     }
 }
 
-// ★ 波動拳（エネルギー弾）のヒット・ガード処理（自爆防止・相手のみに2ダメージ）
+// 波動拳（エネルギー弾）のヒット・ガード処理（2ダメージ）
 function handleEnergyBallHit(ball, defender, attacker) {
     const isFacing = (ball.vx > 0 && defender.direction === -1) || (ball.vx < 0 && defender.direction === 1);
     const hitX = ball.x;
@@ -1818,14 +1814,14 @@ function handleEnergyBallHit(ball, defender, attacker) {
 
     if (defender.guardActive && isFacing) {
         triggerHitEffect(hitX, hitY, false, true);
-        defender.hp = Math.max(0, defender.hp - 1);
+        defender.hp = Math.max(0, defender.hp - 1); // ガード削り1ダメ
         defender.addSP(10);
         defender.x += (ball.vx > 0 ? 1 : -1) * 15;
         Sound.playSE('guard');
     } else {
         triggerHitEffect(hitX, hitY, true, false);
-        defender.hp = Math.max(0, defender.hp - 2); // 相手のみ確実に2ダメージ減算
-        defender.addSP(30);
+        defender.hp = Math.max(0, defender.hp - 2); // 直撃2ダメージ！
+        defender.addSP(25);
         Sound.playSE('bom');
 
         defender.state = 'flinch';
@@ -1850,11 +1846,9 @@ function handleEnergyBallHit(ball, defender, attacker) {
 function checkHits() {
     if (roundOver) return;
 
-    // ★ 波動拳（エネルギー弾）の衝突判定（自爆を完全遮断）
+    // 波動拳の衝突判定
     for (let i = energyBalls.length - 1; i >= 0; i--) {
         const ball = energyBalls[i];
-        
-        // 発射者がP1ならターゲットはP2のみ、発射者がP2ならターゲットはP1のみ！
         const target = (ball.ownerNum === 1) ? p2 : p1;
         const attacker = (ball.ownerNum === 1) ? p1 : p2;
 
@@ -1952,7 +1946,7 @@ function gameLoop() {
     p1.draw();
     p2.draw();
 
-    // 波動拳（エネルギー弾）の描画
+    // 波動拳の描画
     for (let i = 0; i < energyBalls.length; i++) {
         energyBalls[i].update();
         energyBalls[i].draw();
