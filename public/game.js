@@ -18,7 +18,7 @@ let GROUND_Y = 0;
 const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 30; 
 const MAX_SCORE = 2;
-const MAX_HP = 10; // ★ 最大HPを「10」に設定
+const MAX_HP = 10;
 const MAX_SP = 100;
 const MAX_CHARGE_FRAMES = 45;
 
@@ -27,6 +27,12 @@ let isWatchMode = false;
 
 let roundEndTimeout = null;
 let overlayTimeout = null;
+
+// ★ 60fps固定タイムステップ制御用変数
+const TARGET_FPS = 60;
+const STEP = 1000 / TARGET_FPS; // 1フレーム約16.66ms
+let lastFrameTime = performance.now();
+let accumulator = 0;
 
 // CPUの10色カラーパレット
 const CPU_COLORS = [
@@ -1269,14 +1275,12 @@ function checkCollision(rect1, rect2) {
            rect1.y + rect1.height > rect2.y;
 }
 
-// ★ 滑らかなHPバー（パーセント連動）の更新
 function updateScoreUI() {
     const p1Dots = document.querySelectorAll('#p1-score .dot');
     const p2Dots = document.querySelectorAll('#p2-score .dot');
     p1Dots.forEach((dot, idx) => dot.classList.toggle('active', idx < p1Score));
     p2Dots.forEach((dot, idx) => dot.classList.toggle('active', idx < p2Score));
 
-    // ★ 1本の体力バー（パーセント計算）
     const p1HpEl = document.getElementById('p1-hp');
     const p2HpEl = document.getElementById('p2-hp');
     if (p1HpEl) p1HpEl.style.width = `${(p1.hp / MAX_HP) * 100}%`;
@@ -1771,7 +1775,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
         defender.addSP(20);
 
         if (attacker.isHeavyAttack) {
-            // ★ 溜め攻撃直撃：一撃即死KO！
             defender.hp = 0;
             updateScoreUI();
             Sound.playSE('heavy');
@@ -1782,7 +1785,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             }
             endRound(attacker);
         } else {
-            // ★ 通常攻撃：1ダメージ
             defender.hp = Math.max(0, defender.hp - 1);
             attacker.attackTimer = 22;
             updateScoreUI();
@@ -1806,7 +1808,7 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     }
 }
 
-// 波動拳（エネルギー弾）のヒット・ガード処理（2ダメージ）
+// 波動拳のヒット処理
 function handleEnergyBallHit(ball, defender, attacker) {
     const isFacing = (ball.vx > 0 && defender.direction === -1) || (ball.vx < 0 && defender.direction === 1);
     const hitX = ball.x;
@@ -1814,13 +1816,13 @@ function handleEnergyBallHit(ball, defender, attacker) {
 
     if (defender.guardActive && isFacing) {
         triggerHitEffect(hitX, hitY, false, true);
-        defender.hp = Math.max(0, defender.hp - 1); // ガード削り1ダメ
+        defender.hp = Math.max(0, defender.hp - 1);
         defender.addSP(10);
         defender.x += (ball.vx > 0 ? 1 : -1) * 15;
         Sound.playSE('guard');
     } else {
         triggerHitEffect(hitX, hitY, true, false);
-        defender.hp = Math.max(0, defender.hp - 2); // 直撃2ダメージ！
+        defender.hp = Math.max(0, defender.hp - 2);
         defender.addSP(25);
         Sound.playSE('bom');
 
@@ -1846,7 +1848,7 @@ function handleEnergyBallHit(ball, defender, attacker) {
 function checkHits() {
     if (roundOver) return;
 
-    // 波動拳の衝突判定
+    // 波動拳の判定
     for (let i = energyBalls.length - 1; i >= 0; i--) {
         const ball = energyBalls[i];
         const target = (ball.ownerNum === 1) ? p2 : p1;
@@ -1907,12 +1909,51 @@ function checkHits() {
     }
 }
 
-function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+// ★ 60fps固定物理ステップ実行関数
+function updatePhysics() {
     if (youMarkerTimer > 0) {
         youMarkerTimer -= 1 * timeScale;
     }
+
+    if (gameActive) {
+        p1.update(p2);
+        p2.update(p1);
+        
+        if (isOnlineMode) emitMyPhysics();
+        checkHits();
+    }
+
+    for (let i = 0; i < energyBalls.length; i++) {
+        energyBalls[i].update();
+    }
+
+    for (let i = slashes.length - 1; i >= 0; i--) {
+        slashes[i].update();
+        if (slashes[i].life <= 0) slashes.splice(i, 1);
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+}
+
+// ★ メインゲームループ（どんなモニターでも完全固定60fps同期）
+function gameLoop(currentTime = performance.now()) {
+    const delta = currentTime - lastFrameTime;
+    lastFrameTime = currentTime;
+
+    // 非アクティブ時の飛び防止（上限100ms）
+    accumulator += Math.min(delta, 100);
+
+    // 16.66ms（60fps）刻みで正確に物理演算を実行（PCでの倍速化を完全防止）
+    while (accumulator >= STEP) {
+        updatePhysics();
+        accumulator -= STEP;
+    }
+
+    // 画面描画
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
     if (screenShakeTimer > 0) {
@@ -1935,33 +1976,19 @@ function gameLoop() {
     ctx.lineTo(canvas.width, GROUND_Y);
     ctx.stroke();
 
-    if (gameActive) {
-        p1.update(p2);
-        p2.update(p1);
-        
-        if (isOnlineMode) emitMyPhysics();
-        checkHits();
-    }
-
     p1.draw();
     p2.draw();
 
-    // 波動拳の描画
     for (let i = 0; i < energyBalls.length; i++) {
-        energyBalls[i].update();
         energyBalls[i].draw();
     }
 
-    for (let i = slashes.length - 1; i >= 0; i--) {
-        slashes[i].update();
+    for (let i = 0; i < slashes.length; i++) {
         slashes[i].draw();
-        if (slashes[i].life <= 0) slashes.splice(i, 1);
     }
 
-    for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update();
+    for (let i = 0; i < particles.length; i++) {
         particles[i].draw();
-        if (particles[i].life <= 0) particles.splice(i, 1);
     }
 
     ctx.restore();
@@ -1971,4 +1998,4 @@ function gameLoop() {
 
 // 起動
 updateRankingUI();
-gameLoop();
+requestAnimationFrame(gameLoop);
