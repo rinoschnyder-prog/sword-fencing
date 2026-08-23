@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v10.6</title>
+    <title>ソード・フェンシング v11.0</title>
     
-    <!-- ★ 最新バージョン v=10.6 -->
-    <link rel="stylesheet" href="style.css?v=10.6">
+    <!-- ★ 最新バージョン v=11.0 -->
+    <link rel="stylesheet" href="style.css?v=11.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -81,14 +81,15 @@
                 <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
                 <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
                 <button id="btn-attack" class="touch-btn action-btn red">ATTACK<br><span style="font-size: 8px;">(長押し溜め)</span></button>
-                <button id="btn-special" class="touch-btn action-btn special-btn">SPECIAL<br><span style="font-size: 8px;">(極太レーザー)</span></button>
+                <!-- ★ 波動拳ボタン -->
+                <button id="btn-special" class="touch-btn action-btn special-btn">SPECIAL<br><span style="font-size: 8px;">(気功波動弾)</span></button>
             </div>
         </div>
         
         <!-- タイトル画面 -->
         <div id="title-screen" class="screen">
             <h1 class="game-title">ソード・フェンシング</h1>
-            <div class="subtitle">〜 30秒決戦！通常5打 / 溜め攻撃＆必殺レーザー一撃KO 〜</div>
+            <div class="subtitle">〜 30秒決戦！通常5打 / 溜め一撃KO＆必殺波動弾 〜</div>
             
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
             <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
@@ -130,7 +131,7 @@
         </div>
     </div>
 
-    <!-- ★ 最新バージョン v=10.6 -->
-    <script src="game.js?v=10.6"></script>
+    <!-- ★ 最新バージョン v=11.0 -->
+    <script src="game.js?v=11.0"></script>
 </body>
 </html>
