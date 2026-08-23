@@ -11,6 +11,7 @@ const onlineCountNumEl = document.getElementById('online-count-num');
 const btnSpecial = document.getElementById('btn-special');
 const btnExitWatch = document.getElementById('btn-exit-watch');
 const touchControls = document.getElementById('touch-controls');
+const specialControlContainer = document.getElementById('special-control-container');
 
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
@@ -202,14 +203,13 @@ let screenShakeIntensity = 0;
 
 let particles = [];
 let slashes = [];
-let energyBalls = []; // ★ 波動拳（エネルギー弾）の配列
+let energyBalls = [];
 
-// ★ 波動拳クラス
 class EnergyBall {
     constructor(x, y, dir, color, owner) {
         this.x = x;
         this.y = y;
-        this.vx = dir * 6.5; // 前方に飛翔
+        this.vx = dir * 6.5;
         this.radius = 22;
         this.color = color;
         this.owner = owner;
@@ -219,7 +219,6 @@ class EnergyBall {
         this.x += this.vx * timeScale;
         this.life -= 1 * timeScale;
 
-        // 後ろに光の粒子をまとわせる
         if (Math.random() < 0.6) {
             particles.push(new Particle(
                 this.x - this.vx * 0.5,
@@ -237,13 +236,11 @@ class EnergyBall {
         ctx.shadowBlur = 25;
         ctx.shadowColor = this.color;
 
-        // 外側オーラ
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        // 内側コア（白い光）
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius * 0.55, 0, Math.PI * 2);
@@ -450,7 +447,7 @@ class Character {
         this.direction = isCPU ? -1 : 1; 
         this.isGrounded = true;
         
-        this.state = 'idle'; // 'idle', 'walk', 'jump', 'guard', 'charge', 'attack', 'hadouken', 'flinch', 'break', 'hit', 'blowaway'
+        this.state = 'idle';
         this.isAirAttack = false;
         this.isHeavyAttack = false;
         this.isSpecialAttack = false;
@@ -499,7 +496,6 @@ class Character {
     update(opponent) {
         this.animFrame += 1 * timeScale;
 
-        // 打ち上げKO吹っ飛び
         if (this.state === 'blowaway') {
             this.y += this.vy * timeScale;
             this.vy += GRAVITY * 0.8 * timeScale;
@@ -513,13 +509,11 @@ class Character {
             return;
         }
 
-        // ★ 波動拳シークエンス（暗転＆剣投げ ➔ 発射 ➔ キャッチ）
         if (this.state === 'hadouken') {
             this.hadouTimer += 1 * timeScale;
             this.vx = 0;
             this.vy = 0;
 
-            // 24フレーム目：波動拳を発射！
             if (Math.floor(this.hadouTimer) === 24) {
                 const ballX = (this.direction === 1) ? (this.x + this.width + 10) : (this.x - 10);
                 const ballY = this.y + 42;
@@ -529,7 +523,6 @@ class Character {
                 screenShakeIntensity = 4;
             }
 
-            // 52フレーム目：剣をキャッチして完了
             if (this.hadouTimer > 52) {
                 this.state = 'idle';
                 this.isSpecialAttack = false;
@@ -642,7 +635,6 @@ class Character {
     updatePlayer() {
         this.vx = 0;
 
-        // ★ SPECIAL波動拳の発動
         if (keys.space && this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'hadouken') {
             this.state = 'hadouken';
             this.isSpecialAttack = true;
@@ -726,7 +718,6 @@ class Character {
         const isOpponentSpReady = opponent.sp >= MAX_SP;
         const isNearWall = (this.x <= 40 || this.x >= canvas.width - 80);
         
-        // ★ CPUの波動拳発動
         if (this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'hadouken') {
             if (Math.random() < 0.65) {
                 this.state = 'hadouken';
@@ -900,7 +891,6 @@ class Character {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // 影
         if (this.state !== 'blowaway') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
@@ -969,7 +959,7 @@ class Character {
             }
         }
 
-        // ★ 波動拳モーション（剣投げトス ➔ 波動拳 ➔ キャッチ）
+        // ★ 波動拳モーション（剣投げトス ➔ 波動発射 ➔ キャッチ）
         if (this.state === 'hadouken') {
             headY = cy - 68;
             chestY = cy - 50;
@@ -978,12 +968,10 @@ class Character {
             leftFoot = { x: cx - dir * 18, y: cy };
             rightFoot = { x: cx + dir * 22, y: cy };
 
-            // 剣が上空へ回転しながら飛び、落ちてくる計算
             const t = this.hadouTimer;
             const swordFlightY = cy - 80 - Math.sin((t / 52) * Math.PI) * 75;
             const swordFlightRot = t * 0.45;
 
-            // 暗転演出（前半のタメ時）
             if (t < 24) {
                 ctx.save();
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -991,11 +979,9 @@ class Character {
                 ctx.restore();
             }
 
-            // 腕の構え（両手を前に突き出して波動発射）
             leftHand = { x: cx + dir * 24, y: cy - 44 };
             rightHand = { x: cx + dir * 28, y: cy - 40 };
 
-            // 上空の剣を描画（回転しながら空を舞う）
             if (t < 48) {
                 ctx.save();
                 ctx.translate(cx, swordFlightY);
@@ -1008,7 +994,6 @@ class Character {
                 ctx.stroke();
                 ctx.restore();
             } else {
-                // キャッチして構えに戻る
                 swordStart = { x: rightHand.x, y: rightHand.y };
                 swordEnd = { x: rightHand.x + dir * 45, y: rightHand.y - 20 };
             }
@@ -1416,6 +1401,8 @@ function connectToRoom() {
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
 
+        if (specialControlContainer) specialControlContainer.style.display = 'flex';
+
         Sound.playBGM('game');
 
         setTimeout(() => {
@@ -1458,6 +1445,12 @@ function connectToRoom() {
                 const hitX = myChar.x + myChar.width / 2;
                 const hitY = myChar.y + 40;
                 triggerHitEffect(hitX, hitY, myChar.hp === 0, false);
+
+                if (myChar.hp === 0) {
+                    Sound.playSE('heavy');
+                } else {
+                    Sound.playSE('hit');
+                }
 
                 if (myChar.hp <= 0) {
                     endRound(opp);
@@ -1520,7 +1513,7 @@ function emitMyPhysics(extraOppState, targetOppHp) {
     });
 }
 
-// ★ CPU対戦の開始（確実に開始できるように完全修正）
+// ★ CPU対戦の開始
 function startCPUMode() {
     isOnlineMode = false;
     isWatchMode = false;
@@ -1543,6 +1536,7 @@ function startCPUMode() {
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
     if (touchControls) touchControls.style.display = 'flex';
+    if (specialControlContainer) specialControlContainer.style.display = 'flex';
 
     titleScreen.style.display = 'none';
     uiLayer.style.display = 'flex';
@@ -1579,6 +1573,7 @@ function startWatchMode() {
     document.getElementById('p2-name-display').style.color = p2.color;
 
     if (touchControls) touchControls.style.display = 'none';
+    if (specialControlContainer) specialControlContainer.style.display = 'none';
     if (btnExitWatch) btnExitWatch.style.display = 'block';
 
     titleScreen.style.display = 'none';
@@ -1735,6 +1730,7 @@ function returnToTitle() {
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
     if (touchControls) touchControls.style.display = 'flex';
+    if (specialControlContainer) specialControlContainer.style.display = 'flex';
 
     p1.reset();
     p2.reset();
@@ -1818,16 +1814,14 @@ function handleEnergyBallHit(ball, defender) {
     const hitY = ball.y;
 
     if (defender.guardActive && isFacing) {
-        // ガード時：火花を散らして1ダメージ削り
         triggerHitEffect(hitX, hitY, false, true);
-        defender.hp = Math.max(0, defender.hp - 1);
+        defender.hp = Math.max(0, defender.hp - 1); // ガードで1削り
         defender.addSP(10);
         defender.x += (ball.vx > 0 ? 1 : -1) * 15;
         Sound.playSE('guard');
     } else {
-        // 直撃時：2ダメージ！
         triggerHitEffect(hitX, hitY, true, false);
-        defender.hp = Math.max(0, defender.hp - 2);
+        defender.hp = Math.max(0, defender.hp - 2); // 直撃で2ダメージ！
         defender.addSP(30);
         Sound.playSE('bom');
 
@@ -1853,7 +1847,7 @@ function handleEnergyBallHit(ball, defender) {
 function checkHits() {
     if (roundOver) return;
 
-    // ★ 波動拳（エネルギー弾）の衝突判定
+    // 波動拳の衝突判定
     for (let i = energyBalls.length - 1; i >= 0; i--) {
         const ball = energyBalls[i];
         const target = (ball.owner === p1) ? p2 : p1;
@@ -1869,7 +1863,6 @@ function checkHits() {
             }
         }
 
-        // 画面外または寿命切れで消滅
         if (ball.life <= 0 || ball.x < -50 || ball.x > canvas.width + 50) {
             energyBalls.splice(i, 1);
         }
@@ -1953,7 +1946,7 @@ function gameLoop() {
     p1.draw();
     p2.draw();
 
-    // ★ 波動拳（エネルギー弾）の描画
+    // 波動拳の描画
     for (let i = 0; i < energyBalls.length; i++) {
         energyBalls[i].update();
         energyBalls[i].draw();
