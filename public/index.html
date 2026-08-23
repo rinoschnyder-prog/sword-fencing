@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v11.3</title>
+    <title>ソード・フェンシング v12.0</title>
     
-    <!-- ★ 最新バージョン v=11.3 -->
-    <link rel="stylesheet" href="style.css?v=11.3">
+    <!-- ★ 最新バージョン v=12.0 -->
+    <link rel="stylesheet" href="style.css?v=12.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -33,13 +33,11 @@
                         <div class="dot"></div>
                     </div>
                 </div>
-                <div class="hp-bar" id="p1-hp">
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
+                <!-- ★ 滑らかな1本のHPバー -->
+                <div class="hp-bar">
+                    <div class="hp-fill" id="p1-hp"></div>
                 </div>
+                <!-- SPゲージ -->
                 <div class="sp-bar">
                     <div class="sp-fill" id="p1-sp"></div>
                 </div>
@@ -58,13 +56,11 @@
                     </div>
                     <span id="p2-name-display" style="color: #40c4ff;">CPU</span>
                 </div>
-                <div class="hp-bar" id="p2-hp">
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
-                    <div class="hp-block active"></div>
+                <!-- ★ 滑らかな1本のHPバー -->
+                <div class="hp-bar">
+                    <div class="hp-fill" id="p2-hp"></div>
                 </div>
+                <!-- SPゲージ -->
                 <div class="sp-bar">
                     <div class="sp-fill" id="p2-sp"></div>
                 </div>
@@ -92,7 +88,7 @@
         <!-- タイトル画面 -->
         <div id="title-screen" class="screen">
             <h1 class="game-title">ソード・フェンシング</h1>
-            <div class="subtitle">〜 30秒決戦！通常5打 / 溜め一撃KO＆必殺波動弾 〜</div>
+            <div class="subtitle">〜 30秒決戦！通常10打 / 溜め一撃KO＆必殺波動弾 〜</div>
             
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
             <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
@@ -134,7 +130,7 @@
         </div>
     </div>
 
-    <!-- ★ 最新バージョン v=11.3 -->
-    <script src="game.js?v=11.3"></script>
+    <!-- ★ 最新バージョン v=12.0 -->
+    <script src="game.js?v=12.0"></script>
 </body>
 </html>
