@@ -5,6 +5,8 @@ const streakCounterEl = document.getElementById('streak-counter');
 const uiLayer = document.getElementById('ui-layer');
 const titleScreen = document.getElementById('title-screen');
 const onlineScreen = document.getElementById('online-screen');
+const betScreen = document.getElementById('bet-screen');
+const shopScreen = document.getElementById('shop-screen');
 const gameOverlay = document.getElementById('game-overlay');
 const overlayTextEl = document.getElementById('overlay-text');
 const onlineCountNumEl = document.getElementById('online-count-num');
@@ -12,20 +14,6 @@ const btnSpecial = document.getElementById('btn-special');
 const btnExitWatch = document.getElementById('btn-exit-watch');
 const touchControls = document.getElementById('touch-controls');
 const specialControlContainer = document.getElementById('special-control-container');
-
-// ★ タッチ操作環境（スマホ・タブレット）かどうかを自動判別
-const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-
-function updateControlsVisibility() {
-    // 観戦モードまたはPC環境なら非表示、スマホでのプレイ時のみ表示
-    if (!isTouchDevice || isWatchMode || !gameActive) {
-        if (touchControls) touchControls.style.display = 'none';
-        if (specialControlContainer) specialControlContainer.style.display = 'none';
-    } else {
-        if (touchControls) touchControls.style.display = 'flex';
-        if (specialControlContainer) specialControlContainer.style.display = 'flex';
-    }
-}
 
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
@@ -35,24 +23,60 @@ const MAX_SCORE = 2;
 const MAX_HP = 10;
 const MAX_SP = 100;
 const MAX_CHARGE_FRAMES = 45;
+const COLOR_PRICE = 15;
 
 let timeScale = 1.0;
 let isWatchMode = false;
+let currentBetTarget = 1;
+let currentBetAmount = 1;
 
 let roundEndTimeout = null;
 let overlayTimeout = null;
 
-// 60fps固定タイムステップ制御用変数
 const TARGET_FPS = 60;
 const STEP = 1000 / TARGET_FPS;
 let lastFrameTime = performance.now();
 let accumulator = 0;
 
-// CPUの10色カラーパレット
-const CPU_COLORS = [
-    '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22', '#ffd32a',
-    '#ff5252', '#1abc9c', '#e056fd', '#f5f6fa', '#30336b'
+const PALETTE = [
+    '#ff5252', '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22',
+    '#ffd32a', '#1abc9c', '#e056fd', '#f5f6fa', '#2c3e50'
 ];
+const CPU_COLORS = PALETTE;
+
+// プレイヤーのセーブデータ
+let playerData = {
+    gold: 5,
+    bodyColor: '#ff5252',
+    legsColor: '#ff5252',
+    accessory: 'none',
+    unlockedColors: ['#ff5252'],
+    unlockedAcc: ['none']
+};
+
+function loadPlayerData() {
+    const saved = localStorage.getItem('fencing_player_data');
+    if (saved) {
+        try {
+            playerData = { ...playerData, ...JSON.parse(saved) };
+            if (!playerData.unlockedColors) playerData.unlockedColors = ['#ff5252'];
+        } catch (e) {}
+    }
+    updateGoldUI();
+}
+
+function savePlayerData() {
+    localStorage.setItem('fencing_player_data', JSON.stringify(playerData));
+    updateGoldUI();
+}
+
+function updateGoldUI() {
+    const goldDisplay = document.getElementById('gold-amount');
+    if (goldDisplay) goldDisplay.innerText = playerData.gold;
+    document.querySelectorAll('.current-gold-span').forEach(el => el.innerText = playerData.gold);
+}
+
+loadPlayerData();
 
 // オーディオマネージャー
 class SoundManager {
@@ -84,15 +108,12 @@ class SoundManager {
             const audio = new Audio(url);
             audio.loop = true;
             audio.volume = this.bgmVolume;
-            
             audio.addEventListener('ended', () => {
                 audio.currentTime = 0;
                 audio.play().catch(() => {});
             });
-
             this.bgmAudioElements[key] = audio;
         }
-
         this.initAudioContext();
     }
 
@@ -105,9 +126,7 @@ class SoundManager {
     }
 
     unlockAudio() {
-        if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
-        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     }
 
     async loadAllSE() {
@@ -117,17 +136,14 @@ class SoundManager {
                 const res = await fetch(url);
                 const arrayBuffer = await res.arrayBuffer();
                 this.buffers[key] = await this.ctx.decodeAudioData(arrayBuffer);
-            } catch (e) {
-                console.warn(`SE読み込みスキップ: ${url}`, e);
-            }
+            } catch (e) {}
         }
     }
 
     playSE(name) {
-        if (!gameActive && !isWatchMode && name !== 'swing') return;
+        if (!gameActive && !isWatchMode && name !== 'swing' && name !== 'guard') return;
         this.unlockAudio();
         if (!this.ctx || !this.buffers[name]) return;
-
         try {
             const source = this.ctx.createBufferSource();
             const gain = this.ctx.createGain();
@@ -136,29 +152,16 @@ class SoundManager {
             source.connect(gain);
             gain.connect(this.ctx.destination);
             source.start(0);
-        } catch (e) {
-            console.warn(e);
-        }
+        } catch (e) {}
     }
 
     playBGM(type) {
         this.unlockAudio();
-
-        if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) {
-            return;
-        }
-
-        if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) {
-            return;
-        }
+        if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) return;
+        if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) return;
 
         this.stopBGM();
-
-        let targetKey = 'title';
-        if (type === 'game') {
-            targetKey = Math.random() < 0.5 ? 'game1' : 'game2';
-        }
-
+        let targetKey = type === 'game' ? (Math.random() < 0.5 ? 'game1' : 'game2') : 'title';
         const audio = this.bgmAudioElements[targetKey];
         if (audio) {
             audio.currentTime = 0;
@@ -181,13 +184,22 @@ class SoundManager {
 
 const Sound = new SoundManager();
 
-const handleFirstInteraction = () => {
-    Sound.unlockAudio();
-};
-
+const handleFirstInteraction = () => Sound.unlockAudio();
 window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
 window.addEventListener('mousedown', handleFirstInteraction);
 window.addEventListener('click', handleFirstInteraction);
+
+const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+function updateControlsVisibility() {
+    if (!isTouchDevice || isWatchMode || !gameActive) {
+        if (touchControls) touchControls.style.display = 'none';
+        if (specialControlContainer) specialControlContainer.style.display = 'none';
+    } else {
+        if (touchControls) touchControls.style.display = 'flex';
+        if (specialControlContainer) specialControlContainer.style.display = 'flex';
+    }
+}
 
 function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -238,7 +250,6 @@ class EnergyBall {
     update() {
         this.x += this.vx * timeScale;
         this.life -= 1 * timeScale;
-
         if (Math.random() < 0.6) {
             particles.push(new Particle(
                 this.x - this.vx * 0.5,
@@ -255,17 +266,14 @@ class EnergyBall {
         ctx.save();
         ctx.shadowBlur = 25;
         ctx.shadowColor = this.color;
-
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
-
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius * 0.55, 0, Math.PI * 2);
         ctx.fill();
-
         ctx.restore();
     }
 }
@@ -312,9 +320,7 @@ class SlashEffect {
         this.life = isHeavy ? 14 : 9;
         this.maxLife = this.life;
     }
-    update() {
-        this.life -= 1 * timeScale;
-    }
+    update() { this.life -= 1 * timeScale; }
     draw() {
         const alpha = Math.max(0, this.life / this.maxLife);
         ctx.save();
@@ -325,7 +331,6 @@ class SlashEffect {
         ctx.lineWidth = this.isHeavy ? 6 : 3.5;
         ctx.shadowBlur = this.isHeavy ? 20 : 10;
         ctx.shadowColor = this.color;
-
         ctx.beginPath();
         ctx.moveTo(-this.length / 2, 0);
         ctx.lineTo(this.length / 2, 0);
@@ -338,7 +343,6 @@ class SlashEffect {
             ctx.arc(0, 0, (1 - alpha) * 45, 0, Math.PI * 2);
             ctx.stroke();
         }
-
         ctx.restore();
     }
 }
@@ -348,37 +352,20 @@ function triggerHitEffect(x, y, isHeavy, isGuard) {
         for (let i = 0; i < 10; i++) {
             const angle = (Math.random() * Math.PI) - (Math.PI / 2);
             const speed = 3 + Math.random() * 5;
-            particles.push(new Particle(
-                x, y,
-                Math.cos(angle) * speed,
-                Math.sin(angle) * speed,
-                '#ffd32a',
-                3,
-                15 + Math.random() * 8
-            ));
+            particles.push(new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, '#ffd32a', 3, 15));
         }
         screenShakeTimer = 4;
         screenShakeIntensity = 2.5;
     } else {
         const count = isHeavy ? 35 : 18;
         const color = isHeavy ? '#ffd32a' : '#ff3838';
-
         for (let i = 0; i < count; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = (isHeavy ? 4 : 2.5) + Math.random() * (isHeavy ? 9 : 6);
-            particles.push(new Particle(
-                x, y,
-                Math.cos(angle) * speed,
-                Math.sin(angle) * speed,
-                Math.random() > 0.3 ? color : '#ffffff',
-                (isHeavy ? 4 : 2.5) + Math.random() * 2,
-                18 + Math.random() * 12
-            ));
+            particles.push(new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, Math.random() > 0.3 ? color : '#ffffff', (isHeavy ? 4 : 2.5), 18));
         }
-
         const slashAngle = (Math.random() - 0.5) * 0.8;
         slashes.push(new SlashEffect(x, y, slashAngle, isHeavy ? 100 : 65, color, isHeavy));
-
         screenShakeTimer = isHeavy ? 16 : 8;
         screenShakeIntensity = isHeavy ? 9 : 4.5;
     }
@@ -393,21 +380,13 @@ const SERVER_URL = window.location.origin;
 function initGlobalSocket() {
     if (typeof io === 'undefined') return;
     socket = io(SERVER_URL);
-
     socket.on('online_count', (count) => {
         if (onlineCountNumEl) onlineCountNumEl.innerText = count;
-    });
-
-    socket.on('connect', () => {
-        if (onlineCountNumEl && onlineCountNumEl.innerText === '0') {
-            onlineCountNumEl.innerText = '1';
-        }
     });
 }
 initGlobalSocket();
 
 const keys = { a: false, d: false, w: false, s: false, f: false, space: false };
-
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     if (key === ' ') keys.space = true;
@@ -431,20 +410,9 @@ const touchBinds = [
 touchBinds.forEach(bind => {
     const btn = document.getElementById(bind.btnId);
     if (btn) {
-        btn.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            keys[bind.key] = true;
-        }, { passive: false });
-
-        btn.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            keys[bind.key] = false;
-        }, { passive: false });
-
-        btn.addEventListener('touchcancel', (e) => {
-            e.preventDefault();
-            keys[bind.key] = false;
-        }, { passive: false });
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[bind.key] = true; }, { passive: false });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[bind.key] = false; }, { passive: false });
+        btn.addEventListener('touchcancel', (e) => { e.preventDefault(); keys[bind.key] = false; }, { passive: false });
     }
 });
 
@@ -454,6 +422,10 @@ class Character {
         this.width = 44;
         this.height = 88;
         this.color = color;
+        this.bodyColor = color;
+        this.legsColor = color;
+        this.accessory = 'none';
+
         this.isCPU = isCPU;
         this.startX = 0;
         this.startY = 0;
@@ -516,10 +488,21 @@ class Character {
     update(opponent) {
         this.animFrame += 1 * timeScale;
 
+        if (this.accessory === 'god' && Math.random() < 0.35) {
+            particles.push(new Particle(
+                this.x + Math.random() * this.width,
+                this.y + this.height - Math.random() * 20,
+                (Math.random() - 0.5) * 1.5,
+                -1.5 - Math.random() * 2,
+                '#ffd32a',
+                3,
+                16
+            ));
+        }
+
         if (this.state === 'blowaway') {
             this.y += this.vy * timeScale;
             this.vy += GRAVITY * 0.8 * timeScale;
-
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
@@ -553,52 +536,31 @@ class Character {
             return;
         }
 
-        if (isOnlineMode && ((myPlayerNumber === 1 && this === p2) || (myPlayerNumber === 2 && this === p1))) {
-            return;
-        }
+        if (isOnlineMode && ((myPlayerNumber === 1 && this === p2) || (myPlayerNumber === 2 && this === p1))) return;
 
-        if (!this.isGrounded) {
-            this.vy += GRAVITY * timeScale;
-        }
+        if (!this.isGrounded) this.vy += GRAVITY * timeScale;
 
         if (this.state === 'flinch') {
             this.flinchTimer -= 1 * timeScale;
             this.vx *= 0.85;
-            if (this.flinchTimer <= 0) {
-                this.state = 'idle';
-                this.vx = 0;
-            }
+            if (this.flinchTimer <= 0) { this.state = 'idle'; this.vx = 0; }
         }
 
         if (this.state === 'break') {
             this.breakTimer -= 1 * timeScale;
             this.vx = 0;
             this.guardActive = false;
-            if (this.breakTimer <= 0) {
-                this.state = 'idle';
-            }
+            if (this.breakTimer <= 0) this.state = 'idle';
         }
 
         if (this.state === 'attack') {
             this.attackTimer += 1 * timeScale;
-
             if (this.isAirAttack) {
-                if (this.attackTimer < 12) {
-                    this.vx = this.direction * 5.5;
-                    this.vy = 5.0;
-                }
+                if (this.attackTimer < 12) { this.vx = this.direction * 5.5; this.vy = 5.0; }
             } else if (this.isHeavyAttack) {
-                if (this.attackTimer < 12) {
-                    this.vx = this.direction * 8.5;
-                } else {
-                    this.vx = 0;
-                }
+                if (this.attackTimer < 12) { this.vx = this.direction * 8.5; } else { this.vx = 0; }
             } else {
-                if (this.attackTimer < 8) {
-                    this.vx = this.direction * 5;
-                } else {
-                    this.vx = 0;
-                }
+                if (this.attackTimer < 8) { this.vx = this.direction * 5; } else { this.vx = 0; }
             }
 
             const limit = this.isHeavyAttack ? 28 : 22;
@@ -611,20 +573,12 @@ class Character {
             }
         }
 
-        if (this.attackCooldown > 0) {
-            this.attackCooldown -= 1 * timeScale;
-        }
+        if (this.attackCooldown > 0) this.attackCooldown -= 1 * timeScale;
 
         if (this.state !== 'hit' && this.state !== 'flinch' && this.state !== 'break' && !roundOver) {
-            if (isOnlineMode) {
-                this.updatePlayer(); 
-            } else {
-                if (this.isCPU) {
-                    this.updateCPU(opponent);
-                } else {
-                    this.updatePlayer();
-                }
-            }
+            if (isOnlineMode) this.updatePlayer(); 
+            else if (this.isCPU) this.updateCPU(opponent);
+            else this.updatePlayer();
         } else if (this.state === 'hit' || this.state === 'break') {
             this.vx = 0;
         }
@@ -637,9 +591,7 @@ class Character {
             this.vy = 0;
             this.isGrounded = true;
             if (this.state === 'jump') this.state = 'idle';
-            if (this.state === 'attack' && this.isAirAttack && this.attackTimer > 10) {
-                this.isAirAttack = false;
-            }
+            if (this.state === 'attack' && this.isAirAttack && this.attackTimer > 10) this.isAirAttack = false;
         } else {
             this.isGrounded = false;
         }
@@ -655,7 +607,6 @@ class Character {
 
     updatePlayer() {
         this.vx = 0;
-
         if (keys.space && this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'hadouken') {
             this.state = 'hadouken';
             this.isSpecialAttack = true;
@@ -670,23 +621,13 @@ class Character {
                 this.chargeTimer++;
                 return;
             } else {
-                if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
-                    this.state = 'attack';
-                    this.isHeavyAttack = true;
-                    this.isAirAttack = false;
-                    this.attackTimer = 0;
-                    this.chargeTimer = 0;
-                    Sound.playSE('swing');
-                    return;
-                } else {
-                    this.state = 'attack';
-                    this.isHeavyAttack = false;
-                    this.isAirAttack = false;
-                    this.attackTimer = 0;
-                    this.chargeTimer = 0;
-                    Sound.playSE('swing');
-                    return;
-                }
+                this.state = 'attack';
+                this.isHeavyAttack = (this.chargeTimer >= MAX_CHARGE_FRAMES);
+                this.isAirAttack = false;
+                this.attackTimer = 0;
+                this.chargeTimer = 0;
+                Sound.playSE('swing');
+                return;
             }
         }
 
@@ -721,8 +662,8 @@ class Character {
             } else if (keys.d) {
                 this.vx = 4.5;
                 this.state = this.isGrounded ? 'walk' : this.state;
-            } else {
-                if (this.isGrounded && this.state === 'walk') this.state = 'idle';
+            } else if (this.isGrounded && this.state === 'walk') {
+                this.state = 'idle';
             }
 
             if (keys.w && this.isGrounded) {
@@ -778,7 +719,6 @@ class Character {
         if (this.state === 'attack' || this.state === 'hadouken') return;
 
         this.cpuActionTimer--;
-        
         if (this.cpuActionTimer <= 0) {
             const thinkDelay = Math.max(3, 14 - level);
             this.cpuActionTimer = thinkDelay + Math.random() * 6;
@@ -793,13 +733,9 @@ class Character {
                 }
             } else if (opponent.state === 'charge') {
                 if (isOpponentSpReady) {
-                    if (distance < 100) {
-                        this.cpuDecision = 'attack';
-                    } else if (this.isGrounded) {
-                        this.cpuDecision = 'jump_forward';
-                    } else {
-                        this.cpuDecision = 'idle';
-                    }
+                    if (distance < 100) this.cpuDecision = 'attack';
+                    else if (this.isGrounded) this.cpuDecision = 'jump_forward';
+                    else this.cpuDecision = 'idle';
                 } else if (isNearWall && this.isGrounded) {
                     this.cpuDecision = 'jump_forward';
                 } else if (distance < 95) {
@@ -811,31 +747,18 @@ class Character {
                 }
             } else if (opponent.state === 'attack' && distance < 140) {
                 const guardRate = Math.min(0.92, 0.45 + level * 0.06);
-                if (rand < guardRate) {
-                    this.cpuDecision = (rand < 0.25 && this.isGrounded && !isNearWall) ? 'backstep' : 'guard';
-                } else {
-                    this.cpuDecision = 'idle';
-                }
+                if (rand < guardRate) this.cpuDecision = (rand < 0.25 && this.isGrounded && !isNearWall) ? 'backstep' : 'guard';
+                else this.cpuDecision = 'idle';
             } else if (distance < 125) {
-                if (rand < 0.35 && this.attackCooldown <= 0) {
-                    this.cpuDecision = 'attack';
-                } else if (rand < 0.55 && !isNearWall) {
-                    this.cpuDecision = 'backstep';
-                } else if (rand < 0.75 && this.isGrounded) {
-                    this.cpuDecision = 'jump_forward';
-                } else if (rand < 0.90 && this.isGrounded && this.attackCooldown <= 0) {
-                    this.cpuDecision = (level >= 3 && rand < 0.5) ? 'charge' : 'guard';
-                } else {
-                    this.cpuDecision = 'idle';
-                }
+                if (rand < 0.35 && this.attackCooldown <= 0) this.cpuDecision = 'attack';
+                else if (rand < 0.55 && !isNearWall) this.cpuDecision = 'backstep';
+                else if (rand < 0.75 && this.isGrounded) this.cpuDecision = 'jump_forward';
+                else if (rand < 0.90 && this.isGrounded && this.attackCooldown <= 0) this.cpuDecision = (level >= 3 && rand < 0.5) ? 'charge' : 'guard';
+                else this.cpuDecision = 'idle';
             } else {
-                if (rand < 0.35 && this.isGrounded) {
-                    this.cpuDecision = 'jump_forward';
-                } else if (rand < 0.85) {
-                    this.cpuDecision = 'approach';
-                } else {
-                    this.cpuDecision = 'idle';
-                }
+                if (rand < 0.35 && this.isGrounded) this.cpuDecision = 'jump_forward';
+                else if (rand < 0.85) this.cpuDecision = 'approach';
+                else this.cpuDecision = 'idle';
             }
         }
 
@@ -876,7 +799,6 @@ class Character {
 
     getAttackBox() {
         if (this.state !== 'attack') return null;
-
         if (this.attackTimer >= 6 && this.attackTimer <= 14) {
             if (this.isAirAttack) {
                 const boxWidth = 65;
@@ -901,16 +823,18 @@ class Character {
         return null;
     }
 
-    draw() {
+    draw(isDarkTone) {
         const cx = this.x + this.width / 2; 
         const cy = this.y + this.height;    
 
         ctx.save();
-        ctx.strokeStyle = this.color;
-        ctx.fillStyle = this.color;
         ctx.lineWidth = 5.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+
+        if (isDarkTone) {
+            ctx.globalAlpha = 0.8;
+        }
 
         if (this.state !== 'blowaway') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -941,7 +865,6 @@ class Character {
             const bob = Math.sin(this.animFrame * 0.15) * 4;
             const markerY = headY - 26 + bob;
             const alpha = Math.min(1, youMarkerTimer / 30);
-
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.font = 'bold 12px "Segoe UI", sans-serif';
@@ -949,9 +872,7 @@ class Character {
             ctx.textAlign = 'center';
             ctx.shadowBlur = 8;
             ctx.shadowColor = '#ffd32a';
-            
             ctx.fillText('YOU', cx, markerY);
-            
             ctx.beginPath();
             ctx.moveTo(cx - 5, markerY + 4);
             ctx.lineTo(cx + 5, markerY + 4);
@@ -965,10 +886,8 @@ class Character {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
             const alpha = 0.4 + Math.sin(this.animFrame * flashSpeed) * 0.4;
-            
             ctx.shadowBlur = isFull ? 28 : 14;
-            ctx.shadowColor = isFull ? '#ffd32a' : '#ffffff';
-
+            ctx.shadowColor = '#ffd32a';
             if (isFull) {
                 ctx.save();
                 ctx.strokeStyle = `rgba(255, 211, 42, ${alpha})`;
@@ -982,13 +901,8 @@ class Character {
 
         // 波動拳モーション
         if (this.state === 'hadouken') {
-            headY = cy - 68;
-            chestY = cy - 50;
-            hipY = cy - 30;
-
-            leftFoot = { x: cx - dir * 18, y: cy };
-            rightFoot = { x: cx + dir * 22, y: cy };
-
+            headY = cy - 68; chestY = cy - 50; hipY = cy - 30;
+            leftFoot = { x: cx - dir * 18, y: cy }; rightFoot = { x: cx + dir * 22, y: cy };
             const t = this.hadouTimer;
             const swordFlightY = cy - 80 - Math.sin((t / 52) * Math.PI) * 75;
             const swordFlightRot = t * 0.45;
@@ -1020,13 +934,9 @@ class Character {
             }
         }
         else if (this.state === 'blowaway') {
-            headY = cy - 80;
-            chestY = cy - 60;
-            hipY = cy - 40;
-            leftFoot = { x: cx - 10, y: cy - 10 };
-            rightFoot = { x: cx + 10, y: cy - 10 };
-            leftHand = { x: cx - 25, y: cy - 75 };
-            rightHand = { x: cx + 25, y: cy - 75 };
+            headY = cy - 80; chestY = cy - 60; hipY = cy - 40;
+            leftFoot = { x: cx - 10, y: cy - 10 }; rightFoot = { x: cx + 10, y: cy - 10 };
+            leftHand = { x: cx - 25, y: cy - 75 }; rightHand = { x: cx + 25, y: cy - 75 };
         }
         else if (this.state === 'hit') {
             const headX = cx - dir * 35;
@@ -1039,6 +949,7 @@ class Character {
             ctx.arc(headX, headY, 11, 0, Math.PI * 2);
             ctx.fill();
 
+            ctx.strokeStyle = this.bodyColor;
             ctx.beginPath();
             ctx.moveTo(headX + dir * 10, headY);
             ctx.lineTo(bodyHipX, cy - 6);
@@ -1049,6 +960,7 @@ class Character {
             ctx.lineTo(cx - dir * 10, cy - 14);
             ctx.stroke();
 
+            ctx.strokeStyle = this.legsColor;
             ctx.beginPath();
             ctx.moveTo(bodyHipX, cy - 6);
             ctx.lineTo(cx + dir * 22, cy - 12);
@@ -1073,26 +985,16 @@ class Character {
             return;
         } 
         else if (this.state === 'break') {
-            headY = cy - 45;
-            chestY = cy - 32;
-            hipY = cy - 18;
-            leftFoot = { x: cx - dir * 16, y: cy };
-            rightFoot = { x: cx + dir * 6, y: cy };
-            leftHand = { x: cx - dir * 8, y: cy - 20 };
-            rightHand = { x: cx + dir * 14, y: cy - 20 };
-
+            headY = cy - 45; chestY = cy - 32; hipY = cy - 18;
+            leftFoot = { x: cx - dir * 16, y: cy }; rightFoot = { x: cx + dir * 6, y: cy };
+            leftHand = { x: cx - dir * 8, y: cy - 20 }; rightHand = { x: cx + dir * 14, y: cy - 20 };
             swordStart = { x: rightHand.x, y: rightHand.y };
             swordEnd = { x: rightHand.x + dir * 10, y: cy };
         }
         else if (this.state === 'flinch') {
-            headY = cy - 70;
-            chestY = cy - 50;
-            hipY = cy - 30;
-            leftFoot = { x: cx - dir * 18, y: cy };
-            rightFoot = { x: cx + dir * 6, y: cy };
-            leftHand = { x: cx - dir * 18, y: cy - 60 };
-            rightHand = { x: cx - dir * 8, y: cy - 55 };
-
+            headY = cy - 70; chestY = cy - 50; hipY = cy - 30;
+            leftFoot = { x: cx - dir * 18, y: cy }; rightFoot = { x: cx + dir * 6, y: cy };
+            leftHand = { x: cx - dir * 18, y: cy - 60 }; rightHand = { x: cx - dir * 8, y: cy - 55 };
             swordStart = { x: rightHand.x, y: rightHand.y };
             swordEnd = { x: rightHand.x - dir * 25, y: rightHand.y - 15 };
         }
@@ -1100,96 +1002,68 @@ class Character {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const pullBack = Math.min(12, this.chargeTimer * 0.3);
             const shake = isFull ? (Math.random() - 0.5) * 2.5 : 0;
-
-            headY = cy - 66 + shake;
-            chestY = cy - 48 + shake;
-            hipY = cy - 28;
-
-            leftFoot = { x: cx - dir * 20, y: cy };
-            rightFoot = { x: cx + dir * 16, y: cy };
-
+            headY = cy - 66 + shake; chestY = cy - 48 + shake; hipY = cy - 28;
+            leftFoot = { x: cx - dir * 20, y: cy }; rightFoot = { x: cx + dir * 16, y: cy };
             rightHand = { x: cx - dir * (20 + pullBack) + shake, y: cy - 44 + shake };
             leftHand = { x: cx + dir * 16, y: cy - 48 };
-
             swordStart = { x: rightHand.x, y: rightHand.y };
             swordEnd = { x: rightHand.x + dir * 55, y: rightHand.y - 4 };
         }
         else if (this.state === 'attack') {
             const progress = this.attackTimer;
             const reach = (progress >= 6 && progress <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16; 
-
             if (this.isAirAttack) {
-                headY = cy - 70;
-                chestY = cy - 52;
-                hipY = cy - 32;
-
-                leftFoot = { x: cx - dir * 16, y: cy - 20 };
-                rightFoot = { x: cx + dir * 8, y: cy - 10 };
-                rightHand = { x: cx + dir * (20 + reach * 0.7), y: cy - 36 + (reach * 0.5) };
-                leftHand = { x: cx - dir * 18, y: cy - 60 };
-
-                swordStart = { x: rightHand.x, y: rightHand.y };
-                swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 };
+                headY = cy - 70; chestY = cy - 52; hipY = cy - 32;
+                leftFoot = { x: cx - dir * 16, y: cy - 20 }; rightFoot = { x: cx + dir * 8, y: cy - 10 };
+                rightHand = { x: cx + dir * (20 + reach * 0.7), y: cy - 36 + (reach * 0.5) }; leftHand = { x: cx - dir * 18, y: cy - 60 };
+                swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 };
             } else {
-                headY = cy - 70;
-                chestY = cy - 52;
-                hipY = cy - 30;
-
-                leftFoot = { x: cx - dir * 20, y: cy };
-                rightFoot = { x: cx + dir * 28, y: cy }; 
-                rightHand = { x: cx + dir * (32 + reach), y: cy - 44 };
-                leftHand = { x: cx - dir * 20, y: cy - 58 }; 
-
-                swordStart = { x: rightHand.x, y: rightHand.y };
-                swordEnd = { x: rightHand.x + dir * (this.isHeavyAttack ? 75 : 60), y: rightHand.y };
+                headY = cy - 70; chestY = cy - 52; hipY = cy - 30;
+                leftFoot = { x: cx - dir * 20, y: cy }; rightFoot = { x: cx + dir * 28, y: cy }; 
+                rightHand = { x: cx + dir * (32 + reach), y: cy - 44 }; leftHand = { x: cx - dir * 20, y: cy - 58 }; 
+                swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * (this.isHeavyAttack ? 75 : 60), y: rightHand.y };
             }
         } 
         else if (this.state === 'guard') {
-            headY = cy - 72;
-            chestY = cy - 52;
-            hipY = cy - 30;
-            leftFoot = { x: cx - dir * 9, y: cy };
-            rightFoot = { x: cx + dir * 9, y: cy };
-            rightHand = { x: cx + dir * 16, y: cy - 54 };
-            leftHand = { x: cx + dir * 8, y: cy - 50 };
-
-            swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 10, y: rightHand.y - 48 };
+            headY = cy - 72; chestY = cy - 52; hipY = cy - 30;
+            leftFoot = { x: cx - dir * 9, y: cy }; rightFoot = { x: cx + dir * 9, y: cy };
+            rightHand = { x: cx + dir * 16, y: cy - 54 }; leftHand = { x: cx + dir * 8, y: cy - 50 };
+            swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 10, y: rightHand.y - 48 };
         } 
         else if (this.state === 'walk') {
             const cycle = Math.sin(this.animFrame * 0.25);
-            leftFoot = { x: cx - 13 + (cycle * 13), y: cy };
-            rightFoot = { x: cx + 13 - (cycle * 13), y: cy };
-            leftHand = { x: cx - 11 - (cycle * 9), y: cy - 48 };
-            rightHand = { x: cx + 11 + (cycle * 9), y: cy - 48 };
-
-            swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
+            leftFoot = { x: cx - 13 + (cycle * 13), y: cy }; rightFoot = { x: cx + 13 - (cycle * 13), y: cy };
+            leftHand = { x: cx - 11 - (cycle * 9), y: cy - 48 }; rightHand = { x: cx + 11 + (cycle * 9), y: cy - 48 };
+            swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         } 
         else if (this.state === 'jump') {
-            headY = cy - 78;
-            chestY = cy - 58;
-            hipY = cy - 36;
-            leftFoot = { x: cx - 11, y: cy - 12 };
-            rightFoot = { x: cx + 11, y: cy - 16 };
-            leftHand = { x: cx - 16, y: cy - 64 };
-            rightHand = { x: cx + 16, y: cy - 58 };
-
-            swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 32, y: rightHand.y - 22 };
+            headY = cy - 78; chestY = cy - 58; hipY = cy - 36;
+            leftFoot = { x: cx - 11, y: cy - 12 }; rightFoot = { x: cx + 11, y: cy - 16 };
+            leftHand = { x: cx - 16, y: cy - 64 }; rightHand = { x: cx + 16, y: cy - 58 };
+            swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 32, y: rightHand.y - 22 };
         }
         else {
             const breathe = Math.sin(this.animFrame * 0.05) * 1.5;
-            headY += breathe;
-            chestY += breathe * 0.5;
+            headY += breathe; chestY += breathe * 0.5;
+            swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
+        }
 
-            swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
+        // マント描画
+        if (this.accessory === 'cloak' && this.state !== 'hit') {
+            const wave = Math.sin(this.animFrame * 0.2) * 6;
+            ctx.save();
+            ctx.fillStyle = 'rgba(192, 57, 43, 0.85)';
+            ctx.beginPath();
+            ctx.moveTo(cx - dir * 4, chestY);
+            ctx.quadraticCurveTo(cx - dir * (20 + (this.vx ? 10 : 0)), cy - 30 + wave, cx - dir * (28 + (this.vx ? 12 : 0)), cy - 10 + wave * 1.2);
+            ctx.lineTo(cx - dir * 16, cy - 8 + wave * 0.8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
         }
 
         // 頭部
         ctx.fillStyle = this.color;
-        ctx.strokeStyle = this.color;
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fill();
@@ -1204,21 +1078,22 @@ class Character {
         ctx.stroke();
         ctx.restore();
 
-        // 胴体
+        // 上半身
+        ctx.strokeStyle = this.bodyColor;
         ctx.beginPath();
         ctx.moveTo(cx, headY + 11);
         ctx.lineTo(cx, hipY);
         ctx.stroke();
 
-        // 胴体アーマー
         ctx.save();
-        ctx.fillStyle = this.color;
+        ctx.fillStyle = this.bodyColor;
         ctx.beginPath();
         ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
 
-        // 足
+        // 下半身
+        ctx.strokeStyle = this.legsColor;
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
         ctx.lineTo(leftFoot.x, leftFoot.y);
@@ -1229,6 +1104,7 @@ class Character {
         ctx.stroke();
 
         // 腕
+        ctx.strokeStyle = this.bodyColor;
         ctx.beginPath();
         ctx.moveTo(cx, chestY);
         ctx.lineTo(leftHand.x, leftHand.y);
@@ -1238,7 +1114,7 @@ class Character {
         ctx.lineTo(rightHand.x, rightHand.y);
         ctx.stroke();
 
-        // 剣（波動拳の投てき中以外で描画）
+        // 剣
         if (this.state !== 'blowaway' && (this.state !== 'hadouken' || this.hadouTimer >= 48)) {
             ctx.save();
             ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
@@ -1248,7 +1124,6 @@ class Character {
             ctx.lineTo(swordEnd.x, swordEnd.y);
             ctx.stroke();
 
-            // 鍔
             ctx.strokeStyle = '#ffd32a';
             ctx.lineWidth = 5;
             ctx.beginPath();
@@ -1259,7 +1134,6 @@ class Character {
             const perpY = (sDx / sLen) * 7;
             const tsubaX = swordStart.x + (sDx / sLen) * 6;
             const tsubaY = swordStart.y + (sDy / sLen) * 6;
-
             ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
             ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
             ctx.stroke();
@@ -1282,6 +1156,14 @@ class Character {
 const p1 = new Character('#ff5252', false); 
 const p2 = new Character(CPU_COLORS[0], true);  
 resizeCanvas();
+
+function applyPlayerCustomization() {
+    p1.color = playerData.bodyColor;
+    p1.bodyColor = playerData.bodyColor;
+    p1.legsColor = playerData.legsColor;
+    p1.accessory = playerData.accessory;
+}
+applyPlayerCustomization();
 
 function checkCollision(rect1, rect2) {
     return rect1.x < rect2.x + rect2.width &&
@@ -1350,15 +1232,186 @@ function saveScore(streak) {
         setTimeout(() => {
             const name = prompt("🎉ハイスコア！TOP3入り！\n名前を入力してください（最大8文字）:", "PLAYER");
             const finalName = (name && name.trim() !== "") ? name.substring(0, 8) : "PLAYER";
-            
             records.push({ name: finalName, streak: streak });
             records.sort((a, b) => b.streak - a.streak);
             if (records.length > 3) records.length = 3;
-            
             localStorage.setItem('fencing_ranking', JSON.stringify(records));
             updateRankingUI();
         }, 500);
     }
+}
+
+// 観戦ベッティングモーダル
+function openBetModal() {
+    currentBetTarget = 1;
+    currentBetAmount = Math.min(1, playerData.gold);
+    
+    p2.color = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
+    const colorBox = document.getElementById('bet-p2-color-box');
+    if (colorBox) colorBox.style.color = p2.color;
+
+    updateBetModalUI();
+    betScreen.style.display = 'flex';
+}
+
+function closeBetModal() {
+    betScreen.style.display = 'none';
+}
+
+function setBetTarget(targetNum) {
+    currentBetTarget = targetNum;
+    document.getElementById('bet-pick-p1').classList.toggle('active', targetNum === 1);
+    document.getElementById('bet-pick-p2').classList.toggle('active', targetNum === 2);
+}
+
+function setBetAmount(amount) {
+    if (amount === 'all') {
+        currentBetAmount = playerData.gold;
+    } else {
+        currentBetAmount = Math.min(amount, playerData.gold);
+    }
+    updateBetModalUI();
+}
+
+function updateBetModalUI() {
+    updateGoldUI();
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.innerText.includes(`${currentBetAmount} G`) || (currentBetAmount === playerData.gold && btn.innerText.includes('ALL'))) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+function confirmAndStartBetMatch() {
+    if (currentBetAmount > playerData.gold) {
+        alert("ゴールドが足りません！");
+        return;
+    }
+
+    if (currentBetAmount > 0) {
+        playerData.gold -= currentBetAmount;
+        savePlayerData();
+    }
+
+    closeBetModal();
+    startWatchMode();
+}
+
+// スキン工房モーダル
+function openShopModal() {
+    shopScreen.style.display = 'flex';
+    renderShopUI();
+}
+
+function closeShopModal() {
+    shopScreen.style.display = 'none';
+    savePlayerData();
+    applyPlayerCustomization();
+}
+
+function switchShopTab(tab) {
+    document.getElementById('tab-colors').style.display = (tab === 'colors') ? 'block' : 'none';
+    document.getElementById('tab-accessory').style.display = (tab === 'accessory') ? 'block' : 'none';
+    document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+        btn.classList.toggle('active', (tab === 'colors' && idx === 0) || (tab === 'accessory' && idx === 1));
+    });
+}
+
+function renderShopUI() {
+    updateGoldUI();
+    
+    const bodyPal = document.getElementById('body-color-palette');
+    bodyPal.innerHTML = '';
+    PALETTE.forEach(c => {
+        const isUnlocked = playerData.unlockedColors.includes(c);
+        const sw = document.createElement('div');
+        sw.className = `color-swatch ${playerData.bodyColor === c ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
+        sw.style.backgroundColor = c;
+        sw.onclick = () => {
+            if (isUnlocked) {
+                playerData.bodyColor = c;
+            } else {
+                if (playerData.gold >= COLOR_PRICE) {
+                    if (confirm(`このカラーを ${COLOR_PRICE}G で購入しますか？`)) {
+                        playerData.gold -= COLOR_PRICE;
+                        playerData.unlockedColors.push(c);
+                        playerData.bodyColor = c;
+                    }
+                } else {
+                    alert(`ゴールドが足りません！（必要: ${COLOR_PRICE}G / 現在: ${playerData.gold}G）`);
+                }
+            }
+            savePlayerData();
+            applyPlayerCustomization();
+            renderShopUI();
+        };
+        bodyPal.appendChild(sw);
+    });
+
+    const legsPal = document.getElementById('legs-color-palette');
+    legsPal.innerHTML = '';
+    PALETTE.forEach(c => {
+        const isUnlocked = playerData.unlockedColors.includes(c);
+        const sw = document.createElement('div');
+        sw.className = `color-swatch ${playerData.legsColor === c ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
+        sw.style.backgroundColor = c;
+        sw.onclick = () => {
+            if (isUnlocked) {
+                playerData.legsColor = c;
+            } else {
+                if (playerData.gold >= COLOR_PRICE) {
+                    if (confirm(`このカラーを ${COLOR_PRICE}G で購入しますか？`)) {
+                        playerData.gold -= COLOR_PRICE;
+                        playerData.unlockedColors.push(c);
+                        playerData.legsColor = c;
+                    }
+                } else {
+                    alert(`ゴールドが足りません！（必要: ${COLOR_PRICE}G / 現在: ${playerData.gold}G）`);
+                }
+            }
+            savePlayerData();
+            applyPlayerCustomization();
+            renderShopUI();
+        };
+        legsPal.appendChild(sw);
+    });
+
+    const accList = document.getElementById('accessory-list');
+    accList.innerHTML = '';
+
+    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
+    const maxRecordStreak = records.length > 0 ? Math.max(...records.map(r => r.streak)) : 0;
+    const currentBest = Math.max(winStreak, maxRecordStreak);
+
+    const accessories = [
+        { id: 'none', name: 'なし (標準)', reqStreak: 0 },
+        { id: 'cloak', name: '🦹 英雄のマント', reqStreak: 10 },
+        { id: 'god', name: '✨ 黄金のゴッドオーラ', reqStreak: 100 }
+    ];
+
+    accessories.forEach(acc => {
+        const isUnlocked = (acc.reqStreak === 0) || (currentBest >= acc.reqStreak);
+        const isEquipped = playerData.accessory === acc.id;
+
+        const btn = document.createElement('button');
+        btn.className = `acc-item-btn ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
+        
+        let statusText = isEquipped ? '【装備中】' : (isUnlocked ? '装備する' : `🔒 達成条件: ${acc.reqStreak}連勝 (現在:${currentBest})`);
+        btn.innerHTML = `<span>${acc.name}</span><span style="font-size:11px; color:#ffd32a;">${statusText}</span>`;
+
+        btn.onclick = () => {
+            if (isUnlocked) {
+                playerData.accessory = acc.id;
+            } else {
+                alert(`このスキンは猛者専用です！ゴールドでは購入できません。\n【${acc.reqStreak}連勝達成】で誇り高くアンロックされます！（現在最高: ${currentBest}連勝）`);
+            }
+            savePlayerData();
+            applyPlayerCustomization();
+            renderShopUI();
+        };
+        accList.appendChild(btn);
+    });
 }
 
 function showOnlineMenu() {
@@ -1369,27 +1422,18 @@ function showOnlineMenu() {
 function hideOnlineMenu() {
     onlineScreen.style.display = 'none';
     titleScreen.style.display = 'flex';
-    if (socket) {
-        socket.emit('leave_room');
-    }
+    if (socket) socket.emit('leave_room');
 }
 
-// オンライン対戦（Socket.io）ロジック
+// オンライン対戦（Socket.io）
 function connectToRoom() {
     const roomId = document.getElementById('room-id-input').value.trim();
     const playerName = document.getElementById('player-name-input').value.trim() || "PLAYER";
     const statusEl = document.getElementById('online-status');
 
-    if (!roomId) {
-        alert("部屋のパスワードを入力してください。");
-        return;
-    }
-
+    if (!roomId) { alert("部屋のパスワードを入力してください。"); return; }
     statusEl.innerText = "サーバーに接続中...";
-
-    if (!socket) {
-        socket = io(SERVER_URL);
-    }
+    if (!socket) socket = io(SERVER_URL);
 
     socket.emit('join_room', { roomId, playerName });
 
@@ -1398,13 +1442,8 @@ function connectToRoom() {
         statusEl.innerText = `部屋接続: PLAYER ${myPlayerNumber} として待機中...`;
     });
 
-    socket.on('waiting_opponent', () => {
-        statusEl.innerText = "相手を待機中 (パスワードを伝えてください)";
-    });
-
-    socket.on('room_full', () => {
-        statusEl.innerText = "この部屋は満員です。";
-    });
+    socket.on('waiting_opponent', () => statusEl.innerText = "相手を待機中 (パスワードを伝えてください)");
+    socket.on('room_full', () => statusEl.innerText = "この部屋は満員です。");
 
     socket.on('start_game', (data) => {
         statusEl.innerText = "マッチング成功！開始します...";
@@ -1419,12 +1458,13 @@ function connectToRoom() {
         p1.isCPU = false;
         p2.isCPU = false;
         p2.color = CPU_COLORS[0];
+        p2.bodyColor = CPU_COLORS[0];
+        p2.legsColor = CPU_COLORS[0];
 
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
 
         updateControlsVisibility();
-
         Sound.playBGM('game');
 
         setTimeout(() => {
@@ -1457,9 +1497,7 @@ function connectToRoom() {
         opp.isSpecialAttack = data.isSpecialAttack;
         opp.sp = data.sp || 0;
 
-        if (typeof data.myHp === 'number') {
-            opp.hp = data.myHp;
-        }
+        if (typeof data.myHp === 'number') opp.hp = data.myHp;
 
         if (typeof data.oppHp === 'number') {
             if (data.oppHp < myChar.hp) {
@@ -1467,10 +1505,8 @@ function connectToRoom() {
                 const hitX = myChar.x + myChar.width / 2;
                 const hitY = myChar.y + 40;
                 triggerHitEffect(hitX, hitY, myChar.hp === 0, false);
-
-                if (myChar.hp <= 0) {
-                    endRound(opp);
-                } else {
+                if (myChar.hp <= 0) endRound(opp);
+                else {
                     myChar.state = 'flinch';
                     myChar.flinchTimer = 16;
                     myChar.vx = opp.direction * 6;
@@ -1484,19 +1520,14 @@ function connectToRoom() {
             myChar.vx = myChar.direction * -15;
             Sound.playSE('break');
         }
-
         updateScoreUI();
     });
 
     socket.on('round_result', (data) => {
         if (roundOver) return;
-        if (data.winnerNum === 1) {
-            endRound(p1);
-        } else if (data.winnerNum === 2) {
-            endRound(p2);
-        } else {
-            endRound(null, "TIME UP");
-        }
+        if (data.winnerNum === 1) endRound(p1);
+        else if (data.winnerNum === 2) endRound(p2);
+        else endRound(null, "TIME UP");
     });
 
     socket.on('opponent_disconnected', () => {
@@ -1529,7 +1560,7 @@ function emitMyPhysics(extraOppState, targetOppHp) {
     });
 }
 
-// CPU対戦の開始
+// CPU対戦
 function startCPUMode() {
     isOnlineMode = false;
     isWatchMode = false;
@@ -1542,9 +1573,14 @@ function startCPUMode() {
 
     p1.isCPU = false;
     p2.isCPU = true; 
-    p1.color = '#ff5252';
+
+    applyPlayerCustomization();
 
     p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
+    p2.bodyColor = p2.color;
+    p2.legsColor = p2.color;
+    p2.accessory = 'none';
+
     document.getElementById('p1-name-display').innerText = "PLAYER 1";
     document.getElementById('p1-name-display').style.color = p1.color;
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
@@ -1566,7 +1602,7 @@ function startCPUMode() {
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
 }
 
-// 観戦モード
+// 観戦モード（CPU vs CPU）
 function startWatchMode() {
     isOnlineMode = false;
     isWatchMode = true;
@@ -1580,7 +1616,12 @@ function startWatchMode() {
     p2.isCPU = true;
 
     p1.color = '#ff5252';
-    p2.color = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
+    p1.bodyColor = '#ff5252';
+    p1.legsColor = '#ff5252';
+    p1.accessory = 'none';
+
+    p2.bodyColor = p2.color;
+    p2.legsColor = p2.color;
 
     document.getElementById('p1-name-display').innerText = "CPU 1";
     document.getElementById('p1-name-display').style.color = p1.color;
@@ -1638,28 +1679,31 @@ function startRound() {
     }, 1000);
 }
 
+// ★ 決着処理（1マッチ終了で確実にTOP画面へ戻る）
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
     clearInterval(timerInterval);
 
-    const isMatchPoint = (winner === p1 && p1Score === MAX_SCORE - 1) || (winner === p2 && p2Score === MAX_SCORE - 1);
+    if (winner === p1) p1Score++;
+    else if (winner === p2) p2Score++;
+
+    updateScoreUI();
+
+    const isMatchFinished = (p1Score >= MAX_SCORE || p2Score >= MAX_SCORE);
     const loser = (winner === p1) ? p2 : p1;
 
     let message = "";
     if (winner === p1) {
-        p1Score++;
         message = isWatchMode ? "CPU 1 WIN" : (isOnlineMode ? `${document.getElementById('p1-name-display').innerText} WIN` : "PLAYER 1 WIN");
     } else if (winner === p2) {
-        p2Score++;
         message = isWatchMode ? "CPU 2 WIN" : (isOnlineMode ? `${document.getElementById('p2-name-display').innerText} WIN` : `${document.getElementById('p2-name-display').innerText} WIN`);
     } else {
         message = reason || "DRAW";
     }
 
-    updateScoreUI();
-
-    if (isMatchPoint && winner) {
+    // 2本先取したマッチ終了時
+    if (isMatchFinished && winner) {
         timeScale = 0.25;
 
         if (winner.isHeavyAttack) {
@@ -1674,26 +1718,46 @@ function endRound(winner, reason) {
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
             timeScale = 1.0;
-            if (p1Score >= MAX_SCORE || p2Score >= MAX_SCORE) {
-                if (isWatchMode) {
-                    showOverlay(`${message}!\nNEXT MATCH...`, 2500, startWatchMode);
-                } else if (isOnlineMode) {
-                    showOverlay(myPlayerNumber === (p1Score >= MAX_SCORE ? 1 : 2) ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
-                } else {
-                    if (p1Score >= MAX_SCORE) {
-                        winStreak++;
-                        streakCounterEl.innerText = `連勝: ${winStreak}`;
-                        showOverlay(`VICTORY!\n${winStreak}連勝達成！`, 2500, startNextMatch);
+
+            // ★ 観戦・賭けモードの場合（何G賭けても0Gでも1マッチで必ずTOPへ戻る！）
+            if (isWatchMode) {
+                if (currentBetAmount > 0) {
+                    const wonBet = (currentBetTarget === 1 && p1Score >= MAX_SCORE) || (currentBetTarget === 2 && p2Score >= MAX_SCORE);
+                    if (wonBet) {
+                        const winGold = currentBetAmount * 2;
+                        playerData.gold += winGold;
+                        savePlayerData();
+                        showOverlay(`🎉 的中！\n+${winGold} G 獲得！\n(所持金: ${playerData.gold}G)`, 3000, returnToTitle);
                     } else {
-                        showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
-                            saveScore(winStreak);
-                            returnToTitle();
-                        });
+                        showOverlay(`💀 ハズレ...\n-${currentBetAmount} G 没収\n(所持金: ${playerData.gold}G)`, 3000, returnToTitle);
                     }
+                } else {
+                    showOverlay(`${message}!\n観戦終了`, 2000, returnToTitle);
+                }
+            } else if (isOnlineMode) {
+                showOverlay(myPlayerNumber === (p1Score >= MAX_SCORE ? 1 : 2) ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
+            } else {
+                // CPU戦勝利
+                if (p1Score >= MAX_SCORE) {
+                    winStreak++;
+                    streakCounterEl.innerText = `連勝: ${winStreak}`;
+                    
+                    let earned = 1;
+                    if (winStreak % 5 === 0) earned += 5;
+                    playerData.gold += earned;
+                    savePlayerData();
+
+                    showOverlay(`VICTORY!\n${winStreak}連勝達成！(+${earned}G)`, 2500, startNextMatch);
+                } else {
+                    showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
+                        saveScore(winStreak);
+                        returnToTitle();
+                    });
                 }
             }
         }, 1800);
     } else {
+        // 1本目終了時
         if (winner) {
             loser.state = 'hit';
             loser.vx = 0;
@@ -1720,6 +1784,9 @@ function startNextMatch() {
     timeScale = 1.0;
 
     p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
+    p2.bodyColor = p2.color;
+    p2.legsColor = p2.color;
+    
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
     document.getElementById('p2-name-display').style.color = p2.color;
 
@@ -1747,18 +1814,18 @@ function returnToTitle() {
     if (btnExitWatch) btnExitWatch.style.display = 'none';
     updateControlsVisibility();
 
+    applyPlayerCustomization();
     p1.reset();
     p2.reset();
 
     uiLayer.style.display = 'none';
     titleScreen.style.display = 'flex';
 
-    if (socket) {
-        socket.emit('leave_room');
-    }
+    if (socket) socket.emit('leave_room');
 
     Sound.playBGM('title');
     updateRankingUI();
+    updateGoldUI();
 }
 
 function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
@@ -1766,7 +1833,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
 
     if (defender.guardActive && isFacing) {
         triggerHitEffect(hitX, hitY, false, true);
-
         defender.addSP(10);
         attacker.addSP(5);
 
@@ -1784,7 +1850,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
         }
     } else {
         triggerHitEffect(hitX, hitY, attacker.isHeavyAttack, false);
-
         attacker.addSP(15);
         defender.addSP(20);
 
@@ -1804,14 +1869,10 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             updateScoreUI();
             Sound.playSE('hit');
 
-            if (isOnlineMode) {
-                emitMyPhysics('', defender.hp);
-            }
+            if (isOnlineMode) emitMyPhysics('', defender.hp);
 
             if (defender.hp <= 0) {
-                if (isOnlineMode && socket) {
-                    socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
-                }
+                if (isOnlineMode && socket) socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
                 endRound(attacker);
             } else {
                 defender.state = 'flinch';
@@ -1822,7 +1883,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
     }
 }
 
-// 波動拳のヒット処理
 function handleEnergyBallHit(ball, defender, attacker) {
     const isFacing = (ball.vx > 0 && defender.direction === -1) || (ball.vx < 0 && defender.direction === 1);
     const hitX = ball.x;
@@ -1839,22 +1899,16 @@ function handleEnergyBallHit(ball, defender, attacker) {
         defender.hp = Math.max(0, defender.hp - 2);
         defender.addSP(25);
         Sound.playSE('bom');
-
         defender.state = 'flinch';
         defender.flinchTimer = 20;
         defender.vx = (ball.vx > 0 ? 1 : -1) * 7.5;
     }
 
     updateScoreUI();
-
-    if (isOnlineMode) {
-        emitMyPhysics('', defender.hp);
-    }
+    if (isOnlineMode) emitMyPhysics('', defender.hp);
 
     if (defender.hp <= 0) {
-        if (isOnlineMode && socket) {
-            socket.emit('match_round_over', { winnerNum: (attacker === p1) ? 1 : 2 });
-        }
+        if (isOnlineMode && socket) socket.emit('match_round_over', { winnerNum: (attacker === p1) ? 1 : 2 });
         endRound(attacker);
     }
 }
@@ -1862,7 +1916,6 @@ function handleEnergyBallHit(ball, defender, attacker) {
 function checkHits() {
     if (roundOver) return;
 
-    // 波動拳の判定
     for (let i = energyBalls.length - 1; i >= 0; i--) {
         const ball = energyBalls[i];
         const target = (ball.ownerNum === 1) ? p2 : p1;
@@ -1878,13 +1931,9 @@ function checkHits() {
                 continue;
             }
         }
-
-        if (ball.life <= 0 || ball.x < -50 || ball.x > canvas.width + 50) {
-            energyBalls.splice(i, 1);
-        }
+        if (ball.life <= 0 || ball.x < -50 || ball.x > canvas.width + 50) energyBalls.splice(i, 1);
     }
 
-    // 通常攻撃＆溜め攻撃の判定
     if (isOnlineMode) {
         const myChar = (myPlayerNumber === 1) ? p1 : p2;
         const oppChar = (myPlayerNumber === 1) ? p2 : p1;
@@ -1923,40 +1972,24 @@ function checkHits() {
     }
 }
 
-// 60fps固定物理更新
 function updatePhysics() {
-    if (youMarkerTimer > 0) {
-        youMarkerTimer -= 1 * timeScale;
-    }
+    if (youMarkerTimer > 0) youMarkerTimer -= 1 * timeScale;
 
     if (gameActive) {
         p1.update(p2);
         p2.update(p1);
-        
         if (isOnlineMode) emitMyPhysics();
         checkHits();
     }
 
-    for (let i = 0; i < energyBalls.length; i++) {
-        energyBalls[i].update();
-    }
-
-    for (let i = slashes.length - 1; i >= 0; i--) {
-        slashes[i].update();
-        if (slashes[i].life <= 0) slashes.splice(i, 1);
-    }
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update();
-        if (particles[i].life <= 0) particles.splice(i, 1);
-    }
+    for (let i = 0; i < energyBalls.length; i++) energyBalls[i].update();
+    for (let i = slashes.length - 1; i >= 0; i--) { slashes[i].update(); if (slashes[i].life <= 0) slashes.splice(i, 1); }
+    for (let i = particles.length - 1; i >= 0; i--) { particles[i].update(); if (particles[i].life <= 0) particles.splice(i, 1); }
 }
 
-// メインゲームループ
 function gameLoop(currentTime = performance.now()) {
     const delta = currentTime - lastFrameTime;
     lastFrameTime = currentTime;
-
     accumulator += Math.min(delta, 100);
 
     while (accumulator >= STEP) {
@@ -1987,20 +2020,13 @@ function gameLoop(currentTime = performance.now()) {
     ctx.lineTo(canvas.width, GROUND_Y);
     ctx.stroke();
 
-    p1.draw();
-    p2.draw();
+    const isSameColor = (p1.bodyColor === p2.bodyColor && p1.legsColor === p2.legsColor);
+    p1.draw(false);
+    p2.draw(isSameColor);
 
-    for (let i = 0; i < energyBalls.length; i++) {
-        energyBalls[i].draw();
-    }
-
-    for (let i = 0; i < slashes.length; i++) {
-        slashes[i].draw();
-    }
-
-    for (let i = particles.length; i < particles.length; i++) {
-        particles[i].draw();
-    }
+    for (let i = 0; i < energyBalls.length; i++) energyBalls[i].draw();
+    for (let i = 0; i < slashes.length; i++) slashes[i].draw();
+    for (let i = 0; i < particles.length; i++) particles[i].draw();
 
     ctx.restore();
 
