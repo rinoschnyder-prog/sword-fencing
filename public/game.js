@@ -5,8 +5,6 @@ const streakCounterEl = document.getElementById('streak-counter');
 const uiLayer = document.getElementById('ui-layer');
 const titleScreen = document.getElementById('title-screen');
 const onlineScreen = document.getElementById('online-screen');
-const betScreen = document.getElementById('bet-screen');
-const shopScreen = document.getElementById('shop-screen');
 const gameOverlay = document.getElementById('game-overlay');
 const overlayTextEl = document.getElementById('overlay-text');
 const onlineCountNumEl = document.getElementById('online-count-num');
@@ -23,171 +21,47 @@ const MAX_SCORE = 2;
 const MAX_HP = 10;
 const MAX_SP = 100;
 const MAX_CHARGE_FRAMES = 45;
-const COLOR_PRICE = 15;
 
 let timeScale = 1.0;
 let isWatchMode = false;
-let currentBetTarget = 1;
-let currentBetAmount = 1;
 
 let roundEndTimeout = null;
 let overlayTimeout = null;
 
+// 60fps固定タイムステップ
 const TARGET_FPS = 60;
 const STEP = 1000 / TARGET_FPS;
 let lastFrameTime = performance.now();
 let accumulator = 0;
 
-const PALETTE = [
-    '#ff5252', '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22',
-    '#ffd32a', '#1abc9c', '#e056fd', '#f5f6fa', '#2c3e50'
-];
-const CPU_COLORS = PALETTE;
+// オンライン用変数
+let socket = null;
+let isOnlineMode = false;
+let myPlayerNumber = 0;
+const SERVER_URL = window.location.origin;
 
-// プレイヤーのセーブデータ
-let playerData = {
-    gold: 5,
-    bodyColor: '#ff5252',
-    legsColor: '#ff5252',
-    accessory: 'none',
-    unlockedColors: ['#ff5252'],
-    unlockedAcc: ['none']
-};
-
-function loadPlayerData() {
-    const saved = localStorage.getItem('fencing_player_data');
-    if (saved) {
-        try {
-            playerData = { ...playerData, ...JSON.parse(saved) };
-            if (!playerData.unlockedColors) playerData.unlockedColors = ['#ff5252'];
-        } catch (e) {}
+// カラー明暗調整ヘルパー関数 (濃淡・ハイライト・シャドウ生成)
+function adjustColor(hex, lum) {
+    hex = String(hex).replace(/[^0-9a-f]/gi, '');
+    if (hex.length < 6) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    lum = lum || 0;
+    let rgb = "#", c, i;
+    for (i = 0; i < 3; i++) {
+        c = parseInt(hex.substr(i*2, 2), 16);
+        c = Math.round(Math.min(Math.max(0, c + (c * lum)), 255)).toString(16);
+        rgb += ("00"+c).substr(c.length);
     }
-    updateGoldUI();
+    return rgb;
 }
 
-function savePlayerData() {
-    localStorage.setItem('fencing_player_data', JSON.stringify(playerData));
-    updateGoldUI();
+function initGlobalSocket() {
+    if (typeof io === 'undefined') return;
+    socket = io(SERVER_URL);
+    socket.on('online_count', (count) => {
+        if (onlineCountNumEl) onlineCountNumEl.innerText = count;
+    });
 }
-
-function updateGoldUI() {
-    const goldDisplay = document.getElementById('gold-amount');
-    if (goldDisplay) goldDisplay.innerText = playerData.gold;
-    document.querySelectorAll('.current-gold-span').forEach(el => el.innerText = playerData.gold);
-}
-
-loadPlayerData();
-
-// オーディオマネージャー
-class SoundManager {
-    constructor() {
-        this.ctx = null;
-        this.buffers = {};
-        this.currentBgm = null;
-        this.currentBgmType = null;
-        this.bgmVolume = 0.45;
-        this.seVolume = 0.7;
-
-        this.seFiles = {
-            hit: 'se/se_hit.wav',
-            heavy: 'se/se_heavy.wav',
-            guard: 'se/se_guard.wav',
-            break: 'se/se_break.wav',
-            swing: 'se/se_swing.wav',
-            bom: 'se/se_bom.wav'
-        };
-
-        this.bgmFiles = {
-            title: 'bgm/top-iimhero.mp3',
-            game1: 'bgm/back-bgm1.mp3',
-            game2: 'bgm/back-bgm2.mp3'
-        };
-
-        this.bgmAudioElements = {};
-        for (const [key, url] of Object.entries(this.bgmFiles)) {
-            const audio = new Audio(url);
-            audio.loop = true;
-            audio.volume = this.bgmVolume;
-            audio.addEventListener('ended', () => {
-                audio.currentTime = 0;
-                audio.play().catch(() => {});
-            });
-            this.bgmAudioElements[key] = audio;
-        }
-        this.initAudioContext();
-    }
-
-    initAudioContext() {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) {
-            this.ctx = new AudioCtx();
-            this.loadAllSE();
-        }
-    }
-
-    unlockAudio() {
-        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
-    }
-
-    async loadAllSE() {
-        if (!this.ctx) return;
-        for (const [key, url] of Object.entries(this.seFiles)) {
-            try {
-                const res = await fetch(url);
-                const arrayBuffer = await res.arrayBuffer();
-                this.buffers[key] = await this.ctx.decodeAudioData(arrayBuffer);
-            } catch (e) {}
-        }
-    }
-
-    playSE(name) {
-        if (!gameActive && !isWatchMode && name !== 'swing' && name !== 'guard') return;
-        this.unlockAudio();
-        if (!this.ctx || !this.buffers[name]) return;
-        try {
-            const source = this.ctx.createBufferSource();
-            const gain = this.ctx.createGain();
-            source.buffer = this.buffers[name];
-            gain.gain.value = this.seVolume;
-            source.connect(gain);
-            gain.connect(this.ctx.destination);
-            source.start(0);
-        } catch (e) {}
-    }
-
-    playBGM(type) {
-        this.unlockAudio();
-        if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) return;
-        if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) return;
-
-        this.stopBGM();
-        let targetKey = type === 'game' ? (Math.random() < 0.5 ? 'game1' : 'game2') : 'title';
-        const audio = this.bgmAudioElements[targetKey];
-        if (audio) {
-            audio.currentTime = 0;
-            audio.volume = this.bgmVolume;
-            audio.play().catch(() => {});
-            this.currentBgm = audio;
-            this.currentBgmType = type;
-        }
-    }
-
-    stopBGM() {
-        if (this.currentBgm) {
-            this.currentBgm.pause();
-            this.currentBgm.currentTime = 0;
-            this.currentBgm = null;
-            this.currentBgmType = null;
-        }
-    }
-}
-
-const Sound = new SoundManager();
-
-const handleFirstInteraction = () => Sound.unlockAudio();
-window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
-window.addEventListener('mousedown', handleFirstInteraction);
-window.addEventListener('click', handleFirstInteraction);
+initGlobalSocket();
 
 const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
@@ -233,159 +107,6 @@ let youMarkerTimer = 0;
 let screenShakeTimer = 0;
 let screenShakeIntensity = 0;
 
-let particles = [];
-let slashes = [];
-let energyBalls = [];
-
-class EnergyBall {
-    constructor(x, y, dir, color, ownerNum) {
-        this.x = x;
-        this.y = y;
-        this.vx = dir * 6.5;
-        this.radius = 22;
-        this.color = color;
-        this.ownerNum = ownerNum;
-        this.life = 70;
-    }
-    update() {
-        this.x += this.vx * timeScale;
-        this.life -= 1 * timeScale;
-        if (Math.random() < 0.6) {
-            particles.push(new Particle(
-                this.x - this.vx * 0.5,
-                this.y + (Math.random() - 0.5) * 16,
-                (Math.random() - 0.5) * 2,
-                (Math.random() - 0.5) * 2,
-                this.color,
-                4,
-                12
-            ));
-        }
-    }
-    draw() {
-        ctx.save();
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = this.color;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius * 0.55, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-    }
-}
-
-class Particle {
-    constructor(x, y, vx, vy, color, size, life) {
-        this.x = x;
-        this.y = y;
-        this.vx = vx;
-        this.vy = vy;
-        this.color = color;
-        this.size = size;
-        this.life = life;
-        this.maxLife = life;
-    }
-    update() {
-        this.x += this.vx * timeScale;
-        this.y += this.vy * timeScale;
-        this.vy += 0.2 * timeScale;
-        this.life -= 1 * timeScale;
-    }
-    draw() {
-        const alpha = Math.max(0, this.life / this.maxLife);
-        ctx.save();
-        ctx.fillStyle = this.color;
-        ctx.globalAlpha = alpha;
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-    }
-}
-
-class SlashEffect {
-    constructor(x, y, angle, length, color, isHeavy) {
-        this.x = x;
-        this.y = y;
-        this.angle = angle;
-        this.length = length;
-        this.color = color;
-        this.isHeavy = isHeavy;
-        this.life = isHeavy ? 14 : 9;
-        this.maxLife = this.life;
-    }
-    update() { this.life -= 1 * timeScale; }
-    draw() {
-        const alpha = Math.max(0, this.life / this.maxLife);
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = this.isHeavy ? 6 : 3.5;
-        ctx.shadowBlur = this.isHeavy ? 20 : 10;
-        ctx.shadowColor = this.color;
-        ctx.beginPath();
-        ctx.moveTo(-this.length / 2, 0);
-        ctx.lineTo(this.length / 2, 0);
-        ctx.stroke();
-
-        if (this.isHeavy) {
-            ctx.strokeStyle = this.color;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(0, 0, (1 - alpha) * 45, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-        ctx.restore();
-    }
-}
-
-function triggerHitEffect(x, y, isHeavy, isGuard) {
-    if (isGuard) {
-        for (let i = 0; i < 10; i++) {
-            const angle = (Math.random() * Math.PI) - (Math.PI / 2);
-            const speed = 3 + Math.random() * 5;
-            particles.push(new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, '#ffd32a', 3, 15));
-        }
-        screenShakeTimer = 4;
-        screenShakeIntensity = 2.5;
-    } else {
-        const count = isHeavy ? 35 : 18;
-        const color = isHeavy ? '#ffd32a' : '#ff3838';
-        for (let i = 0; i < count; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = (isHeavy ? 4 : 2.5) + Math.random() * (isHeavy ? 9 : 6);
-            particles.push(new Particle(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed, Math.random() > 0.3 ? color : '#ffffff', (isHeavy ? 4 : 2.5), 18));
-        }
-        const slashAngle = (Math.random() - 0.5) * 0.8;
-        slashes.push(new SlashEffect(x, y, slashAngle, isHeavy ? 100 : 65, color, isHeavy));
-        screenShakeTimer = isHeavy ? 16 : 8;
-        screenShakeIntensity = isHeavy ? 9 : 4.5;
-    }
-}
-
-// オンライン用変数
-let socket = null;
-let isOnlineMode = false;
-let myPlayerNumber = 0;
-const SERVER_URL = window.location.origin;
-
-function initGlobalSocket() {
-    if (typeof io === 'undefined') return;
-    socket = io(SERVER_URL);
-    socket.on('online_count', (count) => {
-        if (onlineCountNumEl) onlineCountNumEl.innerText = count;
-    });
-}
-initGlobalSocket();
-
 const keys = { a: false, d: false, w: false, s: false, f: false, space: false };
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
@@ -424,7 +145,11 @@ class Character {
         this.color = color;
         this.bodyColor = color;
         this.legsColor = color;
-        this.accessory = 'none';
+        this.armorBodyColor = color;
+        this.armorLegsColor = color;
+        this.outfitType = 'normal';
+        this.hasCloak = false;
+        this.hasGodAura = false;
 
         this.isCPU = isCPU;
         this.startX = 0;
@@ -488,7 +213,7 @@ class Character {
     update(opponent) {
         this.animFrame += 1 * timeScale;
 
-        if (this.accessory === 'god' && Math.random() < 0.35) {
+        if (this.hasGodAura && Math.random() < 0.4) {
             particles.push(new Particle(
                 this.x + Math.random() * this.width,
                 this.y + this.height - Math.random() * 20,
@@ -832,9 +557,7 @@ class Character {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        if (isDarkTone) {
-            ctx.globalAlpha = 0.8;
-        }
+        if (isDarkTone) ctx.globalAlpha = 0.8;
 
         if (this.state !== 'blowaway') {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -886,7 +609,7 @@ class Character {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
             const alpha = 0.4 + Math.sin(this.animFrame * flashSpeed) * 0.4;
-            ctx.shadowBlur = isFull ? 28 : 14;
+            ctx.shadowBlur = 28;
             ctx.shadowColor = '#ffd32a';
             if (isFull) {
                 ctx.save();
@@ -1049,7 +772,7 @@ class Character {
         }
 
         // マント描画
-        if (this.accessory === 'cloak' && this.state !== 'hit') {
+        if (this.hasCloak && this.state !== 'hit') {
             const wave = Math.sin(this.animFrame * 0.2) * 6;
             ctx.save();
             ctx.fillStyle = 'rgba(192, 57, 43, 0.85)';
@@ -1062,7 +785,7 @@ class Character {
             ctx.restore();
         }
 
-        // 頭部
+        // ★ 頭部（ベース通常カラー）
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
@@ -1078,22 +801,10 @@ class Character {
         ctx.stroke();
         ctx.restore();
 
-        // 上半身
-        ctx.strokeStyle = this.bodyColor;
-        ctx.beginPath();
-        ctx.moveTo(cx, headY + 11);
-        ctx.lineTo(cx, hipY);
-        ctx.stroke();
-
+        // ★ 下半身（脚の素体ライン）
         ctx.save();
-        ctx.fillStyle = this.bodyColor;
-        ctx.beginPath();
-        ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-
-        // 下半身
         ctx.strokeStyle = this.legsColor;
+        ctx.lineWidth = 5.5;
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
         ctx.lineTo(leftFoot.x, leftFoot.y);
@@ -1103,16 +814,194 @@ class Character {
         ctx.lineTo(rightFoot.x, rightFoot.y);
         ctx.stroke();
 
-        // 腕
-        ctx.strokeStyle = this.bodyColor;
-        ctx.beginPath();
-        ctx.moveTo(cx, chestY);
-        ctx.lineTo(leftHand.x, leftHand.y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx, chestY);
-        ctx.lineTo(rightHand.x, rightHand.y);
-        ctx.stroke();
+        // ★ 鎧（下半身：立体脛当て・膝当て・重装サバトン靴）
+        if (this.outfitType === 'armor') {
+            const aLegLight = adjustColor(this.armorLegsColor, 0.45);
+            const aLegMid = this.armorLegsColor;
+            const aLegDark = adjustColor(this.armorLegsColor, -0.45);
+
+            [leftFoot, rightFoot].forEach((foot) => {
+                const kneeX = (cx + foot.x) / 2;
+                const kneeY = (hipY + foot.y) / 2;
+
+                // 脛当てグラデーション装甲
+                ctx.save();
+                const shinGrad = ctx.createLinearGradient(kneeX, kneeY, foot.x, foot.y);
+                shinGrad.addColorStop(0, aLegLight);
+                shinGrad.addColorStop(0.5, aLegMid);
+                shinGrad.addColorStop(1, aLegDark);
+
+                ctx.strokeStyle = shinGrad;
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(kneeX, kneeY);
+                ctx.lineTo(foot.x, foot.y);
+                ctx.stroke();
+
+                // 膝当て（シャープな金属ニーガード）
+                ctx.fillStyle = aLegLight;
+                ctx.strokeStyle = '#ffd32a';
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.arc(kneeX, kneeY, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // 鉄靴サバトン（爪先が鋭い金属ブーツ）
+                ctx.fillStyle = aLegDark;
+                ctx.beginPath();
+                ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ecf0f1';
+                ctx.beginPath();
+                ctx.ellipse(foot.x + dir * 2, foot.y - 1, 4, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+        ctx.restore();
+
+        // ★ 上半身・胴体＆腕
+        if (this.outfitType === 'armor') {
+            const aBodyLight = adjustColor(this.armorBodyColor, 0.55);
+            const aBodyMid = this.armorBodyColor;
+            const aBodyDark = adjustColor(this.armorBodyColor, -0.5);
+
+            // インナー背骨
+            ctx.save();
+            ctx.strokeStyle = this.bodyColor;
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            ctx.moveTo(cx, headY + 11);
+            ctx.lineTo(cx, hipY);
+            ctx.stroke();
+            ctx.restore();
+
+            // 腕（インナー ＋ ガントレット装甲）
+            ctx.save();
+            ctx.strokeStyle = this.bodyColor;
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(leftHand.x, leftHand.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(rightHand.x, rightHand.y);
+            ctx.stroke();
+
+            // ガントレット手甲（腕の先）
+            [leftHand, rightHand].forEach(hand => {
+                ctx.fillStyle = aBodyMid;
+                ctx.strokeStyle = aBodyLight;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(hand.x, hand.y, 4.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            ctx.restore();
+
+            // ★ 胸部プレートアーマー（立体的ブレストプレート）
+            ctx.save();
+            const chestMidY = (chestY + hipY) / 2;
+
+            // 背面シャドウプレート
+            ctx.fillStyle = aBodyDark;
+            ctx.beginPath();
+            ctx.ellipse(cx, chestMidY, 13, 18, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // メイン胸当てグラデーション
+            const chestGrad = ctx.createLinearGradient(cx - 10, chestY - 4, cx + 10, hipY);
+            chestGrad.addColorStop(0, aBodyLight);
+            chestGrad.addColorStop(0.45, aBodyMid);
+            chestGrad.addColorStop(1, aBodyDark);
+            ctx.fillStyle = chestGrad;
+            ctx.beginPath();
+            ctx.ellipse(cx, chestMidY, 11, 15, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 中央キール稜線（光沢エッジ）
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY - 2);
+            ctx.lineTo(cx, hipY - 2);
+            ctx.stroke();
+
+            // コアエンブレム（金色の装甲コア）
+            ctx.fillStyle = '#ffd32a';
+            ctx.beginPath();
+            ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ★ サイドタセット（腰の装甲プレート）
+            ctx.fillStyle = aBodyMid;
+            ctx.strokeStyle = aBodyDark;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(cx - dir * 8, hipY + 1, 4, 6, -0.3 * dir, 0, Math.PI * 2);
+            ctx.ellipse(cx + dir * 8, hipY + 1, 4, 6, 0.3 * dir, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // ★ 騎士風2段ショルダーポールドロン（肩当て）
+            [-1, 1].forEach(side => {
+                const spX = cx + side * 8;
+                const spY = chestY - 3;
+
+                // 下段プレート（影）
+                ctx.fillStyle = aBodyDark;
+                ctx.beginPath();
+                ctx.ellipse(spX, spY + 3, 7.5, 5, side * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 上段プレート（メイン＆ハイライト）
+                const spGrad = ctx.createLinearGradient(spX - 5, spY - 5, spX + 5, spY + 5);
+                spGrad.addColorStop(0, '#ffffff');
+                spGrad.addColorStop(0.3, aBodyLight);
+                spGrad.addColorStop(1, aBodyMid);
+                ctx.fillStyle = spGrad;
+                ctx.strokeStyle = '#ffd32a'; // 金のフチ取り
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.ellipse(spX, spY, 7, 5, side * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            });
+            ctx.restore();
+
+        } else {
+            // 通常の上半身
+            ctx.strokeStyle = this.bodyColor;
+            ctx.beginPath();
+            ctx.moveTo(cx, headY + 11);
+            ctx.lineTo(cx, hipY);
+            ctx.stroke();
+
+            ctx.save();
+            ctx.fillStyle = this.bodyColor;
+            ctx.beginPath();
+            ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // 通常の腕
+            ctx.save();
+            ctx.strokeStyle = this.bodyColor;
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(leftHand.x, leftHand.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(rightHand.x, rightHand.y);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         // 剣
         if (this.state !== 'blowaway' && (this.state !== 'hadouken' || this.hadouTimer >= 48)) {
@@ -1158,10 +1047,14 @@ const p2 = new Character(CPU_COLORS[0], true);
 resizeCanvas();
 
 function applyPlayerCustomization() {
-    p1.color = playerData.bodyColor;
-    p1.bodyColor = playerData.bodyColor;
-    p1.legsColor = playerData.legsColor;
-    p1.accessory = playerData.accessory;
+    p1.outfitType = playerData.outfitType || 'normal';
+    p1.color = playerData.normalBodyColor;
+    p1.bodyColor = playerData.normalBodyColor;
+    p1.legsColor = playerData.normalLegsColor;
+    p1.armorBodyColor = playerData.armorBodyColor;
+    p1.armorLegsColor = playerData.armorLegsColor;
+    p1.hasCloak = playerData.hasCloak || false;
+    p1.hasGodAura = playerData.hasGodAura || false;
 }
 applyPlayerCustomization();
 
@@ -1209,211 +1102,6 @@ function showOverlay(text, duration = 1500, callback) {
     }, duration);
 }
 
-function updateRankingUI() {
-    const rankingList = document.getElementById('ranking-list');
-    rankingList.innerHTML = '';
-    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-
-    for (let i = 0; i < 3; i++) {
-        const record = records[i] || { name: '---', streak: 0 };
-        const row = document.createElement('div');
-        row.className = 'ranking-row';
-        row.innerHTML = `<span>${i + 1}位: ${record.name}</span><span>${record.streak} 連勝</span>`;
-        rankingList.appendChild(row);
-    }
-}
-
-function saveScore(streak) {
-    if (streak <= 0) return;
-    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-    const isTop3 = records.length < 3 || streak > records[records.length - 1].streak;
-    
-    if (isTop3) {
-        setTimeout(() => {
-            const name = prompt("🎉ハイスコア！TOP3入り！\n名前を入力してください（最大8文字）:", "PLAYER");
-            const finalName = (name && name.trim() !== "") ? name.substring(0, 8) : "PLAYER";
-            records.push({ name: finalName, streak: streak });
-            records.sort((a, b) => b.streak - a.streak);
-            if (records.length > 3) records.length = 3;
-            localStorage.setItem('fencing_ranking', JSON.stringify(records));
-            updateRankingUI();
-        }, 500);
-    }
-}
-
-// 観戦ベッティングモーダル
-function openBetModal() {
-    currentBetTarget = 1;
-    currentBetAmount = Math.min(1, playerData.gold);
-    
-    p2.color = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
-    const colorBox = document.getElementById('bet-p2-color-box');
-    if (colorBox) colorBox.style.color = p2.color;
-
-    updateBetModalUI();
-    betScreen.style.display = 'flex';
-}
-
-function closeBetModal() {
-    betScreen.style.display = 'none';
-}
-
-function setBetTarget(targetNum) {
-    currentBetTarget = targetNum;
-    document.getElementById('bet-pick-p1').classList.toggle('active', targetNum === 1);
-    document.getElementById('bet-pick-p2').classList.toggle('active', targetNum === 2);
-}
-
-function setBetAmount(amount) {
-    if (amount === 'all') {
-        currentBetAmount = playerData.gold;
-    } else {
-        currentBetAmount = Math.min(amount, playerData.gold);
-    }
-    updateBetModalUI();
-}
-
-function updateBetModalUI() {
-    updateGoldUI();
-    document.querySelectorAll('.chip-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.innerText.includes(`${currentBetAmount} G`) || (currentBetAmount === playerData.gold && btn.innerText.includes('ALL'))) {
-            btn.classList.add('active');
-        }
-    });
-}
-
-function confirmAndStartBetMatch() {
-    if (currentBetAmount > playerData.gold) {
-        alert("ゴールドが足りません！");
-        return;
-    }
-
-    if (currentBetAmount > 0) {
-        playerData.gold -= currentBetAmount;
-        savePlayerData();
-    }
-
-    closeBetModal();
-    startWatchMode();
-}
-
-// スキン工房モーダル
-function openShopModal() {
-    shopScreen.style.display = 'flex';
-    renderShopUI();
-}
-
-function closeShopModal() {
-    shopScreen.style.display = 'none';
-    savePlayerData();
-    applyPlayerCustomization();
-}
-
-function switchShopTab(tab) {
-    document.getElementById('tab-colors').style.display = (tab === 'colors') ? 'block' : 'none';
-    document.getElementById('tab-accessory').style.display = (tab === 'accessory') ? 'block' : 'none';
-    document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
-        btn.classList.toggle('active', (tab === 'colors' && idx === 0) || (tab === 'accessory' && idx === 1));
-    });
-}
-
-function renderShopUI() {
-    updateGoldUI();
-    
-    const bodyPal = document.getElementById('body-color-palette');
-    bodyPal.innerHTML = '';
-    PALETTE.forEach(c => {
-        const isUnlocked = playerData.unlockedColors.includes(c);
-        const sw = document.createElement('div');
-        sw.className = `color-swatch ${playerData.bodyColor === c ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
-        sw.style.backgroundColor = c;
-        sw.onclick = () => {
-            if (isUnlocked) {
-                playerData.bodyColor = c;
-            } else {
-                if (playerData.gold >= COLOR_PRICE) {
-                    if (confirm(`このカラーを ${COLOR_PRICE}G で購入しますか？`)) {
-                        playerData.gold -= COLOR_PRICE;
-                        playerData.unlockedColors.push(c);
-                        playerData.bodyColor = c;
-                    }
-                } else {
-                    alert(`ゴールドが足りません！（必要: ${COLOR_PRICE}G / 現在: ${playerData.gold}G）`);
-                }
-            }
-            savePlayerData();
-            applyPlayerCustomization();
-            renderShopUI();
-        };
-        bodyPal.appendChild(sw);
-    });
-
-    const legsPal = document.getElementById('legs-color-palette');
-    legsPal.innerHTML = '';
-    PALETTE.forEach(c => {
-        const isUnlocked = playerData.unlockedColors.includes(c);
-        const sw = document.createElement('div');
-        sw.className = `color-swatch ${playerData.legsColor === c ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
-        sw.style.backgroundColor = c;
-        sw.onclick = () => {
-            if (isUnlocked) {
-                playerData.legsColor = c;
-            } else {
-                if (playerData.gold >= COLOR_PRICE) {
-                    if (confirm(`このカラーを ${COLOR_PRICE}G で購入しますか？`)) {
-                        playerData.gold -= COLOR_PRICE;
-                        playerData.unlockedColors.push(c);
-                        playerData.legsColor = c;
-                    }
-                } else {
-                    alert(`ゴールドが足りません！（必要: ${COLOR_PRICE}G / 現在: ${playerData.gold}G）`);
-                }
-            }
-            savePlayerData();
-            applyPlayerCustomization();
-            renderShopUI();
-        };
-        legsPal.appendChild(sw);
-    });
-
-    const accList = document.getElementById('accessory-list');
-    accList.innerHTML = '';
-
-    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-    const maxRecordStreak = records.length > 0 ? Math.max(...records.map(r => r.streak)) : 0;
-    const currentBest = Math.max(winStreak, maxRecordStreak);
-
-    const accessories = [
-        { id: 'none', name: 'なし (標準)', reqStreak: 0 },
-        { id: 'cloak', name: '🦹 英雄のマント', reqStreak: 10 },
-        { id: 'god', name: '✨ 黄金のゴッドオーラ', reqStreak: 100 }
-    ];
-
-    accessories.forEach(acc => {
-        const isUnlocked = (acc.reqStreak === 0) || (currentBest >= acc.reqStreak);
-        const isEquipped = playerData.accessory === acc.id;
-
-        const btn = document.createElement('button');
-        btn.className = `acc-item-btn ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
-        
-        let statusText = isEquipped ? '【装備中】' : (isUnlocked ? '装備する' : `🔒 達成条件: ${acc.reqStreak}連勝 (現在:${currentBest})`);
-        btn.innerHTML = `<span>${acc.name}</span><span style="font-size:11px; color:#ffd32a;">${statusText}</span>`;
-
-        btn.onclick = () => {
-            if (isUnlocked) {
-                playerData.accessory = acc.id;
-            } else {
-                alert(`このスキンは猛者専用です！ゴールドでは購入できません。\n【${acc.reqStreak}連勝達成】で誇り高くアンロックされます！（現在最高: ${currentBest}連勝）`);
-            }
-            savePlayerData();
-            applyPlayerCustomization();
-            renderShopUI();
-        };
-        accList.appendChild(btn);
-    });
-}
-
 function showOnlineMenu() {
     titleScreen.style.display = 'none';
     onlineScreen.style.display = 'flex';
@@ -1457,9 +1145,25 @@ function connectToRoom() {
 
         p1.isCPU = false;
         p2.isCPU = false;
-        p2.color = CPU_COLORS[0];
-        p2.bodyColor = CPU_COLORS[0];
-        p2.legsColor = CPU_COLORS[0];
+
+        const myChar = (myPlayerNumber === 1) ? p1 : p2;
+        myChar.outfitType = p1.outfitType;
+        myChar.color = p1.color;
+        myChar.bodyColor = p1.bodyColor;
+        myChar.legsColor = p1.legsColor;
+        myChar.armorBodyColor = p1.armorBodyColor;
+        myChar.armorLegsColor = p1.armorLegsColor;
+        myChar.hasCloak = p1.hasCloak;
+        myChar.hasGodAura = p1.hasGodAura;
+
+        const oppChar = (myPlayerNumber === 1) ? p2 : p1;
+        oppChar.color = CPU_COLORS[1];
+        oppChar.bodyColor = CPU_COLORS[1];
+        oppChar.legsColor = CPU_COLORS[1];
+        oppChar.armorBodyColor = CPU_COLORS[1];
+        oppChar.armorLegsColor = CPU_COLORS[1];
+        oppChar.hasCloak = false;
+        oppChar.hasGodAura = false;
 
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
@@ -1496,6 +1200,15 @@ function connectToRoom() {
         opp.isHeavyAttack = data.isHeavyAttack;
         opp.isSpecialAttack = data.isSpecialAttack;
         opp.sp = data.sp || 0;
+
+        if (data.bodyColor) opp.bodyColor = data.bodyColor;
+        if (data.legsColor) opp.legsColor = data.legsColor;
+        if (data.armorBodyColor) opp.armorBodyColor = data.armorBodyColor;
+        if (data.armorLegsColor) opp.armorLegsColor = data.armorLegsColor;
+        if (data.color) opp.color = data.color;
+        if (data.outfitType) opp.outfitType = data.outfitType;
+        opp.hasCloak = !!data.hasCloak;
+        opp.hasGodAura = !!data.hasGodAura;
 
         if (typeof data.myHp === 'number') opp.hp = data.myHp;
 
@@ -1556,11 +1269,38 @@ function emitMyPhysics(extraOppState, targetOppHp) {
         sp: myChar.sp,
         myHp: myChar.hp,
         oppHp: typeof targetOppHp === 'number' ? targetOppHp : oppChar.hp,
-        oppState: extraOppState || ''
+        oppState: extraOppState || '',
+        color: myChar.color,
+        bodyColor: myChar.bodyColor,
+        legsColor: myChar.legsColor,
+        armorBodyColor: myChar.armorBodyColor,
+        armorLegsColor: myChar.armorLegsColor,
+        outfitType: myChar.outfitType,
+        hasCloak: myChar.hasCloak,
+        hasGodAura: myChar.hasGodAura
     });
 }
 
-// CPU対戦
+// ランダムCPUスキン生成ヘルパー
+function generateRandomCpuSkin(excludeColor) {
+    const availableColors = excludeColor ? CPU_COLORS.filter(c => c !== excludeColor) : CPU_COLORS;
+    const baseColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+    const armorColor = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
+    const wearsArmor = Math.random() < 0.75; // 75%の確率で鎧を装備
+
+    return {
+        color: baseColor,
+        bodyColor: baseColor,
+        legsColor: baseColor,
+        armorBodyColor: armorColor,
+        armorLegsColor: armorColor,
+        outfitType: wearsArmor ? 'armor' : 'normal',
+        hasCloak: false,
+        hasGodAura: false
+    };
+}
+
+// CPU対戦開始
 function startCPUMode() {
     isOnlineMode = false;
     isWatchMode = false;
@@ -1576,10 +1316,9 @@ function startCPUMode() {
 
     applyPlayerCustomization();
 
-    p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
-    p2.bodyColor = p2.color;
-    p2.legsColor = p2.color;
-    p2.accessory = 'none';
+    // ★ CPUのスキンをランダム生成（鎧も着用）
+    const cpuSkin = generateRandomCpuSkin(p1.color);
+    Object.assign(p2, cpuSkin);
 
     document.getElementById('p1-name-display').innerText = "PLAYER 1";
     document.getElementById('p1-name-display').style.color = p1.color;
@@ -1602,7 +1341,7 @@ function startCPUMode() {
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
 }
 
-// 観戦モード（CPU vs CPU）
+// 観戦モード
 function startWatchMode() {
     isOnlineMode = false;
     isWatchMode = true;
@@ -1615,13 +1354,11 @@ function startWatchMode() {
     p1.isCPU = true;
     p2.isCPU = true;
 
-    p1.color = '#ff5252';
-    p1.bodyColor = '#ff5252';
-    p1.legsColor = '#ff5252';
-    p1.accessory = 'none';
+    const skin1 = window.watchCpuSkin1 || generateRandomCpuSkin();
+    const skin2 = window.watchCpuSkin2 || generateRandomCpuSkin(skin1.color);
 
-    p2.bodyColor = p2.color;
-    p2.legsColor = p2.color;
+    Object.assign(p1, skin1);
+    Object.assign(p2, skin2);
 
     document.getElementById('p1-name-display').innerText = "CPU 1";
     document.getElementById('p1-name-display').style.color = p1.color;
@@ -1679,7 +1416,6 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 決着処理（1マッチ終了で確実にTOP画面へ戻る）
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1702,7 +1438,6 @@ function endRound(winner, reason) {
         message = reason || "DRAW";
     }
 
-    // 2本先取したマッチ終了時
     if (isMatchFinished && winner) {
         timeScale = 0.25;
 
@@ -1719,7 +1454,6 @@ function endRound(winner, reason) {
         roundEndTimeout = setTimeout(() => {
             timeScale = 1.0;
 
-            // ★ 観戦・賭けモードの場合（何G賭けても0Gでも1マッチで必ずTOPへ戻る！）
             if (isWatchMode) {
                 if (currentBetAmount > 0) {
                     const wonBet = (currentBetTarget === 1 && p1Score >= MAX_SCORE) || (currentBetTarget === 2 && p2Score >= MAX_SCORE);
@@ -1737,17 +1471,23 @@ function endRound(winner, reason) {
             } else if (isOnlineMode) {
                 showOverlay(myPlayerNumber === (p1Score >= MAX_SCORE ? 1 : 2) ? "VICTORY!" : "DEFEAT...", 3000, returnToTitle);
             } else {
-                // CPU戦勝利
                 if (p1Score >= MAX_SCORE) {
                     winStreak++;
                     streakCounterEl.innerText = `連勝: ${winStreak}`;
                     
+                    playerData.totalCpuWins = (playerData.totalCpuWins || 0) + 1;
+
                     let earned = 1;
                     if (winStreak % 5 === 0) earned += 5;
                     playerData.gold += earned;
                     savePlayerData();
 
-                    showOverlay(`VICTORY!\n${winStreak}連勝達成！(+${earned}G)`, 2500, startNextMatch);
+                    let winMsg = `VICTORY!\n${winStreak}連勝達成！(+${earned}G)`;
+                    if (playerData.totalCpuWins === 10) {
+                        winMsg += `\n🛡️ 通算10勝達成！【鎧】解放！`;
+                    }
+
+                    showOverlay(winMsg, 2500, startNextMatch);
                 } else {
                     showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
                         saveScore(winStreak);
@@ -1757,7 +1497,6 @@ function endRound(winner, reason) {
             }
         }, 1800);
     } else {
-        // 1本目終了時
         if (winner) {
             loser.state = 'hit';
             loser.vx = 0;
@@ -1777,15 +1516,16 @@ function endRound(winner, reason) {
     }
 }
 
+// 次のCPU戦マッチ（連勝時）
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
     currentRound = 1;
     timeScale = 1.0;
 
-    p2.color = CPU_COLORS[winStreak % CPU_COLORS.length];
-    p2.bodyColor = p2.color;
-    p2.legsColor = p2.color;
+    // ★ 次のCPUもランダムスキン＆鎧を装着
+    const nextCpuSkin = generateRandomCpuSkin(p1.color);
+    Object.assign(p2, nextCpuSkin);
     
     document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
     document.getElementById('p2-name-display').style.color = p2.color;
@@ -1857,7 +1597,6 @@ function handleHit(attacker, defender, isP1Attacker, hitX, hitY) {
             defender.hp = 0;
             updateScoreUI();
             Sound.playSE('heavy');
-
             if (isOnlineMode) {
                 emitMyPhysics('', 0);
                 if (socket) socket.emit('match_round_over', { winnerNum: isP1Attacker ? 1 : 2 });
@@ -2020,13 +1759,13 @@ function gameLoop(currentTime = performance.now()) {
     ctx.lineTo(canvas.width, GROUND_Y);
     ctx.stroke();
 
-    const isSameColor = (p1.bodyColor === p2.bodyColor && p1.legsColor === p2.legsColor);
+    const isSameColor = (p1.bodyColor === p2.bodyColor && p1.legsColor === p2.legsColor && p1.outfitType === p2.outfitType);
     p1.draw(false);
     p2.draw(isSameColor);
 
-    for (let i = 0; i < energyBalls.length; i++) energyBalls[i].draw();
-    for (let i = 0; i < slashes.length; i++) slashes[i].draw();
-    for (let i = 0; i < particles.length; i++) particles[i].draw();
+    for (let i = 0; i < energyBalls.length; i++) energyBalls[i].draw(ctx);
+    for (let i = 0; i < slashes.length; i++) slashes[i].draw(ctx);
+    for (let i = 0; i < particles.length; i++) particles[i].draw(ctx);
 
     ctx.restore();
 
