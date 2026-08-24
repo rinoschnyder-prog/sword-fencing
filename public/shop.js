@@ -20,7 +20,6 @@ let playerData = {
     normalLegsColor: '#ff5252',
     armorBodyColor: '#ff5252',
     armorLegsColor: '#ff5252',
-    // ★ 上・下それぞれ独立したアンロックリスト (各15G)
     unlockedBodyColors: ['#ff5252'],
     unlockedLegsColors: ['#ff5252'],
     unlockedArmorBodyColors: ['#ff5252'],
@@ -35,7 +34,6 @@ function loadPlayerData() {
     if (saved) {
         try {
             playerData = { ...playerData, ...JSON.parse(saved) };
-            // 後方互換性＆独立リストの初期化
             if (!playerData.unlockedBodyColors) playerData.unlockedBodyColors = playerData.unlockedColors || ['#ff5252'];
             if (!playerData.unlockedLegsColors) playerData.unlockedLegsColors = playerData.unlockedColors || ['#ff5252'];
             if (!playerData.unlockedArmorBodyColors) playerData.unlockedArmorBodyColors = playerData.unlockedArmorColors || ['#ff5252'];
@@ -130,7 +128,6 @@ function openBetModal() {
     currentBetTarget = 1;
     currentBetAmount = Math.min(1, playerData.gold);
     
-    // CPU 1 と CPU 2 のスキンをランダム生成
     if (typeof generateRandomCpuSkin === 'function') {
         window.watchCpuSkin1 = generateRandomCpuSkin();
         window.watchCpuSkin2 = generateRandomCpuSkin(window.watchCpuSkin1.color);
@@ -206,19 +203,8 @@ function closeShopModal() {
     }
 }
 
+// タブ切り替え（※勝手に鎧を着脱しない）
 function switchShopTab(tab) {
-    const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
-
-    if (tab === 'normal') {
-        playerData.outfitType = 'normal';
-        savePlayerData();
-    } else if (tab === 'armor') {
-        if (isArmorUnlocked) {
-            playerData.outfitType = 'armor';
-            savePlayerData();
-        }
-    }
-
     document.getElementById('tab-normal').style.display = (tab === 'normal') ? 'block' : 'none';
     document.getElementById('tab-armor').style.display = (tab === 'armor') ? 'block' : 'none';
     document.getElementById('tab-accessory').style.display = (tab === 'accessory') ? 'block' : 'none';
@@ -229,37 +215,53 @@ function switchShopTab(tab) {
     renderShopUI();
 }
 
+// ★ 鎧の着脱切り替え関数
+function toggleArmorEquip(equip) {
+    const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
+    if (equip && !isArmorUnlocked) {
+        alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
+        return;
+    }
+    playerData.outfitType = equip ? 'armor' : 'normal';
+    savePlayerData();
+    renderShopUI();
+}
+
 function renderShopUI() {
     updateGoldUI();
     
-    // ★ 1. 通常・上半身カラー (独立 15G)
+    // ★ 1. 通常・上半身カラー (素体の色変更・鎧は脱げない)
     renderPaletteGrid('normal-body-palette', playerData.normalBodyColor, playerData.unlockedBodyColors, (c) => {
-        playerData.outfitType = 'normal';
         playerData.normalBodyColor = c;
     }, playerData.unlockedBodyColors);
 
-    // ★ 2. 通常・下半身カラー (独立 15G)
+    // ★ 2. 通常・下半身カラー (素体の色変更・鎧は脱げない)
     renderPaletteGrid('normal-legs-palette', playerData.normalLegsColor, playerData.unlockedLegsColors, (c) => {
-        playerData.outfitType = 'normal';
         playerData.normalLegsColor = c;
     }, playerData.unlockedLegsColors);
 
-    // 鎧タブのアンロック状態と着用状態表示
+    // ★ 鎧タブのアンロック状態 ＆ 【装備する / 脱ぐ】ボタン
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     const isWearingArmor = (playerData.outfitType === 'armor');
 
     const armorStatusEl = document.getElementById('armor-unlock-status');
     if (armorStatusEl) {
         if (!isArmorUnlocked) {
-            armorStatusEl.innerHTML = `🔒 鎧の解放条件: CPU戦通算10勝（現在: ${playerData.totalCpuWins || 0}/10勝）`;
+            armorStatusEl.innerHTML = `<span style="color:#ffd32a;">🔒 鎧の解放条件: CPU戦通算10勝（現在: ${playerData.totalCpuWins || 0}/10勝）</span>`;
         } else {
             armorStatusEl.innerHTML = isWearingArmor ? 
-                `<span style="color:#0be881; font-weight:bold;">🛡️ 【現在、鎧を装備中】</span>` : 
-                `<button class="menu-btn" style="padding:4px 10px; font-size:11px; width:auto; margin:0 auto; display:block;" onclick="equipArmorNow()">🛡️ 鎧を装備する</button>`;
+                `<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:6px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px;">
+                    <span style="color:#0be881; font-weight:bold; font-size:12px;">🛡️ 鎧を【装備中】</span>
+                    <button class="menu-btn" style="padding:4px 10px; font-size:11px; width:auto; margin:0; background:#607d8b; box-shadow:none;" onclick="toggleArmorEquip(false)">✕ 鎧を脱ぐ</button>
+                 </div>` : 
+                `<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:6px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px;">
+                    <span style="color:#a4b0be; font-size:12px;">🛡️ 鎧は未装備 (通常服)</span>
+                    <button class="menu-btn" style="padding:4px 10px; font-size:11px; width:auto; margin:0; background:linear-gradient(135deg, #0be881, #05c46b); box-shadow:0 2px 8px rgba(11,232,129,0.4);" onclick="toggleArmorEquip(true)">🛡️ 鎧を装備する</button>
+                 </div>`;
         }
     }
 
-    // ★ 3. 鎧・上半身アーマー (独立 15G)
+    // ★ 3. 鎧・上半身アーマー (選ぶと自動で鎧装備)
     renderPaletteGrid('armor-body-palette', playerData.armorBodyColor, playerData.unlockedArmorBodyColors, (c) => {
         if (!isArmorUnlocked) {
             alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
@@ -269,7 +271,7 @@ function renderShopUI() {
         playerData.armorBodyColor = c;
     }, playerData.unlockedArmorBodyColors, !isArmorUnlocked);
 
-    // ★ 4. 鎧・下半身アーマー (独立 15G)
+    // ★ 4. 鎧・下半身アーマー (選ぶと自動で鎧装備)
     renderPaletteGrid('armor-legs-palette', playerData.armorLegsColor, playerData.unlockedArmorLegsColors, (c) => {
         if (!isArmorUnlocked) {
             alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
@@ -319,12 +321,6 @@ function renderShopUI() {
         };
         accList.appendChild(btn);
     });
-}
-
-function equipArmorNow() {
-    playerData.outfitType = 'armor';
-    savePlayerData();
-    renderShopUI();
 }
 
 function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked) {
