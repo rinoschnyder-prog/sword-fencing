@@ -1,212 +1,492 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <title>ソード・フェンシング v16.0.1</title>
-    
-    <!-- ★ 最新バージョン v=16.0.1 -->
-    <link rel="stylesheet" href="style.css?v=16.0.1">
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-</head>
-<body>
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+}
 
-    <div id="game-container">
-        <!-- 全画面ゲームCanvas -->
-        <canvas id="gameCanvas"></canvas>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    overflow: hidden;
+    position: fixed;
+    touch-action: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 
-        <!-- 観戦中のみ表示されるタイトル戻るボタン -->
-        <button id="btn-exit-watch" onclick="returnToTitle()">✕ 観戦終了</button>
+#game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
 
-        <!-- スコア・タイマー・HP/SPゲージUI -->
-        <div id="ui-layer">
-            <div class="player-info p1-info">
-                <div class="name-score">
-                    <span id="p1-name-display" style="color: #ff5252;">PLAYER 1</span>
-                    <div class="score" id="p1-score">
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                    </div>
-                </div>
-                <div class="hp-bar">
-                    <div class="hp-fill" id="p1-hp"></div>
-                </div>
-                <div class="sp-bar">
-                    <div class="sp-fill" id="p1-sp"></div>
-                </div>
-            </div>
+#gameCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    background-image: url('background.jpg');
+    background-size: cover;
+    background-position: center bottom;
+    background-repeat: no-repeat;
+}
 
-            <div id="timer-container">
-                <div id="timer">30</div>
-                <div id="streak-counter">連勝: 0</div>
-            </div>
+/* 観戦終了ボタン */
+#btn-exit-watch {
+    position: absolute;
+    top: calc(14px + env(safe-area-inset-top));
+    left: 16px;
+    z-index: 30;
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 6px 12px;
+    border-radius: 16px;
+    backdrop-filter: blur(4px);
+    display: none;
+}
 
-            <div class="player-info p2-info">
-                <div class="name-score" style="justify-content: flex-end;">
-                    <div class="score" id="p2-score">
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                    </div>
-                    <span id="p2-name-display" style="color: #40c4ff;">CPU</span>
-                </div>
-                <div class="hp-bar">
-                    <div class="hp-fill" id="p2-hp"></div>
-                </div>
-                <div class="sp-bar">
-                    <div class="sp-fill" id="p2-sp"></div>
-                </div>
-            </div>
-        </div>
+#btn-exit-watch:active {
+    background: rgba(255, 82, 82, 0.8);
+}
 
-        <!-- メインコントローラー -->
-        <div id="touch-controls">
-            <div class="control-group left-group">
-                <button id="btn-left" class="touch-btn">◀</button>
-                <button id="btn-right" class="touch-btn">▶</button>
-            </div>
-            <div class="control-group right-group">
-                <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
-                <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
-                <button id="btn-attack" class="touch-btn action-btn red">ATTACK<br><span style="font-size: 8px;">(長押し溜め)</span></button>
-            </div>
-        </div>
+/* デイリーログインボーナスボタン（左上・派手な点滅） */
+#daily-login-btn {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 14px;
+    background: linear-gradient(135deg, #ff0055, #f39c12);
+    border: 1.5px solid #ffd32a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 5px 10px;
+    border-radius: 20px;
+    box-shadow: 0 0 12px rgba(255, 0, 85, 0.6), 0 0 5px #ffd32a;
+    animation: loginPulse 1.2s infinite alternate;
+    cursor: pointer;
+}
 
-        <!-- SPECIALボタン -->
-        <div id="special-control-container">
-            <button id="btn-special" class="touch-btn special-btn">⚡ SPECIAL (気功波動弾) ⚡</button>
-        </div>
-        
-        <!-- タイトル画面 -->
-        <div id="title-screen" class="screen">
-            <button id="daily-login-btn" onclick="claimDailyLoginBonus()">🎁 ログインボーナス！</button>
-            <div id="top-gold-display">💰 所持金: <span id="gold-amount">0</span> G</div>
+#daily-login-btn.claimed {
+    background: rgba(40, 50, 60, 0.7);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #a4b0be;
+    box-shadow: none;
+    animation: none;
+}
 
-            <h1 class="game-title">ソード・フェンシング</h1>
-            <div class="subtitle">〜 30秒決戦！通常10打 / 溜め一撃KO＆必殺波動弾 〜</div>
-            
-            <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
-            <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
-            <button class="menu-btn watch-btn" onclick="openBetModal()">観戦・賭けバトル (CPU vs CPU)</button>
-            <button class="menu-btn shop-btn" onclick="openShopModal()">🎨 スキン工房 (着替え＆SHOP)</button>
+@keyframes loginPulse {
+    0% { transform: scale(1); box-shadow: 0 0 8px #ff0055; }
+    100% { transform: scale(1.08); box-shadow: 0 0 20px #f39c12, 0 0 8px #ffd32a; }
+}
 
-            <div id="ranking-board">
-                <h3>🏆 歴代連勝記録 TOP 3</h3>
-                <div id="ranking-list"></div>
-            </div>
+/* 所持ゴールドバッジ（右上） */
+#top-gold-display {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    right: 14px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1.5px solid #ffd32a;
+    color: #ffd32a;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 900;
+    box-shadow: 0 0 10px rgba(255, 211, 42, 0.4);
+}
 
-            <div class="title-footer">
-                <div class="credit-text">
-                    音楽：<a href="https://az-ho.org" target="_blank" rel="noopener noreferrer">独り音</a>
-                </div>
-                <div id="online-counter">
-                    <span class="live-dot"></span>
-                    オンライン: <span id="online-count-num">1</span>人
-                </div>
-            </div>
-        </div>
+/* UIレイヤー */
+#ui-layer {
+    position: absolute;
+    top: calc(12px + env(safe-area-inset-top));
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0 16px;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+}
 
-        <!-- 観戦ベッティングモーダル -->
-        <div id="bet-screen" class="screen modal-screen" style="display: none;">
-            <div class="modal-box">
-                <h2>🎰 観戦ベッティング</h2>
-                <div class="subtitle">どちらが勝つか予想してゴールドを賭けろ！（的中時 2倍）</div>
-                
-                <div class="bet-pick-group">
-                    <button class="bet-pick-btn active" id="bet-pick-p1" onclick="setBetTarget(1)">
-                        <span id="bet-p1-color-box">■</span> CPU 1
-                    </button>
-                    <button class="bet-pick-btn" id="bet-pick-p2" onclick="setBetTarget(2)">
-                        <span id="bet-p2-color-box">■</span> CPU 2
-                    </button>
-                </div>
+.player-info {
+    display: flex;
+    flex-direction: column;
+    width: 135px;
+}
 
-                <div class="bet-amount-group">
-                    <div style="font-size: 12px; margin-bottom: 4px;">掛け金を選択 (所持: <span class="current-gold-span">0</span>G)</div>
-                    <div class="bet-chips">
-                        <button class="chip-btn" onclick="setBetAmount(0)">0 G (観戦のみ)</button>
-                        <button class="chip-btn active" onclick="setBetAmount(1)">1 G</button>
-                        <button class="chip-btn" onclick="setBetAmount(3)">3 G</button>
-                        <button class="chip-btn" onclick="setBetAmount(5)">5 G</button>
-                        <button class="chip-btn" onclick="setBetAmount('all')">ALL IN</button>
-                    </div>
-                </div>
+.name-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 900;
+    font-size: 15px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+}
 
-                <div class="modal-buttons">
-                    <button class="menu-btn" onclick="confirmAndStartBetMatch()">試合開始！</button>
-                    <button class="menu-btn cancel-btn" onclick="closeBetModal()">戻る</button>
-                </div>
-            </div>
-        </div>
+.score {
+    display: flex;
+    gap: 5px;
+}
 
-        <!-- スキン工房モーダル -->
-        <div id="shop-screen" class="screen modal-screen" style="display: none;">
-            <div class="modal-box shop-box">
-                <h2><span onclick="debugAddGold()" style="cursor: pointer; display: inline-block;">🎨</span> スキン工房</h2>
-                <div class="shop-gold">💰 所持金: <span class="current-gold-span">0</span> G</div>
+.dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 2px solid #fff;
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
 
-                <div class="shop-tabs">
-                    <button class="tab-btn active" onclick="switchShopTab('normal')">カラー(通常)</button>
-                    <button class="tab-btn" onclick="switchShopTab('armor')">カラー(鎧上下)</button>
-                    <button class="tab-btn" onclick="switchShopTab('accessory')">猛者専用スキン</button>
-                </div>
+#p1-score .dot.active {
+    background-color: #ff5252 !important;
+    box-shadow: 0 0 10px #ff5252, 0 0 4px #fff !important;
+}
 
-                <div id="tab-normal" class="tab-content">
-                    <div class="shop-item-title">■ 上半身カラー (各15G)</div>
-                    <div class="color-palette-grid" id="normal-body-palette"></div>
-                    
-                    <div class="shop-item-title" style="margin-top:10px;">■ 下半身カラー (各15G)</div>
-                    <div class="color-palette-grid" id="normal-legs-palette"></div>
-                </div>
+#p2-score .dot.active {
+    background-color: #40c4ff !important;
+    box-shadow: 0 0 10px #40c4ff, 0 0 4px #fff !important;
+}
 
-                <div id="tab-armor" class="tab-content" style="display: none;">
-                    <div id="armor-unlock-status" style="font-size:11px; color:#ffd32a; text-align:center; margin-bottom:6px;"></div>
-                    
-                    <div class="shop-item-title">■ 鎧・上半身アーマー (各15G)</div>
-                    <div class="color-palette-grid" id="armor-body-palette"></div>
-                    
-                    <div class="shop-item-title" style="margin-top:10px;">■ 鎧・下半身アーマー (各15G)</div>
-                    <div class="color-palette-grid" id="armor-legs-palette"></div>
-                </div>
+/* 1本のHPバー */
+.hp-bar {
+    width: 100%;
+    height: 14px;
+    background: rgba(10, 15, 20, 0.8);
+    border-radius: 4px;
+    margin-top: 6px;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+    overflow: hidden;
+    position: relative;
+}
 
-                <div id="tab-accessory" class="tab-content" style="display: none;">
-                    <div class="accessory-grid" id="accessory-list"></div>
-                </div>
+.hp-fill {
+    height: 100%;
+    width: 100%;
+    transition: width 0.2s ease-out;
+}
 
-                <div class="modal-buttons" style="margin-top: 15px;">
-                    <button class="menu-btn" onclick="closeShopModal()">完了</button>
-                </div>
-            </div>
-        </div>
+.p1-info .hp-fill {
+    background: linear-gradient(90deg, #d63031, #ff7675);
+    box-shadow: 0 0 8px rgba(255, 82, 82, 0.85);
+}
 
-        <!-- オンライン設定画面 -->
-        <div id="online-screen" class="screen" style="display: none;">
-            <h2>オンライン対戦</h2>
-            <div id="online-form">
-                <input type="text" id="player-name-input" placeholder="あなたの名前" maxlength="8" value="PLAYER">
-                <input type="text" id="room-id-input" placeholder="部屋のパスワード" maxlength="12">
-                <div class="form-buttons">
-                    <button class="menu-btn" onclick="connectToRoom()">入室する</button>
-                    <button class="menu-btn" style="background-color: #607d8b;" onclick="hideOnlineMenu()">戻る</button>
-                </div>
-            </div>
-            <div id="online-status"></div>
-        </div>
+.p2-info .hp-fill {
+    background: linear-gradient(90deg, #0984e3, #74b9ff);
+    box-shadow: 0 0 8px rgba(64, 196, 255, 0.85);
+    float: right;
+}
 
-        <!-- メッセージオーバーレイ -->
-        <div id="game-overlay" class="screen">
-            <div id="overlay-text">ROUND 1</div>
-        </div>
-    </div>
+/* SP必殺ゲージ */
+.sp-bar {
+    width: 100%;
+    height: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 3px;
+    margin-top: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+}
 
-    <!-- ★ 安全な分割読み込み (sound ➔ shop ➔ effects ➔ game) -->
-    <script src="sound.js?v=16.0.1"></script>
-    <script src="shop.js?v=16.0.1"></script>
-    <script src="effects.js?v=16.0.1"></script>
-    <script src="game.js?v=16.0.1"></script>
-</body>
-</html>
+.sp-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #9b59b6, #e056fd, #ffd32a);
+    transition: width 0.15s ease-out;
+}
+
+.p2-info .sp-fill {
+    float: right;
+}
+
+#timer-container {
+    text-align: center;
+}
+#timer {
+    font-size: 30px;
+    font-weight: 900;
+    color: #ffd32a;
+    line-height: 1;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+}
+#streak-counter {
+    font-size: 12px;
+    font-weight: bold;
+    color: #0be881;
+    margin-top: 3px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+}
+
+/* タッチコントローラー */
+#touch-controls {
+    position: absolute;
+    bottom: calc(18vh + env(safe-area-inset-bottom));
+    left: 0;
+    width: 100%;
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 18px;
+    z-index: 10;
+}
+
+.control-group {
+    display: flex;
+    gap: 10px;
+}
+
+.touch-btn {
+    background: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 50%;
+    color: #ffffff;
+    font-size: 24px;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    transition: transform 0.08s, background-color 0.08s;
+}
+
+.touch-btn:active {
+    background: rgba(255, 255, 255, 0.45);
+    transform: scale(0.92);
+}
+
+.left-group .touch-btn { width: 64px; height: 64px; }
+.action-btn { width: 60px; height: 60px; font-size: 11px; font-weight: 800; border-radius: 18px; }
+.action-btn.red { background: rgba(255, 82, 82, 0.5); border-color: rgba(255, 82, 82, 0.9); }
+.action-btn.yellow { background: rgba(255, 211, 42, 0.5); border-color: rgba(255, 211, 42, 0.9); color: #fff; }
+.action-btn.blue { background: rgba(64, 196, 255, 0.5); border-color: rgba(64, 196, 255, 0.9); }
+
+#special-control-container {
+    position: absolute;
+    bottom: calc(10vh + env(safe-area-inset-bottom));
+    left: 0;
+    width: 100%;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.special-btn {
+    width: 210px;
+    height: 38px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 900;
+    background: rgba(80, 80, 80, 0.35);
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    color: rgba(255, 255, 255, 0.5);
+    opacity: 0.5;
+    transition: all 0.25s ease;
+}
+
+.special-btn.ready {
+    opacity: 1;
+    color: #ffffff;
+    background: linear-gradient(135deg, #ff0055, #ff5500);
+    border-color: #ffd32a;
+    box-shadow: 0 0 15px #ff0055, 0 0 5px #ffd32a;
+    animation: specialPulse 0.9s infinite alternate;
+}
+
+@keyframes specialPulse {
+    0% { transform: scale(1); box-shadow: 0 0 10px #ff0055; }
+    100% { transform: scale(1.05); box-shadow: 0 0 25px #ff5500, 0 0 10px #ffd32a; }
+}
+
+/* 全画面オーバーレイ */
+.screen {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    padding: 16px;
+    background: rgba(15, 20, 25, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.game-title {
+    font-size: clamp(20px, 6vw, 32px);
+    text-align: center;
+    color: #ffd32a;
+    margin: 0 0 4px 0;
+    line-height: 1.2;
+    text-shadow: 0 4px 15px rgba(255, 211, 42, 0.3);
+}
+
+.subtitle {
+    font-size: 11px;
+    color: #d2dae2;
+    margin-bottom: 14px;
+    text-align: center;
+}
+
+.menu-btn {
+    width: min(80vw, 240px);
+    padding: 10px 0;
+    margin: 4px 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    background: linear-gradient(135deg, #ff5252, #eb2f06);
+    border: none;
+    border-radius: 28px;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(235, 47, 6, 0.4);
+    transition: transform 0.15s;
+}
+
+.menu-btn:active { transform: scale(0.95); }
+
+.menu-btn.watch-btn {
+    background: linear-gradient(135deg, #8e44ad, #2980b9);
+    box-shadow: 0 5px 15px rgba(142, 68, 173, 0.4);
+}
+
+.menu-btn.shop-btn {
+    background: linear-gradient(135deg, #f39c12, #d35400);
+    box-shadow: 0 5px 15px rgba(243, 156, 18, 0.4);
+}
+
+/* ★ ランキングボード（文字色ホワイト化＆くっきり表示） */
+#ranking-board {
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    padding: 10px 16px;
+    border-radius: 12px;
+    width: min(85vw, 260px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+#ranking-board h3 { 
+    margin: 0 0 6px 0; 
+    text-align: center; 
+    color: #0be881; 
+    font-size: 13px; 
+    font-weight: 900;
+    text-shadow: 0 0 8px rgba(11, 232, 129, 0.5);
+}
+
+.ranking-row { 
+    display: flex; 
+    justify-content: space-between; 
+    margin: 3px 0; 
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffffff !important; /* ★ 真っ白な文字色 */
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9); /* ★ 背景に埋もれない黒フチ影 */
+}
+
+.title-footer { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; width: min(85vw, 250px); }
+.credit-text { font-size: 10px; color: #a4b0be; text-align: center; }
+.credit-text a { color: #ffd32a; text-decoration: underline; }
+
+#online-counter {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(46, 204, 113, 0.4);
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; color: #2ecc71; font-weight: bold;
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background-color: #2ecc71; animation: livePulse 1.5s infinite; }
+
+@keyframes livePulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+/* モーダル画面共通 */
+.modal-box {
+    background: rgba(25, 30, 40, 0.95);
+    border: 2px solid rgba(255, 211, 42, 0.6);
+    border-radius: 16px;
+    padding: 16px;
+    width: min(90vw, 320px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+.modal-box h2 { margin: 0 0 6px 0; font-size: 18px; color: #ffd32a; }
+
+.modal-buttons { display: flex; gap: 8px; width: 100%; margin-top: 12px; }
+.modal-buttons .menu-btn { flex: 1; font-size: 13px; margin: 0; }
+.modal-buttons .cancel-btn { background: #607d8b; }
+
+/* ベット画面スタイル */
+.bet-pick-group { display: flex; gap: 8px; width: 100%; margin: 10px 0; }
+.bet-pick-btn {
+    flex: 1; padding: 10px 6px; border-radius: 10px;
+    background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3);
+    color: #fff; font-size: 12px; font-weight: bold; cursor: pointer;
+}
+.bet-pick-btn.active { border-color: #ffd32a; background: rgba(255, 211, 42, 0.25); }
+
+.bet-amount-group { width: 100%; text-align: center; margin-top: 6px; }
+.bet-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 4px; }
+.chip-btn {
+    padding: 6px 10px; border-radius: 14px; background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.4); color: #fff; font-size: 11px; font-weight: bold;
+}
+.chip-btn.active { background: #ffd32a; color: #000; border-color: #ffd32a; }
+
+/* ショップ画面スタイル */
+.shop-gold { font-size: 13px; color: #ffd32a; font-weight: bold; margin-bottom: 8px; }
+.shop-tabs { display: flex; gap: 4px; width: 100%; margin-bottom: 10px; }
+.tab-btn { flex: 1; padding: 6px 2px; border-radius: 8px; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 10.5px; font-weight: bold; }
+.tab-btn.active { background: #e67e22; }
+
+.tab-content { width: 100%; }
+.shop-item-title { font-size: 11px; color: #bbb; margin-bottom: 4px; }
+.color-palette-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+.color-swatch {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; cursor: pointer;
+    position: relative; display: flex; align-items: center; justify-content: center;
+}
+.color-swatch.active { transform: scale(1.2); box-shadow: 0 0 8px #fff; border-color: #ffd32a; }
+.color-swatch.locked::after {
+    content: '🔒';
+    font-size: 11px;
+}
+
+.accessory-grid { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.acc-item-btn {
+    display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
+    border-radius: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
+    color: #fff; font-size: 12px; font-weight: bold;
+}
+.acc-item-btn.active { border-color: #ffd32a; background: rgba(255, 211, 42, 0.2); }
+.acc-item-btn.locked { opacity: 0.6; }
+
+#online-form { display: flex; flex-direction: column; gap: 10px; width: min(80vw, 260px); }
+#online-form input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; text-align: center; font-size: 15px; }
+.form-buttons { display: flex; gap: 8px; }
+.form-buttons .menu-btn { flex: 1; width: auto; }
+#online-status { margin-top: 12px; color: #ffd32a; font-size: 12px; text-align: center; }
+
+#game-overlay { background: rgba(0, 0, 0, 0.65); pointer-events: none; opacity: 0; transition: opacity 0.25s ease; }
+#game-overlay.show { opacity: 1; }
+#overlay-text { font-size: clamp(24px, 7vw, 38px); color: #fff; font-weight: 900; text-align: center; white-space: pre-line; text-shadow: 0 4px 20px rgba(0,0,0,0.9); }
