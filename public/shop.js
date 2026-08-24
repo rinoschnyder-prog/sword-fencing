@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js（セーブデータ・ショップ・賭け・ランキング）
+// ★ shop.js（セーブデータ・ショップ・賭け・ランキング・バイザー）
 // ==========================================
 
 const COLOR_PRICE = 15;
@@ -26,6 +26,9 @@ let playerData = {
     unlockedArmorLegsColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
+    // ★ 頭部バイザー装飾データ
+    equippedVisor: 'none',
+    unlockedVisors: ['none'],
     lastLoginDate: ''
 };
 
@@ -38,10 +41,11 @@ function loadPlayerData() {
             if (!playerData.unlockedLegsColors) playerData.unlockedLegsColors = playerData.unlockedColors || ['#ff5252'];
             if (!playerData.unlockedArmorBodyColors) playerData.unlockedArmorBodyColors = playerData.unlockedArmorColors || ['#ff5252'];
             if (!playerData.unlockedArmorLegsColors) playerData.unlockedArmorLegsColors = playerData.unlockedArmorColors || ['#ff5252'];
+            if (!playerData.unlockedVisors) playerData.unlockedVisors = ['none'];
         } catch (e) {}
     }
 
-    // ★ 過去のランキングTOP3の連勝数を、通算勝利数に自動引き継ぎ・合算
+    // 過去ランキングTOP3の連勝数を自動合算
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
     const rankWinsSum = records.reduce((sum, r) => sum + (Number(r.streak) || 0), 0);
     if (rankWinsSum > (playerData.totalCpuWins || 0)) {
@@ -71,19 +75,14 @@ function updateGoldUI() {
     document.querySelectorAll('.current-gold-span').forEach(el => el.innerText = playerData.gold);
 }
 
-// ==========================================
-// ★ デバッグ全解放 (+10G / 鎧解放 / 100連勝スキン解放)
-// ==========================================
+// デバッグ全解放 (+10G / 鎧解放 / 100連勝スキン解放 / バイザー全解放)
 function debugAddGold() {
-    // 1. ゴールド +10G
     playerData.gold += 10;
-
-    // 2. CPU戦 10勝達成 (鎧解放) & 鎧を即時着用
     playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 10);
     playerData.outfitType = 'armor';
+    playerData.unlockedVisors = ['none', 'cyber', 'flame', 'crown'];
     savePlayerData();
 
-    // 3. 100連勝記録を保存 (マント＆ゴッドオーラ解放)
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
     if (!records.some(r => r.streak >= 100)) {
         records.push({ name: 'MASTER', streak: 100 });
@@ -93,12 +92,8 @@ function debugAddGold() {
         updateRankingUI();
     }
 
-    // 4. ショップ表示を即時更新
     renderShopUI();
-
-    if (typeof Sound !== 'undefined') {
-        Sound.playSE('bom');
-    }
+    if (typeof Sound !== 'undefined') Sound.playSE('bom');
 }
 
 // デイリーログインボーナス
@@ -212,19 +207,24 @@ function closeShopModal() {
     }
 }
 
-// タブ切り替え（勝手に鎧を着脱しない）
 function switchShopTab(tab) {
     document.getElementById('tab-normal').style.display = (tab === 'normal') ? 'block' : 'none';
     document.getElementById('tab-armor').style.display = (tab === 'armor') ? 'block' : 'none';
+    document.getElementById('tab-visor').style.display = (tab === 'visor') ? 'block' : 'none';
     document.getElementById('tab-accessory').style.display = (tab === 'accessory') ? 'block' : 'none';
+    
     document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
-        btn.classList.toggle('active', (tab === 'normal' && idx === 0) || (tab === 'armor' && idx === 1) || (tab === 'accessory' && idx === 2));
+        btn.classList.toggle('active', 
+            (tab === 'normal' && idx === 0) || 
+            (tab === 'armor' && idx === 1) || 
+            (tab === 'visor' && idx === 2) || 
+            (tab === 'accessory' && idx === 3)
+        );
     });
 
     renderShopUI();
 }
 
-// 鎧の着脱切り替え
 function toggleArmorEquip(equip) {
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     if (equip && !isArmorUnlocked) {
@@ -236,20 +236,28 @@ function toggleArmorEquip(equip) {
     renderShopUI();
 }
 
+// 定義：フェイス・バイザー一覧
+const VISOR_LIST = [
+    { id: 'none', name: '標準バイザー (白)', desc: '標準仕様のアイバイザー', color: '#ffffff', eventReq: 0 },
+    { id: 'cyber', name: '🔷 サイバー・アイ (水色)', desc: 'イベント1勝で解放', color: '#00d2d3', eventReq: 1 },
+    { id: 'flame', name: '🔥 フレイム・ブレイズ (赤)', desc: 'イベント3連勝で解放', color: '#ff4757', eventReq: 3 },
+    { id: 'crown', name: '👑 ゴッド・クラウン (金)', desc: 'イベント5連勝で解放', color: '#ffd32a', eventReq: 5 }
+];
+
 function renderShopUI() {
     updateGoldUI();
     
-    // 1. 通常・上半身カラー
+    // 1. 通常・上半身
     renderPaletteGrid('normal-body-palette', playerData.normalBodyColor, playerData.unlockedBodyColors, (c) => {
         playerData.normalBodyColor = c;
     }, playerData.unlockedBodyColors);
 
-    // 2. 通常・下半身カラー
+    // 2. 通常・下半身
     renderPaletteGrid('normal-legs-palette', playerData.normalLegsColor, playerData.unlockedLegsColors, (c) => {
         playerData.normalLegsColor = c;
     }, playerData.unlockedLegsColors);
 
-    // 鎧タブのアンロック状態 ＆ 【装備する / 脱ぐ】ボタン
+    // 鎧タブ
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     const isWearingArmor = (playerData.outfitType === 'armor');
 
@@ -270,66 +278,91 @@ function renderShopUI() {
         }
     }
 
-    // 3. 鎧・上半身アーマー
+    // 3. 鎧・上半身
     renderPaletteGrid('armor-body-palette', playerData.armorBodyColor, playerData.unlockedArmorBodyColors, (c) => {
-        if (!isArmorUnlocked) {
-            alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
-            return;
-        }
+        if (!isArmorUnlocked) { alert(`鎧は【CPU戦で通算10勝】すると解放されます！`); return; }
         playerData.outfitType = 'armor';
         playerData.armorBodyColor = c;
     }, playerData.unlockedArmorBodyColors, !isArmorUnlocked);
 
-    // 4. 鎧・下半身アーマー
+    // 4. 鎧・下半身
     renderPaletteGrid('armor-legs-palette', playerData.armorLegsColor, playerData.unlockedArmorLegsColors, (c) => {
-        if (!isArmorUnlocked) {
-            alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
-            return;
-        }
+        if (!isArmorUnlocked) { alert(`鎧は【CPU戦で通算10勝】すると解放されます！`); return; }
         playerData.outfitType = 'armor';
         playerData.armorLegsColor = c;
     }, playerData.unlockedArmorLegsColors, !isArmorUnlocked);
 
-    // アクセサリーリスト
+    // ★ 5. 頭部バイザー装飾タブの描画
+    const visorListEl = document.getElementById('shop-visor-list');
+    if (visorListEl) {
+        visorListEl.innerHTML = '';
+        VISOR_LIST.forEach(v => {
+            const isUnlocked = playerData.unlockedVisors.includes(v.id);
+            const isEquipped = (playerData.equippedVisor === v.id);
+
+            const btn = document.createElement('button');
+            btn.className = `acc-item-btn ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
+            btn.innerHTML = `
+                <div>
+                    <span style="color:${v.color}; font-weight:bold;">${v.name}</span>
+                    <div style="font-size:10px; color:#bbb;">${isUnlocked ? v.desc : `🔒 初心者イベント(${v.eventReq}勝)で獲得`}</div>
+                </div>
+                <span style="font-size:11px; color:#ffd32a;">${isEquipped ? '【装備中】' : (isUnlocked ? '装備する' : '未解放')}</span>
+            `;
+
+            btn.onclick = () => {
+                if (isUnlocked) {
+                    playerData.equippedVisor = v.id;
+                    savePlayerData();
+                    renderShopUI();
+                } else {
+                    alert(`このバイザーは【初心者イベント】で${v.eventReq}連勝すると解放されます！`);
+                }
+            };
+            visorListEl.appendChild(btn);
+        });
+    }
+
+    // 6. 猛者スキン
     const accList = document.getElementById('accessory-list');
-    accList.innerHTML = '';
+    if (accList) {
+        accList.innerHTML = '';
+        const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
+        const maxRecordStreak = records.length > 0 ? Math.max(...records.map(r => r.streak)) : 0;
+        const currentBest = Math.max((typeof winStreak !== 'undefined' ? winStreak : 0), maxRecordStreak);
 
-    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-    const maxRecordStreak = records.length > 0 ? Math.max(...records.map(r => r.streak)) : 0;
-    const currentBest = Math.max((typeof winStreak !== 'undefined' ? winStreak : 0), maxRecordStreak);
+        const accessories = [
+            { id: 'none', name: 'なし (標準)', reqStreak: 0 },
+            { id: 'cloak', name: '🦹 英雄のマント', reqStreak: 10 },
+            { id: 'god', name: '✨ 黄金のゴッドオーラ', reqStreak: 100 }
+        ];
 
-    const accessories = [
-        { id: 'none', name: 'なし (標準)', reqStreak: 0 },
-        { id: 'cloak', name: '🦹 英雄のマント', reqStreak: 10 },
-        { id: 'god', name: '✨ 黄金のゴッドオーラ', reqStreak: 100 }
-    ];
+        accessories.forEach(acc => {
+            const isUnlocked = (acc.reqStreak === 0) || (currentBest >= acc.reqStreak);
+            const isEquipped = (acc.id === 'cloak' && playerData.hasCloak) || (acc.id === 'god' && playerData.hasGodAura) || (acc.id === 'none' && !playerData.hasCloak && !playerData.hasGodAura);
 
-    accessories.forEach(acc => {
-        const isUnlocked = (acc.reqStreak === 0) || (currentBest >= acc.reqStreak);
-        const isEquipped = (acc.id === 'cloak' && playerData.hasCloak) || (acc.id === 'god' && playerData.hasGodAura) || (acc.id === 'none' && !playerData.hasCloak && !playerData.hasGodAura);
+            const btn = document.createElement('button');
+            btn.className = `acc-item-btn ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
+            let statusText = isEquipped ? '【装備中】' : (isUnlocked ? '装備する' : `🔒 条件: ${acc.reqStreak}連勝 (現在:${currentBest})`);
+            btn.innerHTML = `<span>${acc.name}</span><span style="font-size:11px; color:#ffd32a;">${statusText}</span>`;
 
-        const btn = document.createElement('button');
-        btn.className = `acc-item-btn ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
-        
-        let statusText = isEquipped ? '【装備中】' : (isUnlocked ? '装備する' : `🔒 条件: ${acc.reqStreak}連勝 (現在:${currentBest})`);
-        btn.innerHTML = `<span>${acc.name}</span><span style="font-size:11px; color:#ffd32a;">${statusText}</span>`;
-
-        btn.onclick = () => {
-            if (acc.id === 'none') {
-                playerData.hasCloak = false;
-                playerData.hasGodAura = false;
-            } else if (acc.id === 'cloak') {
-                if (isUnlocked) playerData.hasCloak = !playerData.hasCloak;
-                else alert(`猛者専用スキン！【10連勝達成】でアンロックされます！（現在最高: ${currentBest}連勝）`);
-            } else if (acc.id === 'god') {
-                if (isUnlocked) playerData.hasGodAura = !playerData.hasGodAura;
-                else alert(`前人未到の猛者専用スキン！【100連勝達成】でアンロックされます！（現在最高: ${currentBest}連勝）`);
-            }
-            savePlayerData();
-            renderShopUI();
-        };
-        accList.appendChild(btn);
-    });
+            btn.onclick = () => {
+                if (acc.id === 'none') {
+                    playerData.hasCloak = false;
+                    playerData.hasGodAura = false;
+                } else if (acc.id === 'cloak') {
+                    if (isUnlocked) playerData.hasCloak = !playerData.hasCloak;
+                    else alert(`猛者専用スキン！【10連勝達成】でアンロックされます！`);
+                } else if (acc.id === 'god') {
+                    if (isUnlocked) playerData.hasGodAura = !playerData.hasGodAura;
+                    else alert(`前人未到の猛者専用スキン！【100連勝達成】でアンロックされます！`);
+                }
+                savePlayerData();
+                renderShopUI();
+            };
+            accList.appendChild(btn);
+        });
+    }
 }
 
 function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked) {
