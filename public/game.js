@@ -40,7 +40,7 @@ let isOnlineMode = false;
 let myPlayerNumber = 0;
 const SERVER_URL = window.location.origin;
 
-// カラー明暗調整ヘルパー関数 (濃淡・ハイライト・シャドウ生成)
+// カラー明暗調整ヘルパー関数
 function adjustColor(hex, lum) {
     hex = String(hex).replace(/[^0-9a-f]/gi, '');
     if (hex.length < 6) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
@@ -148,6 +148,7 @@ class Character {
         this.armorBodyColor = color;
         this.armorLegsColor = color;
         this.outfitType = 'normal';
+        this.visorType = 'none';
         this.hasCloak = false;
         this.hasGodAura = false;
 
@@ -785,23 +786,56 @@ class Character {
             ctx.restore();
         }
 
-        // ★ 頭部（ベース通常カラー）
+        // 頭部
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fill();
 
-        // 目元バイザー
+        // 頭部フェイス・バイザー装飾
         ctx.save();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.moveTo(cx + dir * 2, headY - 1);
-        ctx.lineTo(cx + dir * 10, headY - 1);
-        ctx.stroke();
+        const v = this.visorType || 'none';
+        if (v === 'cyber') {
+            ctx.strokeStyle = '#00d2d3';
+            ctx.lineWidth = 3.5;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#00d2d3';
+            ctx.beginPath();
+            ctx.moveTo(cx - dir * 4, headY - 1);
+            ctx.lineTo(cx + dir * 12, headY - 1);
+            ctx.stroke();
+        } else if (v === 'flame') {
+            ctx.strokeStyle = '#ff4757';
+            ctx.lineWidth = 4;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ff4757';
+            ctx.beginPath();
+            ctx.moveTo(cx - dir * 2, headY - 2);
+            ctx.lineTo(cx + dir * 13, headY);
+            ctx.stroke();
+        } else if (v === 'crown') {
+            ctx.strokeStyle = '#ffd32a';
+            ctx.lineWidth = 3.2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ffd32a';
+            ctx.beginPath();
+            ctx.arc(cx, headY - 7, 7.5, -Math.PI * 0.8, -Math.PI * 0.2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx, headY - 1);
+            ctx.lineTo(cx + dir * 11, headY - 1);
+            ctx.stroke();
+        } else {
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(cx + dir * 2, headY - 1);
+            ctx.lineTo(cx + dir * 10, headY - 1);
+            ctx.stroke();
+        }
         ctx.restore();
 
-        // ★ 下半身（脚の素体ライン）
+        // 下半身
         ctx.save();
         ctx.strokeStyle = this.legsColor;
         ctx.lineWidth = 5.5;
@@ -814,7 +848,7 @@ class Character {
         ctx.lineTo(rightFoot.x, rightFoot.y);
         ctx.stroke();
 
-        // ★ 鎧（下半身：立体脛当て・膝当て・重装サバトン靴）
+        // 鎧（下半身）
         if (this.outfitType === 'armor') {
             const aLegLight = adjustColor(this.armorLegsColor, 0.45);
             const aLegMid = this.armorLegsColor;
@@ -824,7 +858,6 @@ class Character {
                 const kneeX = (cx + foot.x) / 2;
                 const kneeY = (hipY + foot.y) / 2;
 
-                // 脛当てグラデーション装甲
                 ctx.save();
                 const shinGrad = ctx.createLinearGradient(kneeX, kneeY, foot.x, foot.y);
                 shinGrad.addColorStop(0, aLegLight);
@@ -838,7 +871,6 @@ class Character {
                 ctx.lineTo(foot.x, foot.y);
                 ctx.stroke();
 
-                // 膝当て（シャープな金属ニーガード）
                 ctx.fillStyle = aLegLight;
                 ctx.strokeStyle = '#ffd32a';
                 ctx.lineWidth = 1.8;
@@ -847,7 +879,6 @@ class Character {
                 ctx.fill();
                 ctx.stroke();
 
-                // 鉄靴サバトン（爪先が鋭い金属ブーツ）
                 ctx.fillStyle = aLegDark;
                 ctx.beginPath();
                 ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2);
@@ -862,13 +893,12 @@ class Character {
         }
         ctx.restore();
 
-        // ★ 上半身・胴体＆腕
+        // 上半身＆腕
         if (this.outfitType === 'armor') {
             const aBodyLight = adjustColor(this.armorBodyColor, 0.55);
             const aBodyMid = this.armorBodyColor;
             const aBodyDark = adjustColor(this.armorBodyColor, -0.5);
 
-            // インナー背骨
             ctx.save();
             ctx.strokeStyle = this.bodyColor;
             ctx.lineWidth = 5.5;
@@ -878,7 +908,6 @@ class Character {
             ctx.stroke();
             ctx.restore();
 
-            // 腕（インナー ＋ ガントレット装甲）
             ctx.save();
             ctx.strokeStyle = this.bodyColor;
             ctx.lineWidth = 5.5;
@@ -891,7 +920,6 @@ class Character {
             ctx.lineTo(rightHand.x, rightHand.y);
             ctx.stroke();
 
-            // ガントレット手甲（腕の先）
             [leftHand, rightHand].forEach(hand => {
                 ctx.fillStyle = aBodyMid;
                 ctx.strokeStyle = aBodyLight;
@@ -903,17 +931,14 @@ class Character {
             });
             ctx.restore();
 
-            // ★ 胸部プレートアーマー（立体的ブレストプレート）
             ctx.save();
             const chestMidY = (chestY + hipY) / 2;
 
-            // 背面シャドウプレート
             ctx.fillStyle = aBodyDark;
             ctx.beginPath();
             ctx.ellipse(cx, chestMidY, 13, 18, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // メイン胸当てグラデーション
             const chestGrad = ctx.createLinearGradient(cx - 10, chestY - 4, cx + 10, hipY);
             chestGrad.addColorStop(0, aBodyLight);
             chestGrad.addColorStop(0.45, aBodyMid);
@@ -923,7 +948,6 @@ class Character {
             ctx.ellipse(cx, chestMidY, 11, 15, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // 中央キール稜線（光沢エッジ）
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -931,13 +955,11 @@ class Character {
             ctx.lineTo(cx, hipY - 2);
             ctx.stroke();
 
-            // コアエンブレム（金色の装甲コア）
             ctx.fillStyle = '#ffd32a';
             ctx.beginPath();
             ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // ★ サイドタセット（腰の装甲プレート）
             ctx.fillStyle = aBodyMid;
             ctx.strokeStyle = aBodyDark;
             ctx.lineWidth = 1.5;
@@ -947,24 +969,21 @@ class Character {
             ctx.fill();
             ctx.stroke();
 
-            // ★ 騎士風2段ショルダーポールドロン（肩当て）
             [-1, 1].forEach(side => {
                 const spX = cx + side * 8;
                 const spY = chestY - 3;
 
-                // 下段プレート（影）
                 ctx.fillStyle = aBodyDark;
                 ctx.beginPath();
                 ctx.ellipse(spX, spY + 3, 7.5, 5, side * 0.3, 0, Math.PI * 2);
                 ctx.fill();
 
-                // 上段プレート（メイン＆ハイライト）
                 const spGrad = ctx.createLinearGradient(spX - 5, spY - 5, spX + 5, spY + 5);
                 spGrad.addColorStop(0, '#ffffff');
                 spGrad.addColorStop(0.3, aBodyLight);
                 spGrad.addColorStop(1, aBodyMid);
                 ctx.fillStyle = spGrad;
-                ctx.strokeStyle = '#ffd32a'; // 金のフチ取り
+                ctx.strokeStyle = '#ffd32a';
                 ctx.lineWidth = 1.6;
                 ctx.beginPath();
                 ctx.ellipse(spX, spY, 7, 5, side * 0.25, 0, Math.PI * 2);
@@ -974,7 +993,6 @@ class Character {
             ctx.restore();
 
         } else {
-            // 通常の上半身
             ctx.strokeStyle = this.bodyColor;
             ctx.beginPath();
             ctx.moveTo(cx, headY + 11);
@@ -988,7 +1006,6 @@ class Character {
             ctx.fill();
             ctx.restore();
 
-            // 通常の腕
             ctx.save();
             ctx.strokeStyle = this.bodyColor;
             ctx.lineWidth = 5.5;
@@ -1048,6 +1065,7 @@ resizeCanvas();
 
 function applyPlayerCustomization() {
     p1.outfitType = playerData.outfitType || 'normal';
+    p1.visorType = playerData.equippedVisor || 'none';
     p1.color = playerData.normalBodyColor;
     p1.bodyColor = playerData.normalBodyColor;
     p1.legsColor = playerData.normalLegsColor;
@@ -1148,6 +1166,7 @@ function connectToRoom() {
 
         const myChar = (myPlayerNumber === 1) ? p1 : p2;
         myChar.outfitType = p1.outfitType;
+        myChar.visorType = p1.visorType;
         myChar.color = p1.color;
         myChar.bodyColor = p1.bodyColor;
         myChar.legsColor = p1.legsColor;
@@ -1162,6 +1181,7 @@ function connectToRoom() {
         oppChar.legsColor = CPU_COLORS[1];
         oppChar.armorBodyColor = CPU_COLORS[1];
         oppChar.armorLegsColor = CPU_COLORS[1];
+        oppChar.visorType = 'none';
         oppChar.hasCloak = false;
         oppChar.hasGodAura = false;
 
@@ -1207,6 +1227,7 @@ function connectToRoom() {
         if (data.armorLegsColor) opp.armorLegsColor = data.armorLegsColor;
         if (data.color) opp.color = data.color;
         if (data.outfitType) opp.outfitType = data.outfitType;
+        if (data.visorType) opp.visorType = data.visorType;
         opp.hasCloak = !!data.hasCloak;
         opp.hasGodAura = !!data.hasGodAura;
 
@@ -1276,17 +1297,20 @@ function emitMyPhysics(extraOppState, targetOppHp) {
         armorBodyColor: myChar.armorBodyColor,
         armorLegsColor: myChar.armorLegsColor,
         outfitType: myChar.outfitType,
+        visorType: myChar.visorType,
         hasCloak: myChar.hasCloak,
         hasGodAura: myChar.hasGodAura
     });
 }
 
-// ランダムCPUスキン生成ヘルパー
+// ランダムCPUスキン生成
 function generateRandomCpuSkin(excludeColor) {
     const availableColors = excludeColor ? CPU_COLORS.filter(c => c !== excludeColor) : CPU_COLORS;
     const baseColor = availableColors[Math.floor(Math.random() * availableColors.length)];
     const armorColor = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
-    const wearsArmor = Math.random() < 0.75; // 75%の確率で鎧を装備
+    const wearsArmor = Math.random() < 0.75;
+    const visors = ['none', 'cyber', 'flame', 'crown'];
+    const randomVisor = visors[Math.floor(Math.random() * visors.length)];
 
     return {
         color: baseColor,
@@ -1295,6 +1319,7 @@ function generateRandomCpuSkin(excludeColor) {
         armorBodyColor: armorColor,
         armorLegsColor: armorColor,
         outfitType: wearsArmor ? 'armor' : 'normal',
+        visorType: randomVisor,
         hasCloak: false,
         hasGodAura: false
     };
@@ -1316,7 +1341,6 @@ function startCPUMode() {
 
     applyPlayerCustomization();
 
-    // ★ CPUのスキンをランダム生成（鎧も着用）
     const cpuSkin = generateRandomCpuSkin(p1.color);
     Object.assign(p2, cpuSkin);
 
@@ -1516,14 +1540,12 @@ function endRound(winner, reason) {
     }
 }
 
-// 次のCPU戦マッチ（連勝時）
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
     currentRound = 1;
     timeScale = 1.0;
 
-    // ★ 次のCPUもランダムスキン＆鎧を装着
     const nextCpuSkin = generateRandomCpuSkin(p1.color);
     Object.assign(p2, nextCpuSkin);
     
