@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js（セーブデータ・ショップ・賭け・ランキング・バイザー）
+// ★ shop.js（バイザーパレット統一・セーブデータ管理）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -27,9 +27,10 @@ let playerData = {
     unlockedArmorLegsColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
-    equippedVisor: 'none',
-    unlockedVisors: ['none'],
-    lastLoginTimestamp: 0 // 24h判定用ミリ秒
+    // ★ バイザーカラー（初期: 白）＆解放リスト
+    visorColor: '#ffffff',
+    unlockedVisorColors: ['#ffffff'],
+    lastLoginTimestamp: 0
 };
 
 function loadPlayerData() {
@@ -41,8 +42,20 @@ function loadPlayerData() {
             if (!playerData.unlockedLegsColors) playerData.unlockedLegsColors = ['#ff5252'];
             if (!playerData.unlockedArmorBodyColors) playerData.unlockedArmorBodyColors = ['#ff5252'];
             if (!playerData.unlockedArmorLegsColors) playerData.unlockedArmorLegsColors = ['#ff5252'];
-            if (!playerData.unlockedVisors) playerData.unlockedVisors = ['none'];
+            if (!playerData.unlockedVisorColors) playerData.unlockedVisorColors = ['#ffffff'];
         } catch (e) {}
+    }
+
+    // イベント連勝記録に基づくバイザー色の自動解放マージ
+    const eventMaxStreak = Number(localStorage.getItem('fencing_event_max_streak') || 0);
+    if ((eventMaxStreak >= 1 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('cyber'))) && !playerData.unlockedVisorColors.includes('#40c4ff')) {
+        playerData.unlockedVisorColors.push('#40c4ff'); // 水色
+    }
+    if ((eventMaxStreak >= 3 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('flame'))) && !playerData.unlockedVisorColors.includes('#ff5252')) {
+        playerData.unlockedVisorColors.push('#ff5252'); // 赤
+    }
+    if ((eventMaxStreak >= 5 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('crown'))) && !playerData.unlockedVisorColors.includes('#ffd32a')) {
+        playerData.unlockedVisorColors.push('#ffd32a'); // 金/黄
     }
 
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
@@ -73,13 +86,11 @@ function updateGoldUI() {
     document.querySelectorAll('.current-gold-span').forEach(el => el.innerText = playerData.gold);
 }
 
-// 購入数に応じた動的価格計算 (15G, 20G, 25G...)
 function getCurrentColorPrice(unlockedList) {
     const purchasedCount = Math.max(0, unlockedList.length - 1);
     return BASE_COLOR_PRICE + (purchasedCount * PRICE_INCREMENT);
 }
 
-// ★ 全データ初期化（iPhoneのテストデータ消去用）
 function resetAllPlayerData() {
     if (confirm("⚠️ セーブデータを完全に初期化しますか？\n（所持金、スキン、連勝記録がすべて初期状態に戻ります）")) {
         localStorage.removeItem('fencing_player_data');
@@ -92,12 +103,11 @@ function resetAllPlayerData() {
     }
 }
 
-// デバッグ全解放 (+10G / 鎧解放 / 100連勝スキン解放 / バイザー全解放)
 function debugAddGold() {
     playerData.gold += 10;
     playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 10);
     playerData.outfitType = 'armor';
-    playerData.unlockedVisors = ['none', 'cyber', 'flame', 'crown'];
+    playerData.unlockedVisorColors = ['#ffffff', '#ff5252', '#40c4ff', '#ffd32a', '#2ecc71', '#9b59b6'];
     savePlayerData();
 
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
@@ -113,7 +123,6 @@ function debugAddGold() {
     if (typeof Sound !== 'undefined') Sound.playSE('bom');
 }
 
-// ★ 24時間カウントダウン式ログインボーナス
 let loginTimerInterval = null;
 function startDailyLoginTimer() {
     if (loginTimerInterval) clearInterval(loginTimerInterval);
@@ -163,7 +172,6 @@ function claimDailyLoginBonus() {
     alert(`🎉 ログインボーナス獲得！\n+${bonus} G を手に入れた！\n(現在の所持金: ${playerData.gold} G)`);
 }
 
-// 観戦ベッティングモーダル
 function openBetModal() {
     currentBetTarget = 1;
     currentBetAmount = Math.min(1, playerData.gold);
@@ -229,7 +237,6 @@ function confirmAndStartBetMatch() {
     }
 }
 
-// スキン工房モーダル
 function openShopModal() {
     document.getElementById('shop-screen').style.display = 'flex';
     renderShopUI();
@@ -272,23 +279,15 @@ function toggleArmorEquip(equip) {
     renderShopUI();
 }
 
-const VISOR_LIST = [
-    { id: 'none', name: '標準バイザー (白)', desc: '標準仕様のアイバイザー', color: '#ffffff', eventReq: 0 },
-    { id: 'cyber', name: '🔷 サイバー・アイ (水色)', desc: 'イベント1勝で解放', color: '#00d2d3', eventReq: 1 },
-    { id: 'flame', name: '🔥 フレイム・ブレイズ (赤)', desc: 'イベント3連勝で解放', color: '#ff4757', eventReq: 3 },
-    { id: 'crown', name: '👑 ゴッド・クラウン (金)', desc: 'イベント5連勝で解放', color: '#ffd32a', eventReq: 5 }
-];
-
 function renderShopUI() {
     updateGoldUI();
     
-    // 各部位ごとの現在価格を計算
     const normalBodyPrice = getCurrentColorPrice(playerData.unlockedBodyColors);
     const normalLegsPrice = getCurrentColorPrice(playerData.unlockedLegsColors);
     const armorBodyPrice = getCurrentColorPrice(playerData.unlockedArmorBodyColors);
     const armorLegsPrice = getCurrentColorPrice(playerData.unlockedArmorLegsColors);
+    const visorPrice = getCurrentColorPrice(playerData.unlockedVisorColors);
 
-    // タイトルに価格を反映
     const tNB = document.getElementById('title-normal-body');
     if (tNB) tNB.innerText = `■ 上半身カラー (次回: ${normalBodyPrice}G)`;
     const tNL = document.getElementById('title-normal-legs');
@@ -297,6 +296,8 @@ function renderShopUI() {
     if (tAB) tAB.innerText = `■ 鎧・上半身アーマー (次回: ${armorBodyPrice}G)`;
     const tAL = document.getElementById('title-armor-legs');
     if (tAL) tAL.innerText = `■ 鎧・下半身アーマー (次回: ${armorLegsPrice}G)`;
+    const tVisor = document.getElementById('title-visor');
+    if (tVisor) tVisor.innerText = `■ バイザーカラー (次回: ${visorPrice}G)`;
 
     // 1. 通常・上半身
     renderPaletteGrid('normal-body-palette', playerData.normalBodyColor, playerData.unlockedBodyColors, (c) => {
@@ -343,36 +344,11 @@ function renderShopUI() {
         playerData.armorLegsColor = c;
     }, playerData.unlockedArmorLegsColors, !isArmorUnlocked, armorLegsPrice);
 
-    // 5. 頭部バイザー
-    const visorListEl = document.getElementById('shop-visor-list');
-    if (visorListEl) {
-        visorListEl.innerHTML = '';
-        VISOR_LIST.forEach(v => {
-            const isUnlocked = playerData.unlockedVisors.includes(v.id);
-            const isEquipped = (playerData.equippedVisor === v.id);
-
-            const btn = document.createElement('button');
-            btn.className = `acc-item-btn ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}`;
-            btn.innerHTML = `
-                <div>
-                    <span style="color:${v.color}; font-weight:bold;">${v.name}</span>
-                    <div style="font-size:10px; color:#bbb;">${isUnlocked ? v.desc : `🔒 初心者イベント(${v.eventReq}勝)で獲得`}</div>
-                </div>
-                <span style="font-size:11px; color:#ffd32a;">${isEquipped ? '【装備中】' : (isUnlocked ? '装備する' : '未解放')}</span>
-            `;
-
-            btn.onclick = () => {
-                if (isUnlocked) {
-                    playerData.equippedVisor = v.id;
-                    savePlayerData();
-                    renderShopUI();
-                } else {
-                    alert(`このバイザーは【初心者イベント】で${v.eventReq}連勝すると解放されます！`);
-                }
-            };
-            visorListEl.appendChild(btn);
-        });
-    }
+    // ★ 5. 頭部バイザー（通常パレットと完全同等のパレットスウォッチ形式）
+    const visorPaletteWithWhite = ['#ffffff', ...PALETTE.filter(c => c !== '#ffffff')];
+    renderPaletteGrid('visor-palette', playerData.visorColor, playerData.unlockedVisorColors, (c) => {
+        playerData.visorColor = c;
+    }, playerData.unlockedVisorColors, false, visorPrice, visorPaletteWithWhite);
 
     // 6. 猛者スキン
     const accList = document.getElementById('accessory-list');
@@ -416,12 +392,14 @@ function renderShopUI() {
     }
 }
 
-function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked, currentPrice) {
+function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked, currentPrice, customPalette) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = '';
 
-    PALETTE.forEach(c => {
+    const list = customPalette || PALETTE;
+
+    list.forEach(c => {
         const isUnlocked = unlockList.includes(c);
         const sw = document.createElement('div');
         sw.className = `color-swatch ${currentColor === c ? 'active' : ''} ${(!isUnlocked || isParentLocked) ? 'locked' : ''}`;

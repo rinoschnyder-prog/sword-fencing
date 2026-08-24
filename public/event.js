@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js（5連勝で完全制覇＆イベント終了版）
+// ★ event.js（5連勝で完全制覇＆バイザー解放・イベント専用版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -90,6 +90,7 @@ touchBinds.forEach(b => {
     if (btn) {
         btn.addEventListener('touchstart', e => { e.preventDefault(); keys[b.key] = true; }, { passive: false });
         btn.addEventListener('touchend', e => { e.preventDefault(); keys[b.key] = false; }, { passive: false });
+        btn.addEventListener('touchcancel', e => { e.preventDefault(); keys[b.key] = false; }, { passive: false });
     }
 });
 
@@ -98,7 +99,7 @@ class Character {
         this.width = 44; this.height = 88;
         this.color = color; this.bodyColor = color; this.legsColor = color;
         this.armorBodyColor = color; this.armorLegsColor = color;
-        this.outfitType = 'normal'; this.visorType = 'none';
+        this.outfitType = 'normal'; this.visorColor = '#ffffff';
         this.hasCloak = false; this.hasGodAura = false;
         this.isCPU = isCPU; this.startX = 0; this.startY = 0; this.x = 0; this.y = 0;
         this.vx = 0; this.vy = 0; this.hp = MAX_HP; this.sp = 0;
@@ -295,6 +296,7 @@ class Character {
             if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
                 this.state = 'attack';
                 this.isHeavyAttack = true;
+                this.isAirAttack = false;
                 this.attackTimer = 0;
                 this.chargeTimer = 0;
                 Sound.playSE('swing');
@@ -476,44 +478,16 @@ class Character {
         else if (this.state === 'hit') {
             const headX = cx - dir * 35;
             headY = cy - 8;
-            const bodyChestX = cx - dir * 18;
-            const bodyHipX = cx;
-
             ctx.fillStyle = this.color;
             ctx.beginPath(); ctx.arc(headX, headY, 11, 0, Math.PI * 2); ctx.fill();
-
             ctx.strokeStyle = this.bodyColor;
-            ctx.beginPath(); ctx.moveTo(headX + dir * 10, headY); ctx.lineTo(bodyHipX, cy - 6); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(bodyChestX, cy - 6); ctx.lineTo(cx - dir * 10, cy - 14); ctx.stroke();
-
-            ctx.strokeStyle = this.legsColor;
-            ctx.beginPath(); ctx.moveTo(bodyHipX, cy - 6); ctx.lineTo(cx + dir * 22, cy - 12); ctx.lineTo(cx + dir * 35, cy - 4); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(bodyHipX, cy - 6); ctx.lineTo(cx + dir * 28, cy - 4); ctx.stroke();
-
-            ctx.save();
-            ctx.strokeStyle = '#ecf0f1'; ctx.lineWidth = 3.5;
-            ctx.beginPath(); ctx.moveTo(cx - dir * 10, cy - 3); ctx.lineTo(cx + dir * 30, cy - 3); ctx.stroke();
-            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(headX + dir * 10, headY); ctx.lineTo(cx, cy - 6); ctx.stroke();
             ctx.restore();
             return;
         }
-        else if (this.state === 'break') {
-            headY = cy - 45; chestY = cy - 32; hipY = cy - 18;
-            leftFoot = { x: cx - dir * 16, y: cy }; rightFoot = { x: cx + dir * 6, y: cy };
-            leftHand = { x: cx - dir * 8, y: cy - 20 }; rightHand = { x: cx + dir * 14, y: cy - 20 };
-            swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x + dir * 10, y: cy };
-        }
-        else if (this.state === 'flinch') {
-            headY = cy - 70; chestY = cy - 50; hipY = cy - 30;
-            leftFoot = { x: cx - dir * 18, y: cy }; rightFoot = { x: cx + dir * 6, y: cy };
-            leftHand = { x: cx - dir * 18, y: cy - 60 }; rightHand = { x: cx - dir * 8, y: cy - 55 };
-            swordStart = { x: rightHand.x, y: rightHand.y };
-            swordEnd = { x: rightHand.x - dir * 25, y: rightHand.y - 15 };
-        }
         else if (this.state === 'charge') {
-            const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const pullBack = Math.min(12, this.chargeTimer * 0.3);
+            const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const shake = isFull ? (Math.random() - 0.5) * 2.5 : 0;
             headY = cy - 66 + shake; chestY = cy - 48 + shake; hipY = cy - 28;
             leftFoot = { x: cx - dir * 20, y: cy }; rightFoot = { x: cx + dir * 16, y: cy };
@@ -523,8 +497,7 @@ class Character {
             swordEnd = { x: rightHand.x + dir * 55, y: rightHand.y - 4 };
         }
         else if (this.state === 'attack') {
-            const progress = this.attackTimer;
-            const reach = (progress >= 6 && progress <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16;
+            const reach = (this.attackTimer >= 6 && this.attackTimer <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16;
             if (this.isAirAttack) {
                 headY = cy - 70; chestY = cy - 52; hipY = cy - 32;
                 leftFoot = { x: cx - dir * 16, y: cy - 20 }; rightFoot = { x: cx + dir * 8, y: cy - 10 };
@@ -548,7 +521,7 @@ class Character {
             leftFoot = { x: cx - 13 + (cycle * 13), y: cy }; rightFoot = { x: cx + 13 - (cycle * 13), y: cy };
             leftHand = { x: cx - 11 - (cycle * 9), y: cy - 48 }; rightHand = { x: cx + 11 + (cycle * 9), y: cy - 48 };
             swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
-        }
+        } 
         else if (this.state === 'jump') {
             headY = cy - 78; chestY = cy - 58; hipY = cy - 36;
             leftFoot = { x: cx - 11, y: cy - 12 }; rightFoot = { x: cx + 11, y: cy - 16 };
@@ -565,23 +538,19 @@ class Character {
         ctx.fillStyle = this.color;
         ctx.beginPath(); ctx.arc(cx, headY, 11, 0, Math.PI * 2); ctx.fill();
 
-        // バイザー装飾
+        // ★ バイザー装飾（指定カラーでのネオングロー描画）
         ctx.save();
-        const v = this.visorType || 'none';
-        if (v === 'cyber') {
-            ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 3.5; ctx.shadowBlur = 8; ctx.shadowColor = '#00d2d3';
-            ctx.beginPath(); ctx.moveTo(cx - dir * 4, headY - 1); ctx.lineTo(cx + dir * 12, headY - 1); ctx.stroke();
-        } else if (v === 'flame') {
-            ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 4; ctx.shadowBlur = 10; ctx.shadowColor = '#ff4757';
-            ctx.beginPath(); ctx.moveTo(cx - dir * 2, headY - 2); ctx.lineTo(cx + dir * 13, headY); ctx.stroke();
-        } else if (v === 'crown') {
-            ctx.strokeStyle = '#ffd32a'; ctx.lineWidth = 3.2; ctx.shadowBlur = 10; ctx.shadowColor = '#ffd32a';
-            ctx.beginPath(); ctx.arc(cx, headY - 7, 7.5, -Math.PI * 0.8, -Math.PI * 0.2); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx, headY - 1); ctx.lineTo(cx + dir * 11, headY - 1); ctx.stroke();
-        } else {
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
-            ctx.beginPath(); ctx.moveTo(cx + dir * 2, headY - 1); ctx.lineTo(cx + dir * 10, headY - 1); ctx.stroke();
+        const vColor = this.visorColor || '#ffffff';
+        ctx.strokeStyle = vColor;
+        ctx.lineWidth = (vColor === '#ffffff') ? 2.5 : 3.5;
+        if (vColor !== '#ffffff') {
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = vColor;
         }
+        ctx.beginPath();
+        ctx.moveTo(cx + dir * 2, headY - 1);
+        ctx.lineTo(cx + dir * 11, headY - 1);
+        ctx.stroke();
         ctx.restore();
 
         // 脚
@@ -615,7 +584,7 @@ class Character {
         }
         ctx.restore();
 
-        // 胴体
+        // 上半身＆腕
         if (this.outfitType === 'armor') {
             const aBodyLight = adjustColor(this.armorBodyColor, 0.55);
             const aBodyMid = this.armorBodyColor;
@@ -630,6 +599,7 @@ class Character {
             ctx.strokeStyle = this.bodyColor; ctx.lineWidth = 5.5;
             ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(leftHand.x, leftHand.y); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(rightHand.x, rightHand.y); ctx.stroke();
+
             [leftHand, rightHand].forEach(hand => {
                 ctx.fillStyle = aBodyMid; ctx.strokeStyle = aBodyLight; ctx.lineWidth = 1.5;
                 ctx.beginPath(); ctx.arc(hand.x, hand.y, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -673,6 +643,7 @@ class Character {
         } else {
             ctx.strokeStyle = this.bodyColor;
             ctx.beginPath(); ctx.moveTo(cx, headY + 11); ctx.lineTo(cx, hipY); ctx.stroke();
+
             ctx.save(); ctx.fillStyle = this.bodyColor;
             ctx.beginPath(); ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 
@@ -714,7 +685,7 @@ resizeCanvas();
 
 function applyPlayerCustomization() {
     p1.outfitType = playerData.outfitType || 'normal';
-    p1.visorType = playerData.equippedVisor || 'none';
+    p1.visorColor = playerData.visorColor || '#ffffff';
     p1.color = playerData.normalBodyColor;
     p1.bodyColor = playerData.normalBodyColor;
     p1.legsColor = playerData.normalLegsColor;
@@ -755,7 +726,7 @@ function startEventBattle() {
     applyPlayerCustomization();
 
     p2.color = '#40c4ff'; p2.bodyColor = '#40c4ff'; p2.legsColor = '#40c4ff';
-    p2.outfitType = 'normal'; p2.visorType = 'none';
+    p2.outfitType = 'normal'; p2.visorColor = '#ffffff';
 
     document.getElementById('p1-name-display').innerText = "PLAYER";
     document.getElementById('p1-name-display').style.color = p1.color;
@@ -791,7 +762,6 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 本編と完全同一のKOスローモーション＆吹き飛び演出 ＋ 5連勝終了処理
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true; clearInterval(timerInterval);
@@ -803,13 +773,13 @@ function endRound(winner, reason) {
     const message = (winner === p1) ? "PLAYER WIN" : ((winner === p2) ? "CPU WIN" : (reason || "DRAW"));
 
     if (isMatchFinished && winner) {
-        timeScale = 0.25; // ★ KOスローモーション
+        timeScale = 0.25;
 
         if (winner.isHeavyAttack) {
-            loser.state = 'blowaway'; // ★ 大吹き飛び
+            loser.state = 'blowaway';
             loser.vx = 0; loser.vy = -22;
         } else {
-            loser.state = 'hit'; // ★ 通常ダウン
+            loser.state = 'hit';
             loser.vx = 0;
         }
 
@@ -819,26 +789,27 @@ function endRound(winner, reason) {
 
             if (p1Score >= MAX_SCORE) {
                 winStreak++;
-                playerData.gold += 2; // 勝利ボーナス 2G
+                playerData.gold += 2;
 
                 let unlockMsg = "";
-                if (winStreak >= 1 && !playerData.unlockedVisors.includes('cyber')) {
-                    playerData.unlockedVisors.push('cyber');
-                    unlockMsg += "\n🔷【サイバー・アイ】解放！";
+                // ★ イベント連勝で水色・赤・黄色を自動解放
+                if (winStreak >= 1 && !playerData.unlockedVisorColors.includes('#40c4ff')) {
+                    playerData.unlockedVisorColors.push('#40c4ff');
+                    unlockMsg += "\n🔷【水色バイザー】解放！";
                 }
-                if (winStreak >= 3 && !playerData.unlockedVisors.includes('flame')) {
-                    playerData.unlockedVisors.push('flame');
-                    unlockMsg += "\n🔥【フレイム・ブレイズ】解放！";
+                if (winStreak >= 3 && !playerData.unlockedVisorColors.includes('#ff5252')) {
+                    playerData.unlockedVisorColors.push('#ff5252');
+                    unlockMsg += "\n🔥【赤色バイザー】解放！";
                 }
-                if (winStreak >= 5 && !playerData.unlockedVisors.includes('crown')) {
-                    playerData.unlockedVisors.push('crown');
-                    unlockMsg += "\n👑【ゴッド・クラウン】解放！";
+                if (winStreak >= 5 && !playerData.unlockedVisorColors.includes('#ffd32a')) {
+                    playerData.unlockedVisorColors.push('#ffd32a');
+                    unlockMsg += "\n👑【金色バイザー】解放！";
                 }
                 savePlayerData();
 
-                // ★ 5連勝達成でイベント全制覇・タイトルへ帰還！
+                // 5連勝で完全制覇
                 if (winStreak >= 5) {
-                    showOverlay(`🎊 祝・イベント完全制覇！\n全バイザー解放達成！(+2G)${unlockMsg}\nおめでとうございます！`, 3500, () => {
+                    showOverlay(`🎊 祝・イベント完全制覇！\n全バイザーカラー獲得！(+2G)${unlockMsg}\nおめでとうございます！`, 3500, () => {
                         location.reload();
                     });
                 } else {

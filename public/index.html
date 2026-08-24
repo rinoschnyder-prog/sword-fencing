@@ -8,9 +8,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v16.0.2</title>
+    <title>ソード・フェンシング v16.0</title>
     
-    <link rel="stylesheet" href="style.css?v=16.0.2">
+    <link rel="stylesheet" href="style.css?v=16.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -176,10 +176,10 @@
                     <div class="color-palette-grid" id="armor-legs-palette"></div>
                 </div>
 
-                <!-- 頭部バイザータブ -->
+                <!-- ★ 頭部バイザータブ（統一パレット） -->
                 <div id="tab-visor" class="tab-content" style="display: none;">
-                    <div class="shop-item-title">■ フェイス・バイザー装飾 (初心者イベント報酬)</div>
-                    <div class="accessory-grid" id="shop-visor-list"></div>
+                    <div class="shop-item-title" id="title-visor">■ バイザーカラー (水色/赤/金はイベント解放)</div>
+                    <div class="color-palette-grid" id="visor-palette"></div>
                 </div>
 
                 <!-- 猛者スキンタブ -->
@@ -190,7 +190,6 @@
 
                 <div class="modal-buttons" style="margin-top: 15px;">
                     <button class="menu-btn" onclick="closeShopModal()">完了</button>
-                    <!-- ★ データ初期化ボタン -->
                     <button class="menu-btn cancel-btn" style="background:#d63031; font-size:11px;" onclick="resetAllPlayerData()">⚠️ 初期化</button>
                 </div>
             </div>
@@ -217,9 +216,9 @@
     </div>
 
     <!-- 安全な分割読み込み -->
-    <script src="sound.js?v=16.0.2"></script>
-    <script src="shop.js?v=16.0.2"></script>
-    <script src="effects.js?v=16.0.2"></script>
-    <script src="game.js?v=16.0.2"></script>
+    <script src="sound.js?v=16.0"></script>
+    <script src="shop.js?v=16.0"></script>
+    <script src="effects.js?v=16.0"></script>
+    <script src="game.js?v=16.0"></script>
 </body>
 </html>

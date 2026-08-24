@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <title>🔰 初心者応援！フェイス・バイザー獲得祭 v16.0.1</title>
     <link rel="stylesheet" href="style.css?v=16.0.1">
     <style>
@@ -98,19 +103,19 @@
             <div id="event-banner">
                 <div id="event-timer-badge">🔰 常設イベント（無期限・5連勝で制覇！）</div>
                 <h2 class="event-title">🔰 フェイス・バイザー獲得祭</h2>
-                <div style="font-size: 10px; color: #fff; margin-top:2px;">練習用CPUを倒して限定バイザーをGET！</div>
+                <div style="font-size: 10px; color: #fff; margin-top:2px;">練習用CPUを倒して限定バイザーカラーをGET！</div>
             </div>
 
-            <button class="menu-btn" style="background: linear-gradient(135deg, #00d2d3, #0984e3);" onclick="startEventBattle()">⚔️ イベント挑戦 (練習用CPU)</button>
+            <button class="menu-btn" style="background: linear-gradient(135deg, #00d2d3, #ff9f43);" onclick="startEventBattle()">⚔️ イベント挑戦 (練習用CPU)</button>
             <button class="menu-btn shop-btn" onclick="openShopModal()">🎨 スキン工房 (着替え＆バイザー確認)</button>
             <button class="menu-btn cancel-btn" style="background:#607d8b; margin-top: 10px;" onclick="location.href='index.html'">🏠 通常タイトルへ戻る</button>
 
             <!-- イベント報酬一覧ガイド -->
             <div id="ranking-board" style="margin-top: 12px; font-size:11px;">
                 <h3 style="color:#ffd32a;">🎁 イベント連勝報酬一覧 (全5戦)</h3>
-                <div class="ranking-row"><span>🔷 1勝達成</span><span>サイバー・アイ</span></div>
-                <div class="ranking-row"><span>🔥 3連勝達成</span><span>フレイム・ブレイズ</span></div>
-                <div class="ranking-row"><span>👑 5連勝達成 (制覇)</span><span>ゴッド・クラウン</span></div>
+                <div class="ranking-row"><span>🔷 1勝達成</span><span>水色バイザー</span></div>
+                <div class="ranking-row"><span>🔥 3連勝達成</span><span>赤色バイザー</span></div>
+                <div class="ranking-row"><span>👑 5連勝達成 (制覇)</span><span>金色バイザー</span></div>
             </div>
         </div>
 
@@ -142,9 +147,10 @@
                     <div class="color-palette-grid" id="armor-legs-palette"></div>
                 </div>
 
+                <!-- ★ 頭部バイザータブ（統一パレット） -->
                 <div id="tab-visor" class="tab-content" style="display: none;">
-                    <div class="shop-item-title">■ フェイス・バイザー装飾 (初心者イベント報酬)</div>
-                    <div class="accessory-grid" id="shop-visor-list"></div>
+                    <div class="shop-item-title" id="title-visor">■ バイザーカラー (水色/赤/金はイベント解放)</div>
+                    <div class="color-palette-grid" id="visor-palette"></div>
                 </div>
 
                 <div id="tab-accessory" class="tab-content" style="display: none;">

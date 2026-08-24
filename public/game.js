@@ -148,7 +148,7 @@ class Character {
         this.armorBodyColor = color;
         this.armorLegsColor = color;
         this.outfitType = 'normal';
-        this.visorType = 'none';
+        this.visorColor = '#ffffff'; // ★ バイザーカラー
         this.hasCloak = false;
         this.hasGodAura = false;
 
@@ -792,47 +792,19 @@ class Character {
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fill();
 
-        // 頭部フェイス・バイザー装飾
+        // ★ バイザー装飾（指定カラーでのネオングロー描画）
         ctx.save();
-        const v = this.visorType || 'none';
-        if (v === 'cyber') {
-            ctx.strokeStyle = '#00d2d3';
-            ctx.lineWidth = 3.5;
+        const vColor = this.visorColor || '#ffffff';
+        ctx.strokeStyle = vColor;
+        ctx.lineWidth = (vColor === '#ffffff') ? 2.5 : 3.5;
+        if (vColor !== '#ffffff') {
             ctx.shadowBlur = 8;
-            ctx.shadowColor = '#00d2d3';
-            ctx.beginPath();
-            ctx.moveTo(cx - dir * 4, headY - 1);
-            ctx.lineTo(cx + dir * 12, headY - 1);
-            ctx.stroke();
-        } else if (v === 'flame') {
-            ctx.strokeStyle = '#ff4757';
-            ctx.lineWidth = 4;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#ff4757';
-            ctx.beginPath();
-            ctx.moveTo(cx - dir * 2, headY - 2);
-            ctx.lineTo(cx + dir * 13, headY);
-            ctx.stroke();
-        } else if (v === 'crown') {
-            ctx.strokeStyle = '#ffd32a';
-            ctx.lineWidth = 3.2;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#ffd32a';
-            ctx.beginPath();
-            ctx.arc(cx, headY - 7, 7.5, -Math.PI * 0.8, -Math.PI * 0.2);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(cx, headY - 1);
-            ctx.lineTo(cx + dir * 11, headY - 1);
-            ctx.stroke();
-        } else {
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(cx + dir * 2, headY - 1);
-            ctx.lineTo(cx + dir * 10, headY - 1);
-            ctx.stroke();
+            ctx.shadowColor = vColor;
         }
+        ctx.beginPath();
+        ctx.moveTo(cx + dir * 2, headY - 1);
+        ctx.lineTo(cx + dir * 11, headY - 1);
+        ctx.stroke();
         ctx.restore();
 
         // 下半身
@@ -1065,7 +1037,7 @@ resizeCanvas();
 
 function applyPlayerCustomization() {
     p1.outfitType = playerData.outfitType || 'normal';
-    p1.visorType = playerData.equippedVisor || 'none';
+    p1.visorColor = playerData.visorColor || '#ffffff';
     p1.color = playerData.normalBodyColor;
     p1.bodyColor = playerData.normalBodyColor;
     p1.legsColor = playerData.normalLegsColor;
@@ -1166,7 +1138,7 @@ function connectToRoom() {
 
         const myChar = (myPlayerNumber === 1) ? p1 : p2;
         myChar.outfitType = p1.outfitType;
-        myChar.visorType = p1.visorType;
+        myChar.visorColor = p1.visorColor;
         myChar.color = p1.color;
         myChar.bodyColor = p1.bodyColor;
         myChar.legsColor = p1.legsColor;
@@ -1181,7 +1153,7 @@ function connectToRoom() {
         oppChar.legsColor = CPU_COLORS[1];
         oppChar.armorBodyColor = CPU_COLORS[1];
         oppChar.armorLegsColor = CPU_COLORS[1];
-        oppChar.visorType = 'none';
+        oppChar.visorColor = '#ffffff';
         oppChar.hasCloak = false;
         oppChar.hasGodAura = false;
 
@@ -1227,7 +1199,7 @@ function connectToRoom() {
         if (data.armorLegsColor) opp.armorLegsColor = data.armorLegsColor;
         if (data.color) opp.color = data.color;
         if (data.outfitType) opp.outfitType = data.outfitType;
-        if (data.visorType) opp.visorType = data.visorType;
+        if (data.visorColor) opp.visorColor = data.visorColor;
         opp.hasCloak = !!data.hasCloak;
         opp.hasGodAura = !!data.hasGodAura;
 
@@ -1297,20 +1269,18 @@ function emitMyPhysics(extraOppState, targetOppHp) {
         armorBodyColor: myChar.armorBodyColor,
         armorLegsColor: myChar.armorLegsColor,
         outfitType: myChar.outfitType,
-        visorType: myChar.visorType,
+        visorColor: myChar.visorColor,
         hasCloak: myChar.hasCloak,
         hasGodAura: myChar.hasGodAura
     });
 }
 
-// ランダムCPUスキン生成
 function generateRandomCpuSkin(excludeColor) {
     const availableColors = excludeColor ? CPU_COLORS.filter(c => c !== excludeColor) : CPU_COLORS;
     const baseColor = availableColors[Math.floor(Math.random() * availableColors.length)];
     const armorColor = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
     const wearsArmor = Math.random() < 0.75;
-    const visors = ['none', 'cyber', 'flame', 'crown'];
-    const randomVisor = visors[Math.floor(Math.random() * visors.length)];
+    const randomVisorColor = PALETTE[Math.floor(Math.random() * PALETTE.length)];
 
     return {
         color: baseColor,
@@ -1319,13 +1289,12 @@ function generateRandomCpuSkin(excludeColor) {
         armorBodyColor: armorColor,
         armorLegsColor: armorColor,
         outfitType: wearsArmor ? 'armor' : 'normal',
-        visorType: randomVisor,
+        visorColor: randomVisorColor,
         hasCloak: false,
         hasGodAura: false
     };
 }
 
-// CPU対戦開始
 function startCPUMode() {
     isOnlineMode = false;
     isWatchMode = false;
@@ -1365,7 +1334,6 @@ function startCPUMode() {
     showOverlay(`ROUND ${currentRound}`, 1500, startRound);
 }
 
-// 観戦モード
 function startWatchMode() {
     isOnlineMode = false;
     isWatchMode = true;
@@ -1794,6 +1762,5 @@ function gameLoop(currentTime = performance.now()) {
     requestAnimationFrame(gameLoop);
 }
 
-// 起動
 updateRankingUI();
 requestAnimationFrame(gameLoop);
