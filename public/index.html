@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v14.1</title>
+    <title>ソード・フェンシング v16.0</title>
     
-    <!-- ★ 最新バージョン v=14.1 -->
-    <link rel="stylesheet" href="style.css?v=14.1">
+    <!-- ★ 最新バージョン v=16.0 -->
+    <link rel="stylesheet" href="style.css?v=16.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -83,6 +83,7 @@
         
         <!-- タイトル画面 -->
         <div id="title-screen" class="screen">
+            <button id="daily-login-btn" onclick="claimDailyLoginBonus()">🎁 ログインボーナス！</button>
             <div id="top-gold-display">💰 所持金: <span id="gold-amount">0</span> G</div>
 
             <h1 class="game-title">ソード・フェンシング</h1>
@@ -117,10 +118,10 @@
                 
                 <div class="bet-pick-group">
                     <button class="bet-pick-btn active" id="bet-pick-p1" onclick="setBetTarget(1)">
-                        <span style="color:#ff5252;">■</span> CPU 1 (赤)
+                        <span id="bet-p1-color-box">■</span> CPU 1
                     </button>
                     <button class="bet-pick-btn" id="bet-pick-p2" onclick="setBetTarget(2)">
-                        <span id="bet-p2-color-box">■</span> CPU 2 (敵カラー)
+                        <span id="bet-p2-color-box">■</span> CPU 2
                     </button>
                 </div>
 
@@ -145,20 +146,31 @@
         <!-- スキン工房モーダル -->
         <div id="shop-screen" class="screen modal-screen" style="display: none;">
             <div class="modal-box shop-box">
-                <h2>🎨 スキン工房</h2>
+                <h2><span onclick="debugAddGold()" style="cursor: pointer; display: inline-block;">🎨</span> スキン工房</h2>
                 <div class="shop-gold">💰 所持金: <span class="current-gold-span">0</span> G</div>
 
                 <div class="shop-tabs">
-                    <button class="tab-btn active" onclick="switchShopTab('colors')">カラー (各15G)</button>
+                    <button class="tab-btn active" onclick="switchShopTab('normal')">カラー(通常)</button>
+                    <button class="tab-btn" onclick="switchShopTab('armor')">カラー(鎧上下)</button>
                     <button class="tab-btn" onclick="switchShopTab('accessory')">猛者専用スキン</button>
                 </div>
 
-                <div id="tab-colors" class="tab-content">
-                    <div class="shop-item-title">■ 上半身カラー</div>
-                    <div class="color-palette-grid" id="body-color-palette"></div>
+                <div id="tab-normal" class="tab-content">
+                    <div class="shop-item-title">■ 上半身カラー (各15G)</div>
+                    <div class="color-palette-grid" id="normal-body-palette"></div>
                     
-                    <div class="shop-item-title" style="margin-top:10px;">■ 下半身カラー</div>
-                    <div class="color-palette-grid" id="legs-color-palette"></div>
+                    <div class="shop-item-title" style="margin-top:10px;">■ 下半身カラー (各15G)</div>
+                    <div class="color-palette-grid" id="normal-legs-palette"></div>
+                </div>
+
+                <div id="tab-armor" class="tab-content" style="display: none;">
+                    <div id="armor-unlock-status" style="font-size:11px; color:#ffd32a; text-align:center; margin-bottom:6px;"></div>
+                    
+                    <div class="shop-item-title">■ 鎧・上半身アーマー (各15G)</div>
+                    <div class="color-palette-grid" id="armor-body-palette"></div>
+                    
+                    <div class="shop-item-title" style="margin-top:10px;">■ 鎧・下半身アーマー (各15G)</div>
+                    <div class="color-palette-grid" id="armor-legs-palette"></div>
                 </div>
 
                 <div id="tab-accessory" class="tab-content" style="display: none;">
@@ -191,7 +203,10 @@
         </div>
     </div>
 
-    <!-- ★ 最新バージョン v=14.1 -->
-    <script src="game.js?v=14.1"></script>
+    <!-- ★ 安全な分割読み込み (sound ➔ shop ➔ effects ➔ game) -->
+    <script src="sound.js?v=16.0"></script>
+    <script src="shop.js?v=16.0"></script>
+    <script src="effects.js?v=16.0"></script>
+    <script src="game.js?v=16.0"></script>
 </body>
 </html>
