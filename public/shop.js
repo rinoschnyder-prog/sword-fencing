@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js（バイザーパレット統一・セーブデータ管理）
+// ★ shop.js（バイザーパレット統一・リアルタイムプレビュー機能付き）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -27,7 +27,6 @@ let playerData = {
     unlockedArmorLegsColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
-    // ★ バイザーカラー（初期: 白）＆解放リスト
     visorColor: '#ffffff',
     unlockedVisorColors: ['#ffffff'],
     lastLoginTimestamp: 0
@@ -46,16 +45,16 @@ function loadPlayerData() {
         } catch (e) {}
     }
 
-    // イベント連勝記録に基づくバイザー色の自動解放マージ
+    // イベント連勝記録に基づく自動解放マージ
     const eventMaxStreak = Number(localStorage.getItem('fencing_event_max_streak') || 0);
     if ((eventMaxStreak >= 1 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('cyber'))) && !playerData.unlockedVisorColors.includes('#40c4ff')) {
-        playerData.unlockedVisorColors.push('#40c4ff'); // 水色
+        playerData.unlockedVisorColors.push('#40c4ff');
     }
     if ((eventMaxStreak >= 3 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('flame'))) && !playerData.unlockedVisorColors.includes('#ff5252')) {
-        playerData.unlockedVisorColors.push('#ff5252'); // 赤
+        playerData.unlockedVisorColors.push('#ff5252');
     }
     if ((eventMaxStreak >= 5 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('crown'))) && !playerData.unlockedVisorColors.includes('#ffd32a')) {
-        playerData.unlockedVisorColors.push('#ffd32a'); // 金/黄
+        playerData.unlockedVisorColors.push('#ffd32a');
     }
 
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
@@ -78,6 +77,7 @@ function savePlayerData() {
     if (typeof applyPlayerCustomization === 'function') {
         applyPlayerCustomization();
     }
+    renderShopPreview();
 }
 
 function updateGoldUI() {
@@ -103,11 +103,12 @@ function resetAllPlayerData() {
     }
 }
 
+// ★ デバッグ解放：バイザーは「白・水色・赤・金」の4色のみ解放（紫や緑はロック）
 function debugAddGold() {
     playerData.gold += 10;
     playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 10);
     playerData.outfitType = 'armor';
-    playerData.unlockedVisorColors = ['#ffffff', '#ff5252', '#40c4ff', '#ffd32a', '#2ecc71', '#9b59b6'];
+    playerData.unlockedVisorColors = ['#ffffff', '#40c4ff', '#ff5252', '#ffd32a'];
     savePlayerData();
 
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
@@ -237,9 +238,11 @@ function confirmAndStartBetMatch() {
     }
 }
 
+// スキン工房モーダル
 function openShopModal() {
     document.getElementById('shop-screen').style.display = 'flex';
     renderShopUI();
+    renderShopPreview();
 }
 
 function closeShopModal() {
@@ -266,6 +269,7 @@ function switchShopTab(tab) {
     });
 
     renderShopUI();
+    renderShopPreview();
 }
 
 function toggleArmorEquip(equip) {
@@ -277,6 +281,151 @@ function toggleArmorEquip(equip) {
     playerData.outfitType = equip ? 'armor' : 'normal';
     savePlayerData();
     renderShopUI();
+    renderShopPreview();
+}
+
+// ★ リアルタイム・スキンプレビュー描画関数
+function renderShopPreview() {
+    const pCanvas = document.getElementById('shop-preview-canvas');
+    if (!pCanvas) return;
+    const pCtx = pCanvas.getContext('2d');
+    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+
+    const cx = pCanvas.width / 2;
+    const cy = pCanvas.height - 14;
+
+    pCtx.save();
+    pCtx.lineWidth = 4.5;
+    pCtx.lineCap = 'round';
+    pCtx.lineJoin = 'round';
+
+    // 影
+    pCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    pCtx.beginPath();
+    pCtx.ellipse(cx, cy + 2, 22, 5, 0, 0, Math.PI * 2);
+    pCtx.fill();
+
+    const headY = cy - 64;
+    const chestY = cy - 46;
+    const hipY = cy - 28;
+
+    const leftFoot = { x: cx - 10, y: cy };
+    const rightFoot = { x: cx + 10, y: cy };
+    const leftHand = { x: cx - 10, y: cy - 40 };
+    const rightHand = { x: cx + 10, y: cy - 40 };
+
+    // マント
+    if (playerData.hasCloak) {
+        pCtx.fillStyle = 'rgba(192, 57, 43, 0.85)';
+        pCtx.beginPath();
+        pCtx.moveTo(cx - 4, chestY);
+        pCtx.quadraticCurveTo(cx - 20, cy - 25, cx - 24, cy - 8);
+        pCtx.lineTo(cx - 12, cy - 6);
+        pCtx.closePath();
+        pCtx.fill();
+    }
+
+    // ゴッドオーラパーティクル
+    if (playerData.hasGodAura) {
+        pCtx.fillStyle = '#ffd32a';
+        pCtx.shadowBlur = 6;
+        pCtx.shadowColor = '#ffd32a';
+        for (let i = 0; i < 4; i++) {
+            pCtx.beginPath();
+            pCtx.arc(cx + (Math.sin(Date.now() * 0.005 + i) * 16), cy - 20 - (i * 12), 2.5, 0, Math.PI * 2);
+            pCtx.fill();
+        }
+    }
+
+    // 頭部
+    pCtx.fillStyle = playerData.normalBodyColor;
+    pCtx.beginPath();
+    pCtx.arc(cx, headY, 9.5, 0, Math.PI * 2);
+    pCtx.fill();
+
+    // バイザー
+    pCtx.save();
+    const vColor = playerData.visorColor || '#ffffff';
+    pCtx.strokeStyle = vColor;
+    pCtx.lineWidth = (vColor === '#ffffff') ? 2 : 3;
+    if (vColor !== '#ffffff') {
+        pCtx.shadowBlur = 6;
+        pCtx.shadowColor = vColor;
+    }
+    pCtx.beginPath();
+    pCtx.moveTo(cx + 2, headY - 1);
+    pCtx.lineTo(cx + 10, headY - 1);
+    pCtx.stroke();
+    pCtx.restore();
+
+    // 下半身
+    pCtx.strokeStyle = playerData.normalLegsColor;
+    pCtx.beginPath();
+    pCtx.moveTo(cx, hipY); pCtx.lineTo(leftFoot.x, leftFoot.y); pCtx.stroke();
+    pCtx.beginPath();
+    pCtx.moveTo(cx, hipY); pCtx.lineTo(rightFoot.x, rightFoot.y); pCtx.stroke();
+
+    if (playerData.outfitType === 'armor') {
+        [leftFoot, rightFoot].forEach((foot) => {
+            const kneeX = (cx + foot.x) / 2;
+            const kneeY = (hipY + foot.y) / 2;
+            pCtx.strokeStyle = playerData.armorLegsColor;
+            pCtx.lineWidth = 6;
+            pCtx.beginPath();
+            pCtx.moveTo(kneeX, kneeY); pCtx.lineTo(foot.x, foot.y); pCtx.stroke();
+
+            pCtx.fillStyle = '#ecf0f1';
+            pCtx.beginPath();
+            pCtx.ellipse(foot.x + 2, foot.y - 1, 3.5, 2, 0, 0, Math.PI * 2);
+            pCtx.fill();
+        });
+    }
+
+    // 上半身
+    if (playerData.outfitType === 'armor') {
+        pCtx.strokeStyle = playerData.normalBodyColor;
+        pCtx.beginPath();
+        pCtx.moveTo(cx, headY + 9); pCtx.lineTo(cx, hipY); pCtx.stroke();
+
+        pCtx.fillStyle = playerData.armorBodyColor;
+        pCtx.beginPath();
+        pCtx.ellipse(cx, (chestY + hipY) / 2, 9.5, 13, 0, 0, Math.PI * 2);
+        pCtx.fill();
+
+        pCtx.strokeStyle = '#ffd32a';
+        pCtx.lineWidth = 1.3;
+        pCtx.beginPath();
+        pCtx.arc(cx - 6, chestY - 1, 6, 0, Math.PI * 2);
+        pCtx.fill(); pCtx.stroke();
+        pCtx.beginPath();
+        pCtx.arc(cx + 6, chestY - 1, 6, 0, Math.PI * 2);
+        pCtx.fill(); pCtx.stroke();
+    } else {
+        pCtx.strokeStyle = playerData.normalBodyColor;
+        pCtx.beginPath();
+        pCtx.moveTo(cx, headY + 9); pCtx.lineTo(cx, hipY); pCtx.stroke();
+        pCtx.fillStyle = playerData.normalBodyColor;
+        pCtx.beginPath();
+        pCtx.ellipse(cx, (chestY + hipY) / 2, 6, 11, 0, 0, Math.PI * 2);
+        pCtx.fill();
+    }
+
+    // 腕
+    pCtx.strokeStyle = playerData.normalBodyColor;
+    pCtx.beginPath();
+    pCtx.moveTo(cx, chestY); pCtx.lineTo(leftHand.x, leftHand.y); pCtx.stroke();
+    pCtx.beginPath();
+    pCtx.moveTo(cx, chestY); pCtx.lineTo(rightHand.x, rightHand.y); pCtx.stroke();
+
+    // 剣
+    pCtx.strokeStyle = '#ecf0f1';
+    pCtx.lineWidth = 3;
+    pCtx.beginPath();
+    pCtx.moveTo(rightHand.x, rightHand.y);
+    pCtx.lineTo(rightHand.x + 18, rightHand.y - 24);
+    pCtx.stroke();
+
+    pCtx.restore();
 }
 
 function renderShopUI() {
@@ -344,7 +493,7 @@ function renderShopUI() {
         playerData.armorLegsColor = c;
     }, playerData.unlockedArmorLegsColors, !isArmorUnlocked, armorLegsPrice);
 
-    // ★ 5. 頭部バイザー（通常パレットと完全同等のパレットスウォッチ形式）
+    // 5. 頭部バイザー
     const visorPaletteWithWhite = ['#ffffff', ...PALETTE.filter(c => c !== '#ffffff')];
     renderPaletteGrid('visor-palette', playerData.visorColor, playerData.unlockedVisorColors, (c) => {
         playerData.visorColor = c;
@@ -390,6 +539,8 @@ function renderShopUI() {
             accList.appendChild(btn);
         });
     }
+
+    renderShopPreview();
 }
 
 function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked, currentPrice, customPalette) {

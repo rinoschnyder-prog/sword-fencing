@@ -59,7 +59,7 @@ html, body {
     background: rgba(255, 82, 82, 0.8);
 }
 
-/* デイリーログインボーナスボタン（左上・派手な点滅） */
+/* デイリーログインボーナスボタン */
 #daily-login-btn {
     position: absolute;
     top: calc(12px + env(safe-area-inset-top));
@@ -89,7 +89,7 @@ html, body {
     100% { transform: scale(1.08); box-shadow: 0 0 20px #f39c12, 0 0 8px #ffd32a; }
 }
 
-/* 所持ゴールドバッジ（右上） */
+/* 所持ゴールドバッジ */
 #top-gold-display {
     position: absolute;
     top: calc(12px + env(safe-area-inset-top));
@@ -158,7 +158,6 @@ html, body {
     box-shadow: 0 0 10px #40c4ff, 0 0 4px #fff !important;
 }
 
-/* 1本のHPバー */
 .hp-bar {
     width: 100%;
     height: 14px;
@@ -188,7 +187,6 @@ html, body {
     float: right;
 }
 
-/* SP必殺ゲージ */
 .sp-bar {
     width: 100%;
     height: 5px;
@@ -373,7 +371,7 @@ html, body {
     box-shadow: 0 5px 15px rgba(243, 156, 18, 0.4);
 }
 
-/* ★ ランキングボード（文字色ホワイト化＆くっきり表示） */
+/* ランキングボード */
 #ranking-board {
     margin-top: 10px;
     background: rgba(0, 0, 0, 0.5);
@@ -400,8 +398,8 @@ html, body {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
     font-weight: bold;
-    color: #ffffff !important; /* ★ 真っ白な文字色 */
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9); /* ★ 背景に埋もれない黒フチ影 */
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }
 
 .title-footer { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; width: min(85vw, 250px); }
@@ -422,16 +420,18 @@ html, body {
     background: rgba(25, 30, 40, 0.95);
     border: 2px solid rgba(255, 211, 42, 0.6);
     border-radius: 16px;
-    padding: 16px;
-    width: min(90vw, 320px);
+    padding: 14px 16px;
+    width: min(92vw, 325px);
     display: flex;
     flex-direction: column;
     align-items: center;
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    max-height: 94vh;
+    overflow-y: auto;
 }
-.modal-box h2 { margin: 0 0 6px 0; font-size: 18px; color: #ffd32a; }
+.modal-box h2 { margin: 0 0 4px 0; font-size: 17px; color: #ffd32a; }
 
-.modal-buttons { display: flex; gap: 8px; width: 100%; margin-top: 12px; }
+.modal-buttons { display: flex; gap: 8px; width: 100%; margin-top: 10px; }
 .modal-buttons .menu-btn { flex: 1; font-size: 13px; margin: 0; }
 .modal-buttons .cancel-btn { background: #607d8b; }
 
@@ -453,33 +453,54 @@ html, body {
 .chip-btn.active { background: #ffd32a; color: #000; border-color: #ffd32a; }
 
 /* ショップ画面スタイル */
-.shop-gold { font-size: 13px; color: #ffd32a; font-weight: bold; margin-bottom: 8px; }
-.shop-tabs { display: flex; gap: 4px; width: 100%; margin-bottom: 10px; }
-.tab-btn { flex: 1; padding: 6px 2px; border-radius: 8px; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 10.5px; font-weight: bold; }
+.shop-gold { font-size: 12px; color: #ffd32a; font-weight: bold; margin-bottom: 6px; }
+.shop-tabs { display: flex; gap: 4px; width: 100%; margin-bottom: 8px; }
+.tab-btn { flex: 1; padding: 6px 2px; border-radius: 8px; background: rgba(255,255,255,0.15); border: none; color: #fff; font-size: 10px; font-weight: bold; }
 .tab-btn.active { background: #e67e22; }
 
 .tab-content { width: 100%; }
 .shop-item-title { font-size: 11px; color: #bbb; margin-bottom: 4px; }
-.color-palette-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.color-palette-grid { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
 
 .color-swatch {
-    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; cursor: pointer;
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; cursor: pointer;
     position: relative; display: flex; align-items: center; justify-content: center;
 }
 .color-swatch.active { transform: scale(1.2); box-shadow: 0 0 8px #fff; border-color: #ffd32a; }
 .color-swatch.locked::after {
     content: '🔒';
-    font-size: 11px;
+    font-size: 10px;
 }
 
 .accessory-grid { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .acc-item-btn {
-    display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;
+    display: flex; justify-content: space-between; align-items: center; padding: 6px 10px;
     border-radius: 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
-    color: #fff; font-size: 12px; font-weight: bold;
+    color: #fff; font-size: 11px; font-weight: bold;
 }
 .acc-item-btn.active { border-color: #ffd32a; background: rgba(255, 211, 42, 0.2); }
 .acc-item-btn.locked { opacity: 0.6; }
+
+/* ★ スキン工房リアルタイムプレビュー枠 */
+#shop-preview-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin: 8px 0 2px 0;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+#shop-preview-canvas {
+    display: block;
+    background: radial-gradient(circle at center, rgba(30, 45, 60, 0.8), rgba(10, 15, 25, 0.95));
+    border-radius: 8px;
+    border: 1px solid rgba(255, 211, 42, 0.3);
+}
 
 #online-form { display: flex; flex-direction: column; gap: 10px; width: min(80vw, 260px); }
 #online-form input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; text-align: center; font-size: 15px; }

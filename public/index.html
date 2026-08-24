@@ -8,9 +8,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v16.0</title>
+    <title>ソード・フェンシング v16.3</title>
     
-    <link rel="stylesheet" href="style.css?v=16.0">
+    <link rel="stylesheet" href="style.css?v=16.3">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -160,23 +160,20 @@
                 <div id="tab-normal" class="tab-content">
                     <div class="shop-item-title" id="title-normal-body">■ 上半身カラー</div>
                     <div class="color-palette-grid" id="normal-body-palette"></div>
-                    
-                    <div class="shop-item-title" id="title-normal-legs" style="margin-top:10px;">■ 下半身カラー</div>
+                    <div class="shop-item-title" id="title-normal-legs" style="margin-top:8px;">■ 下半身カラー</div>
                     <div class="color-palette-grid" id="normal-legs-palette"></div>
                 </div>
 
                 <!-- 鎧タブ -->
                 <div id="tab-armor" class="tab-content" style="display: none;">
                     <div id="armor-unlock-status" style="margin-bottom:6px;"></div>
-                    
                     <div class="shop-item-title" id="title-armor-body">■ 鎧・上半身アーマー</div>
                     <div class="color-palette-grid" id="armor-body-palette"></div>
-                    
-                    <div class="shop-item-title" id="title-armor-legs" style="margin-top:10px;">■ 鎧・下半身アーマー</div>
+                    <div class="shop-item-title" id="title-armor-legs" style="margin-top:8px;">■ 鎧・下半身アーマー</div>
                     <div class="color-palette-grid" id="armor-legs-palette"></div>
                 </div>
 
-                <!-- ★ 頭部バイザータブ（統一パレット） -->
+                <!-- 頭部バイザータブ -->
                 <div id="tab-visor" class="tab-content" style="display: none;">
                     <div class="shop-item-title" id="title-visor">■ バイザーカラー (水色/赤/金はイベント解放)</div>
                     <div class="color-palette-grid" id="visor-palette"></div>
@@ -188,7 +185,13 @@
                     <div class="accessory-grid" id="accessory-list"></div>
                 </div>
 
-                <div class="modal-buttons" style="margin-top: 15px;">
+                <!-- ★ リアルタイム・スキンプレビュー画面 -->
+                <div id="shop-preview-container">
+                    <div style="font-size: 10px; color: #ffd32a; font-weight: bold; margin-bottom: 2px;">👁️ 現在のプレビュー</div>
+                    <canvas id="shop-preview-canvas" width="110" height="95"></canvas>
+                </div>
+
+                <div class="modal-buttons">
                     <button class="menu-btn" onclick="closeShopModal()">完了</button>
                     <button class="menu-btn cancel-btn" style="background:#d63031; font-size:11px;" onclick="resetAllPlayerData()">⚠️ 初期化</button>
                 </div>
@@ -216,9 +219,9 @@
     </div>
 
     <!-- 安全な分割読み込み -->
-    <script src="sound.js?v=16.0"></script>
-    <script src="shop.js?v=16.0"></script>
-    <script src="effects.js?v=16.0"></script>
-    <script src="game.js?v=16.0"></script>
+    <script src="sound.js?v=16.3"></script>
+    <script src="shop.js?v=16.3"></script>
+    <script src="effects.js?v=16.3"></script>
+    <script src="game.js?v=16.3"></script>
 </body>
 </html>
