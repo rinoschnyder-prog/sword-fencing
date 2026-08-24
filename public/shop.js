@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js（バイザーパレット統一・リアルタイムプレビュー機能付き）
+// ★ shop.js（膝当て立体化＆プレビュー完全同期版）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -45,7 +45,6 @@ function loadPlayerData() {
         } catch (e) {}
     }
 
-    // イベント連勝記録に基づく自動解放マージ
     const eventMaxStreak = Number(localStorage.getItem('fencing_event_max_streak') || 0);
     if ((eventMaxStreak >= 1 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('cyber'))) && !playerData.unlockedVisorColors.includes('#40c4ff')) {
         playerData.unlockedVisorColors.push('#40c4ff');
@@ -103,7 +102,6 @@ function resetAllPlayerData() {
     }
 }
 
-// ★ デバッグ解放：バイザーは「白・水色・赤・金」の4色のみ解放（紫や緑はロック）
 function debugAddGold() {
     playerData.gold += 10;
     playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 10);
@@ -238,7 +236,6 @@ function confirmAndStartBetMatch() {
     }
 }
 
-// スキン工房モーダル
 function openShopModal() {
     document.getElementById('shop-screen').style.display = 'flex';
     renderShopUI();
@@ -284,7 +281,21 @@ function toggleArmorEquip(equip) {
     renderShopPreview();
 }
 
-// ★ リアルタイム・スキンプレビュー描画関数
+// プレビュー用カラー調整ヘルパー
+function adjustPreviewColor(hex, lum) {
+    hex = String(hex).replace(/[^0-9a-f]/gi, '');
+    if (hex.length < 6) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    lum = lum || 0;
+    let rgb = "#", c, i;
+    for (i = 0; i < 3; i++) {
+        c = parseInt(hex.substr(i*2, 2), 16);
+        c = Math.round(Math.min(Math.max(0, c + (c * lum)), 255)).toString(16);
+        rgb += ("00"+c).substr(c.length);
+    }
+    return rgb;
+}
+
+// ★ リアルタイム・スキンプレビュー描画（膝当て・鉄靴・胸当て完全再現）
 function renderShopPreview() {
     const pCanvas = document.getElementById('shop-preview-canvas');
     if (!pCanvas) return;
@@ -325,7 +336,7 @@ function renderShopPreview() {
         pCtx.fill();
     }
 
-    // ゴッドオーラパーティクル
+    // ゴッドオーラ
     if (playerData.hasGodAura) {
         pCtx.fillStyle = '#ffd32a';
         pCtx.shadowBlur = 6;
@@ -365,18 +376,44 @@ function renderShopPreview() {
     pCtx.beginPath();
     pCtx.moveTo(cx, hipY); pCtx.lineTo(rightFoot.x, rightFoot.y); pCtx.stroke();
 
+    // 鎧・下半身（立体脛当て ＆ シャープな菱形ニーガード ＆ 鉄靴）
     if (playerData.outfitType === 'armor') {
+        const aLegLight = adjustPreviewColor(playerData.armorLegsColor, 0.45);
+        const aLegDark = adjustPreviewColor(playerData.armorLegsColor, -0.45);
+
         [leftFoot, rightFoot].forEach((foot) => {
             const kneeX = (cx + foot.x) / 2;
             const kneeY = (hipY + foot.y) / 2;
+
             pCtx.strokeStyle = playerData.armorLegsColor;
             pCtx.lineWidth = 6;
             pCtx.beginPath();
             pCtx.moveTo(kneeX, kneeY); pCtx.lineTo(foot.x, foot.y); pCtx.stroke();
 
+            // ★ シャープな菱形ニーガード
+            pCtx.save();
+            pCtx.fillStyle = aLegLight;
+            pCtx.strokeStyle = '#ffd32a';
+            pCtx.lineWidth = 1.3;
+            pCtx.beginPath();
+            pCtx.moveTo(kneeX, kneeY - 4.5);
+            pCtx.lineTo(kneeX + 4, kneeY);
+            pCtx.lineTo(kneeX, kneeY + 4.5);
+            pCtx.lineTo(kneeX - 4, kneeY);
+            pCtx.closePath();
+            pCtx.fill();
+            pCtx.stroke();
+            pCtx.restore();
+
+            // 鉄靴サバトン
+            pCtx.fillStyle = aLegDark;
+            pCtx.beginPath();
+            pCtx.ellipse(foot.x + 2, foot.y, 6, 3.5, 0, 0, Math.PI * 2);
+            pCtx.fill();
+
             pCtx.fillStyle = '#ecf0f1';
             pCtx.beginPath();
-            pCtx.ellipse(foot.x + 2, foot.y - 1, 3.5, 2, 0, 0, Math.PI * 2);
+            pCtx.ellipse(foot.x + 2, foot.y - 1, 3.5, 1.8, 0, 0, Math.PI * 2);
             pCtx.fill();
         });
     }

@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js（5連勝で完全制覇＆バイザー解放・イベント専用版）
+// ★ event.js（膝当て菱形化＆5連勝制覇対応版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -211,7 +211,7 @@ class Character {
         }
 
         if (this.x < 12) this.x = 12;
-        if (this.x + this.width > canvas.width - 12) this.x = canvas.width - this.width - 12;
+        if (this.x + this.width > canvas.width - 12) this.x = canvas.width - this.width - margin;
 
         if (this.state !== 'attack' && this.state !== 'hadouken' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
@@ -538,7 +538,7 @@ class Character {
         ctx.fillStyle = this.color;
         ctx.beginPath(); ctx.arc(cx, headY, 11, 0, Math.PI * 2); ctx.fill();
 
-        // ★ バイザー装飾（指定カラーでのネオングロー描画）
+        // ★ バイザー装飾
         ctx.save();
         const vColor = this.visorColor || '#ffffff';
         ctx.strokeStyle = vColor;
@@ -559,26 +559,51 @@ class Character {
         ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(leftFoot.x, leftFoot.y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(rightFoot.x, rightFoot.y); ctx.stroke();
 
+        // 鎧（下半身：立体脛当て・★シャープな菱形ニーガード・鉄靴）
         if (this.outfitType === 'armor') {
             const aLegLight = adjustColor(this.armorLegsColor, 0.45);
-            const aLegMid = this.armorLegsColor;
             const aLegDark = adjustColor(this.armorLegsColor, -0.45);
 
             [leftFoot, rightFoot].forEach((foot) => {
-                const kneeX = (cx + foot.x) / 2; const kneeY = (hipY + foot.y) / 2;
+                const kneeX = (cx + foot.x) / 2;
+                const kneeY = (hipY + foot.y) / 2;
+
                 ctx.save();
                 const shinGrad = ctx.createLinearGradient(kneeX, kneeY, foot.x, foot.y);
-                shinGrad.addColorStop(0, aLegLight); shinGrad.addColorStop(0.5, aLegMid); shinGrad.addColorStop(1, aLegDark);
-                ctx.strokeStyle = shinGrad; ctx.lineWidth = 8;
-                ctx.beginPath(); ctx.moveTo(kneeX, kneeY); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+                shinGrad.addColorStop(0, aLegLight);
+                shinGrad.addColorStop(0.5, this.armorLegsColor);
+                shinGrad.addColorStop(1, aLegDark);
 
-                ctx.fillStyle = aLegLight; ctx.strokeStyle = '#ffd32a'; ctx.lineWidth = 1.8;
-                ctx.beginPath(); ctx.arc(kneeX, kneeY, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.strokeStyle = shinGrad;
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.moveTo(kneeX, kneeY);
+                ctx.lineTo(foot.x, foot.y);
+                ctx.stroke();
 
+                // ★ シャープな菱形ニーガード
+                ctx.fillStyle = aLegLight;
+                ctx.strokeStyle = '#ffd32a';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.moveTo(kneeX, kneeY - 5.5);
+                ctx.lineTo(kneeX + 4.5, kneeY);
+                ctx.lineTo(kneeX, kneeY + 5.5);
+                ctx.lineTo(kneeX - 4.5, kneeY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 鉄靴サバトン
                 ctx.fillStyle = aLegDark;
-                ctx.beginPath(); ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+
                 ctx.fillStyle = '#ecf0f1';
-                ctx.beginPath(); ctx.ellipse(foot.x + dir * 2, foot.y - 1, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(foot.x + dir * 2, foot.y - 1, 4, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
                 ctx.restore();
             });
         }
@@ -591,65 +616,123 @@ class Character {
             const aBodyDark = adjustColor(this.armorBodyColor, -0.5);
 
             ctx.save();
-            ctx.strokeStyle = this.bodyColor; ctx.lineWidth = 5.5;
-            ctx.beginPath(); ctx.moveTo(cx, headY + 11); ctx.lineTo(cx, hipY); ctx.stroke();
+            ctx.strokeStyle = this.bodyColor;
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            ctx.moveTo(cx, headY + 11);
+            ctx.lineTo(cx, hipY);
+            ctx.stroke();
             ctx.restore();
 
             ctx.save();
-            ctx.strokeStyle = this.bodyColor; ctx.lineWidth = 5.5;
-            ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(leftHand.x, leftHand.y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(rightHand.x, rightHand.y); ctx.stroke();
+            ctx.strokeStyle = this.bodyColor;
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(leftHand.x, leftHand.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(rightHand.x, rightHand.y);
+            ctx.stroke();
 
             [leftHand, rightHand].forEach(hand => {
-                ctx.fillStyle = aBodyMid; ctx.strokeStyle = aBodyLight; ctx.lineWidth = 1.5;
-                ctx.beginPath(); ctx.arc(hand.x, hand.y, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = aBodyMid;
+                ctx.strokeStyle = aBodyLight;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(hand.x, hand.y, 4.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
             });
             ctx.restore();
 
             ctx.save();
             const chestMidY = (chestY + hipY) / 2;
+
             ctx.fillStyle = aBodyDark;
-            ctx.beginPath(); ctx.ellipse(cx, chestMidY, 13, 18, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx, chestMidY, 13, 18, 0, 0, Math.PI * 2);
+            ctx.fill();
 
             const chestGrad = ctx.createLinearGradient(cx - 10, chestY - 4, cx + 10, hipY);
-            chestGrad.addColorStop(0, aBodyLight); chestGrad.addColorStop(0.45, aBodyMid); chestGrad.addColorStop(1, aBodyDark);
+            chestGrad.addColorStop(0, aBodyLight);
+            chestGrad.addColorStop(0.45, aBodyMid);
+            chestGrad.addColorStop(1, aBodyDark);
             ctx.fillStyle = chestGrad;
-            ctx.beginPath(); ctx.ellipse(cx, chestMidY, 11, 15, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(cx, chestMidY, 11, 15, 0, 0, Math.PI * 2);
+            ctx.fill();
 
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(cx, chestY - 2); ctx.lineTo(cx, hipY - 2); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY - 2);
+            ctx.lineTo(cx, hipY - 2);
+            ctx.stroke();
 
             ctx.fillStyle = '#ffd32a';
-            ctx.beginPath(); ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
+            ctx.fill();
 
-            ctx.fillStyle = aBodyMid; ctx.strokeStyle = aBodyDark; ctx.lineWidth = 1.5;
+            ctx.fillStyle = aBodyMid;
+            ctx.strokeStyle = aBodyDark;
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.ellipse(cx - dir * 8, hipY + 1, 4, 6, -0.3 * dir, 0, Math.PI * 2);
             ctx.ellipse(cx + dir * 8, hipY + 1, 4, 6, 0.3 * dir, 0, Math.PI * 2);
-            ctx.fill(); ctx.stroke();
+            ctx.fill();
+            ctx.stroke();
 
             [-1, 1].forEach(side => {
-                const spX = cx + side * 8; const spY = chestY - 3;
+                const spX = cx + side * 8;
+                const spY = chestY - 3;
+
                 ctx.fillStyle = aBodyDark;
-                ctx.beginPath(); ctx.ellipse(spX, spY + 3, 7.5, 5, side * 0.3, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(spX, spY + 3, 7.5, 5, side * 0.3, 0, Math.PI * 2);
+                ctx.fill();
 
                 const spGrad = ctx.createLinearGradient(spX - 5, spY - 5, spX + 5, spY + 5);
-                spGrad.addColorStop(0, '#ffffff'); spGrad.addColorStop(0.3, aBodyLight); spGrad.addColorStop(1, aBodyMid);
-                ctx.fillStyle = spGrad; ctx.strokeStyle = '#ffd32a'; ctx.lineWidth = 1.6;
-                ctx.beginPath(); ctx.ellipse(spX, spY, 7, 5, side * 0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                spGrad.addColorStop(0, '#ffffff');
+                spGrad.addColorStop(0.3, aBodyLight);
+                spGrad.addColorStop(1, aBodyMid);
+                ctx.fillStyle = spGrad;
+                ctx.strokeStyle = '#ffd32a';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.ellipse(spX, spY, 7, 5, side * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
             });
             ctx.restore();
 
         } else {
             ctx.strokeStyle = this.bodyColor;
-            ctx.beginPath(); ctx.moveTo(cx, headY + 11); ctx.lineTo(cx, hipY); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx, headY + 11);
+            ctx.lineTo(cx, hipY);
+            ctx.stroke();
 
-            ctx.save(); ctx.fillStyle = this.bodyColor;
-            ctx.beginPath(); ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            ctx.save();
+            ctx.fillStyle = this.bodyColor;
+            ctx.beginPath();
+            ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
 
-            ctx.save(); ctx.strokeStyle = this.bodyColor; ctx.lineWidth = 5.5;
-            ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(leftHand.x, leftHand.y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(rightHand.x, rightHand.y); ctx.stroke();
+            ctx.save();
+            ctx.strokeStyle = this.bodyColor;
+            ctx.lineWidth = 5.5;
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(leftHand.x, leftHand.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(cx, chestY);
+            ctx.lineTo(rightHand.x, rightHand.y);
+            ctx.stroke();
             ctx.restore();
         }
 
@@ -658,21 +741,33 @@ class Character {
             ctx.save();
             ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
             ctx.lineWidth = this.isHeavyAttack ? 4.5 : 3.8;
-            ctx.beginPath(); ctx.moveTo(swordStart.x, swordStart.y); ctx.lineTo(swordEnd.x, swordEnd.y); ctx.stroke();
-
-            ctx.strokeStyle = '#ffd32a'; ctx.lineWidth = 5;
             ctx.beginPath();
-            const sDx = swordEnd.x - swordStart.x; const sDy = swordEnd.y - swordStart.y;
+            ctx.moveTo(swordStart.x, swordStart.y);
+            ctx.lineTo(swordEnd.x, swordEnd.y);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ffd32a';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            const sDx = swordEnd.x - swordStart.x;
+            const sDy = swordEnd.y - swordStart.y;
             const sLen = Math.hypot(sDx, sDy) || 1;
-            const perpX = (-sDy / sLen) * 7; const perpY = (sDx / sLen) * 7;
-            const tsubaX = swordStart.x + (sDx / sLen) * 6; const tsubaY = swordStart.y + (sDy / sLen) * 6;
-            ctx.moveTo(tsubaX - perpX, tsubaY - perpY); ctx.lineTo(tsubaX + perpX, tsubaY + perpY); ctx.stroke();
+            const perpX = (-sDy / sLen) * 7;
+            const perpY = (sDx / sLen) * 7;
+            const tsubaX = swordStart.x + (sDx / sLen) * 6;
+            const tsubaY = swordStart.y + (sDy / sLen) * 6;
+            ctx.moveTo(tsubaX - perpX, tsubaY - perpY);
+            ctx.lineTo(tsubaX + perpX, tsubaY + perpY);
+            ctx.stroke();
             ctx.restore();
         }
 
         if (this.state === 'guard') {
-            ctx.strokeStyle = 'rgba(255, 211, 42, 0.45)'; ctx.lineWidth = 6;
-            ctx.beginPath(); ctx.arc(cx + dir * 20, cy - 44, 25, -Math.PI/2, Math.PI/2, dir === -1); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 211, 42, 0.45)';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(cx + dir * 20, cy - 44, 25, -Math.PI/2, Math.PI/2, dir === -1);
+            ctx.stroke();
         }
 
         ctx.restore();
@@ -792,7 +887,6 @@ function endRound(winner, reason) {
                 playerData.gold += 2;
 
                 let unlockMsg = "";
-                // ★ イベント連勝で水色・赤・黄色を自動解放
                 if (winStreak >= 1 && !playerData.unlockedVisorColors.includes('#40c4ff')) {
                     playerData.unlockedVisorColors.push('#40c4ff');
                     unlockMsg += "\n🔷【水色バイザー】解放！";
@@ -807,7 +901,6 @@ function endRound(winner, reason) {
                 }
                 savePlayerData();
 
-                // 5連勝で完全制覇
                 if (winStreak >= 5) {
                     showOverlay(`🎊 祝・イベント完全制覇！\n全バイザーカラー獲得！(+2G)${unlockMsg}\nおめでとうございます！`, 3500, () => {
                         location.reload();
@@ -920,8 +1013,7 @@ function checkHits() {
             const targetBody = { x: target.x, y: target.y, width: target.width, height: target.height };
             const ballBox = { x: ball.x - ball.radius, y: ball.y - ball.radius, width: ball.radius * 2, height: ball.radius * 2 };
 
-            if (ballBox.x < targetBody.x + targetBody.width && ballBox.x + ballBox.width > targetBody.x &&
-                ballBox.y < targetBody.y + targetBody.height && ballBox.y + ballBox.height > targetBody.y) {
+            if (checkCollision(ballBox, targetBody)) {
                 handleEnergyBallHit(ball, target, attacker);
                 energyBalls.splice(i, 1);
                 continue;
@@ -935,17 +1027,24 @@ function checkHits() {
 
     if (a1 && p2.state !== 'flinch' && p2.state !== 'hit' && p2.state !== 'blowaway') {
         const p2Body = { x: p2.x, y: p2.y, width: p2.width, height: p2.height };
-        if (a1.x < p2Body.x + p2Body.width && a1.x + a1.width > p2Body.x && a1.y < p2Body.y + p2Body.height && a1.y + a1.height > p2Body.y) {
+        if (checkCollision(a1, p2Body)) {
             handleHit(p1, p2, true, p1.direction === 1 ? p2.x + 8 : p2.x + p2.width - 8, a1.y + a1.height / 2);
         }
     }
 
     if (a2 && p1.state !== 'flinch' && p1.state !== 'hit' && p1.state !== 'blowaway') {
         const p1Body = { x: p1.x, y: p1.y, width: p1.width, height: p1.height };
-        if (a2.x < p1Body.x + p1Body.width && a2.x + a2.width > p1Body.x && a2.y < p1Body.y + p1Body.height && a2.y + a2.height > p1Body.y) {
+        if (checkCollision(a2, p1Body)) {
             handleHit(p2, p1, false, p2.direction === 1 ? p1.x + 8 : p1.x + p1.width - 8, a2.y + a2.height / 2);
         }
     }
+}
+
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
 }
 
 function updatePhysics() {

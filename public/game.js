@@ -148,7 +148,7 @@ class Character {
         this.armorBodyColor = color;
         this.armorLegsColor = color;
         this.outfitType = 'normal';
-        this.visorColor = '#ffffff'; // ★ バイザーカラー
+        this.visorColor = '#ffffff';
         this.hasCloak = false;
         this.hasGodAura = false;
 
@@ -792,7 +792,7 @@ class Character {
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fill();
 
-        // ★ バイザー装飾（指定カラーでのネオングロー描画）
+        // ★ バイザー装飾
         ctx.save();
         const vColor = this.visorColor || '#ffffff';
         ctx.strokeStyle = vColor;
@@ -820,10 +820,9 @@ class Character {
         ctx.lineTo(rightFoot.x, rightFoot.y);
         ctx.stroke();
 
-        // 鎧（下半身）
+        // 鎧（下半身：立体脛当て・★シャープな菱形ニーガード・鉄靴）
         if (this.outfitType === 'armor') {
             const aLegLight = adjustColor(this.armorLegsColor, 0.45);
-            const aLegMid = this.armorLegsColor;
             const aLegDark = adjustColor(this.armorLegsColor, -0.45);
 
             [leftFoot, rightFoot].forEach((foot) => {
@@ -833,7 +832,7 @@ class Character {
                 ctx.save();
                 const shinGrad = ctx.createLinearGradient(kneeX, kneeY, foot.x, foot.y);
                 shinGrad.addColorStop(0, aLegLight);
-                shinGrad.addColorStop(0.5, aLegMid);
+                shinGrad.addColorStop(0.5, this.armorLegsColor);
                 shinGrad.addColorStop(1, aLegDark);
 
                 ctx.strokeStyle = shinGrad;
@@ -843,14 +842,20 @@ class Character {
                 ctx.lineTo(foot.x, foot.y);
                 ctx.stroke();
 
+                // ★ シャープな菱形ニーガード（騎士風多角形プレート）
                 ctx.fillStyle = aLegLight;
                 ctx.strokeStyle = '#ffd32a';
-                ctx.lineWidth = 1.8;
+                ctx.lineWidth = 1.6;
                 ctx.beginPath();
-                ctx.arc(kneeX, kneeY, 4.5, 0, Math.PI * 2);
+                ctx.moveTo(kneeX, kneeY - 5.5);
+                ctx.lineTo(kneeX + 4.5, kneeY);
+                ctx.lineTo(kneeX, kneeY + 5.5);
+                ctx.lineTo(kneeX - 4.5, kneeY);
+                ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
+                // 鉄靴サバトン
                 ctx.fillStyle = aLegDark;
                 ctx.beginPath();
                 ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2);
