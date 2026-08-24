@@ -1,9 +1,14 @@
 // ==========================================
-// ★ shop.js（膝当て立体化＆プレビュー完全同期版）
+// ★ shop.js v17.0（通算30勝・兜システム＆リアルタイムプレビュー）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
 const PRICE_INCREMENT = 5;
+
+// ★ 兜専用価格（初期50G、1つごとに+20G）
+const HELMET_BASE_PRICE = 50;
+const HELMET_PRICE_INCREMENT = 20;
+
 const PALETTE = [
     '#ff5252', '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22',
     '#ffd32a', '#1abc9c', '#e056fd', '#f5f6fa', '#2c3e50'
@@ -25,6 +30,10 @@ let playerData = {
     unlockedLegsColors: ['#ff5252'],
     unlockedArmorBodyColors: ['#ff5252'],
     unlockedArmorLegsColors: ['#ff5252'],
+    // ★ 兜（ヘルメット）データ
+    hasHelmet: false,
+    helmetColor: '#ff5252',
+    unlockedHelmetColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
     visorColor: '#ffffff',
@@ -41,6 +50,7 @@ function loadPlayerData() {
             if (!playerData.unlockedLegsColors) playerData.unlockedLegsColors = ['#ff5252'];
             if (!playerData.unlockedArmorBodyColors) playerData.unlockedArmorBodyColors = ['#ff5252'];
             if (!playerData.unlockedArmorLegsColors) playerData.unlockedArmorLegsColors = ['#ff5252'];
+            if (!playerData.unlockedHelmetColors) playerData.unlockedHelmetColors = ['#ff5252'];
             if (!playerData.unlockedVisorColors) playerData.unlockedVisorColors = ['#ffffff'];
         } catch (e) {}
     }
@@ -90,6 +100,11 @@ function getCurrentColorPrice(unlockedList) {
     return BASE_COLOR_PRICE + (purchasedCount * PRICE_INCREMENT);
 }
 
+function getCurrentHelmetPrice(unlockedList) {
+    const purchasedCount = Math.max(0, unlockedList.length - 1);
+    return HELMET_BASE_PRICE + (purchasedCount * HELMET_PRICE_INCREMENT);
+}
+
 function resetAllPlayerData() {
     if (confirm("⚠️ セーブデータを完全に初期化しますか？\n（所持金、スキン、連勝記録がすべて初期状態に戻ります）")) {
         localStorage.removeItem('fencing_player_data');
@@ -104,8 +119,9 @@ function resetAllPlayerData() {
 
 function debugAddGold() {
     playerData.gold += 10;
-    playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 10);
+    playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 30);
     playerData.outfitType = 'armor';
+    playerData.hasHelmet = true;
     playerData.unlockedVisorColors = ['#ffffff', '#40c4ff', '#ff5252', '#ffd32a'];
     savePlayerData();
 
@@ -281,7 +297,19 @@ function toggleArmorEquip(equip) {
     renderShopPreview();
 }
 
-// プレビュー用カラー調整ヘルパー
+// ★ 兜の着脱関数
+function toggleHelmetEquip(equip) {
+    const isHelmetUnlocked = (playerData.totalCpuWins || 0) >= 30;
+    if (equip && !isHelmetUnlocked) {
+        alert(`兜は【CPU戦で通算30勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/30勝）`);
+        return;
+    }
+    playerData.hasHelmet = equip;
+    savePlayerData();
+    renderShopUI();
+    renderShopPreview();
+}
+
 function adjustPreviewColor(hex, lum) {
     hex = String(hex).replace(/[^0-9a-f]/gi, '');
     if (hex.length < 6) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
@@ -295,7 +323,7 @@ function adjustPreviewColor(hex, lum) {
     return rgb;
 }
 
-// ★ リアルタイム・スキンプレビュー描画（膝当て・鉄靴・胸当て完全再現）
+// ★ リアルタイム・スキンプレビュー（兜・鎧・バイザー・マント・オーラ完全描画）
 function renderShopPreview() {
     const pCanvas = document.getElementById('shop-preview-canvas');
     if (!pCanvas) return;
@@ -354,6 +382,37 @@ function renderShopPreview() {
     pCtx.arc(cx, headY, 9.5, 0, Math.PI * 2);
     pCtx.fill();
 
+    // ★ 兜（フルヘルム）描画
+    if (playerData.hasHelmet) {
+        const hColor = playerData.helmetColor || '#ff5252';
+        const hLight = adjustPreviewColor(hColor, 0.45);
+        const hDark = adjustPreviewColor(hColor, -0.45);
+
+        // 兜本体
+        pCtx.save();
+        pCtx.fillStyle = hColor;
+        pCtx.strokeStyle = '#ffd32a';
+        pCtx.lineWidth = 1.3;
+        pCtx.beginPath();
+        pCtx.arc(cx, headY - 1, 11, Math.PI * 0.75, Math.PI * 2.25);
+        pCtx.lineTo(cx + 9, headY + 5);
+        pCtx.lineTo(cx - 9, headY + 5);
+        pCtx.closePath();
+        pCtx.fill();
+        pCtx.stroke();
+
+        // 兜トサカ
+        pCtx.fillStyle = hLight;
+        pCtx.beginPath();
+        pCtx.moveTo(cx - 3, headY - 11);
+        pCtx.lineTo(cx + 6, headY - 17);
+        pCtx.lineTo(cx + 3, headY - 10);
+        pCtx.closePath();
+        pCtx.fill();
+        pCtx.stroke();
+        pCtx.restore();
+    }
+
     // バイザー
     pCtx.save();
     const vColor = playerData.visorColor || '#ffffff';
@@ -376,7 +435,6 @@ function renderShopPreview() {
     pCtx.beginPath();
     pCtx.moveTo(cx, hipY); pCtx.lineTo(rightFoot.x, rightFoot.y); pCtx.stroke();
 
-    // 鎧・下半身（立体脛当て ＆ シャープな菱形ニーガード ＆ 鉄靴）
     if (playerData.outfitType === 'armor') {
         const aLegLight = adjustPreviewColor(playerData.armorLegsColor, 0.45);
         const aLegDark = adjustPreviewColor(playerData.armorLegsColor, -0.45);
@@ -390,7 +448,7 @@ function renderShopPreview() {
             pCtx.beginPath();
             pCtx.moveTo(kneeX, kneeY); pCtx.lineTo(foot.x, foot.y); pCtx.stroke();
 
-            // ★ シャープな菱形ニーガード
+            // 菱形ニーガード
             pCtx.save();
             pCtx.fillStyle = aLegLight;
             pCtx.strokeStyle = '#ffd32a';
@@ -472,6 +530,7 @@ function renderShopUI() {
     const normalLegsPrice = getCurrentColorPrice(playerData.unlockedLegsColors);
     const armorBodyPrice = getCurrentColorPrice(playerData.unlockedArmorBodyColors);
     const armorLegsPrice = getCurrentColorPrice(playerData.unlockedArmorLegsColors);
+    const helmetPrice = getCurrentHelmetPrice(playerData.unlockedHelmetColors);
     const visorPrice = getCurrentColorPrice(playerData.unlockedVisorColors);
 
     const tNB = document.getElementById('title-normal-body');
@@ -482,6 +541,8 @@ function renderShopUI() {
     if (tAB) tAB.innerText = `■ 鎧・上半身アーマー (次回: ${armorBodyPrice}G)`;
     const tAL = document.getElementById('title-armor-legs');
     if (tAL) tAL.innerText = `■ 鎧・下半身アーマー (次回: ${armorLegsPrice}G)`;
+    const tHelmet = document.getElementById('title-armor-helmet');
+    if (tHelmet) tHelmet.innerText = `■ 鎧・兜フルヘルム (次回: ${helmetPrice}G)`;
     const tVisor = document.getElementById('title-visor');
     if (tVisor) tVisor.innerText = `■ バイザーカラー (次回: ${visorPrice}G)`;
 
@@ -495,7 +556,7 @@ function renderShopUI() {
         playerData.normalLegsColor = c;
     }, playerData.unlockedLegsColors, false, normalLegsPrice);
 
-    // 鎧タブ
+    // 鎧タブ（鎧上下 ＆ ★兜）
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     const isWearingArmor = (playerData.outfitType === 'armor');
 
@@ -516,6 +577,26 @@ function renderShopUI() {
         }
     }
 
+    // ★ 兜ステータス
+    const isHelmetUnlocked = (playerData.totalCpuWins || 0) >= 30;
+    const isWearingHelmet = !!playerData.hasHelmet;
+    const helmetStatusEl = document.getElementById('helmet-unlock-status');
+    if (helmetStatusEl) {
+        if (!isHelmetUnlocked) {
+            helmetStatusEl.innerHTML = `<span style="color:#ffd32a;">🔒 兜の解放条件: CPU戦通算30勝（現在: ${playerData.totalCpuWins || 0}/30勝）</span>`;
+        } else {
+            helmetStatusEl.innerHTML = isWearingHelmet ? 
+                `<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:6px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px;">
+                    <span style="color:#0be881; font-weight:bold; font-size:12px;">👑 兜を【装備中】</span>
+                    <button class="menu-btn" style="padding:4px 10px; font-size:11px; width:auto; margin:0; background:#607d8b; box-shadow:none;" onclick="toggleHelmetEquip(false)">✕ 兜を脱ぐ</button>
+                 </div>` : 
+                `<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:6px; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:8px;">
+                    <span style="color:#a4b0be; font-size:12px;">👑 兜は未装備</span>
+                    <button class="menu-btn" style="padding:4px 10px; font-size:11px; width:auto; margin:0; background:linear-gradient(135deg, #0be881, #05c46b); box-shadow:0 2px 8px rgba(11,232,129,0.4);" onclick="toggleHelmetEquip(true)">👑 兜を装備する</button>
+                 </div>`;
+        }
+    }
+
     // 3. 鎧・上半身
     renderPaletteGrid('armor-body-palette', playerData.armorBodyColor, playerData.unlockedArmorBodyColors, (c) => {
         if (!isArmorUnlocked) { alert(`鎧は【CPU戦で通算10勝】すると解放されます！`); return; }
@@ -530,13 +611,20 @@ function renderShopUI() {
         playerData.armorLegsColor = c;
     }, playerData.unlockedArmorLegsColors, !isArmorUnlocked, armorLegsPrice);
 
-    // 5. 頭部バイザー
+    // ★ 5. 鎧・兜パレット (50G〜+20G)
+    renderPaletteGrid('armor-helmet-palette', playerData.helmetColor, playerData.unlockedHelmetColors, (c) => {
+        if (!isHelmetUnlocked) { alert(`兜は【CPU戦で通算30勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/30勝）`); return; }
+        playerData.hasHelmet = true;
+        playerData.helmetColor = c;
+    }, playerData.unlockedHelmetColors, !isHelmetUnlocked, helmetPrice);
+
+    // 6. 頭部バイザー
     const visorPaletteWithWhite = ['#ffffff', ...PALETTE.filter(c => c !== '#ffffff')];
     renderPaletteGrid('visor-palette', playerData.visorColor, playerData.unlockedVisorColors, (c) => {
         playerData.visorColor = c;
     }, playerData.unlockedVisorColors, false, visorPrice, visorPaletteWithWhite);
 
-    // 6. 猛者スキン
+    // 7. 猛者スキン
     const accList = document.getElementById('accessory-list');
     if (accList) {
         accList.innerHTML = '';
@@ -598,7 +686,7 @@ function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unl
                 onSelect(c);
             } else {
                 if (playerData.gold >= currentPrice) {
-                    if (confirm(`このカラーを ${currentPrice} G で購入しますか？\n（※次回からは価格が+5G増えます）`)) {
+                    if (confirm(`このカラーを ${currentPrice} G で購入しますか？`)) {
                         playerData.gold -= currentPrice;
                         unlockList.push(c);
                         onSelect(c);

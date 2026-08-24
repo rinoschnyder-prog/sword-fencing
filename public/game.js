@@ -1,3 +1,7 @@
+// ==========================================
+// ★ game.js v17.0（兜描画 ＆ 溜め強攻撃・波動弾KO大吹き飛び対応）
+// ==========================================
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const timerEl = document.getElementById('timer');
@@ -13,7 +17,6 @@ const btnExitWatch = document.getElementById('btn-exit-watch');
 const touchControls = document.getElementById('touch-controls');
 const specialControlContainer = document.getElementById('special-control-container');
 
-// 全画面動的リサイズ設定
 let GROUND_Y = 0;
 const GRAVITY = 0.65;
 const ROUND_TIME_LIMIT = 30; 
@@ -28,19 +31,16 @@ let isWatchMode = false;
 let roundEndTimeout = null;
 let overlayTimeout = null;
 
-// 60fps固定タイムステップ
 const TARGET_FPS = 60;
 const STEP = 1000 / TARGET_FPS;
 let lastFrameTime = performance.now();
 let accumulator = 0;
 
-// オンライン用変数
 let socket = null;
 let isOnlineMode = false;
 let myPlayerNumber = 0;
 const SERVER_URL = window.location.origin;
 
-// カラー明暗調整ヘルパー関数
 function adjustColor(hex, lum) {
     hex = String(hex).replace(/[^0-9a-f]/gi, '');
     if (hex.length < 6) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
@@ -93,7 +93,6 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 
-// ゲーム状態
 let p1Score = 0;
 let p2Score = 0;
 let currentRound = 1;
@@ -148,6 +147,9 @@ class Character {
         this.armorBodyColor = color;
         this.armorLegsColor = color;
         this.outfitType = 'normal';
+        // ★ 兜プロパティ
+        this.hasHelmet = false;
+        this.helmetColor = color;
         this.visorColor = '#ffffff';
         this.hasCloak = false;
         this.hasGodAura = false;
@@ -786,13 +788,42 @@ class Character {
             ctx.restore();
         }
 
-        // 頭部
+        // 頭部素体
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(cx, headY, 11, 0, Math.PI * 2);
         ctx.fill();
 
-        // ★ バイザー装飾
+        // ★ 兜（フルヘルム）描画
+        if (this.hasHelmet && this.state !== 'hit') {
+            const hColor = this.helmetColor || '#ff5252';
+            const hLight = adjustColor(hColor, 0.45);
+
+            ctx.save();
+            ctx.fillStyle = hColor;
+            ctx.strokeStyle = '#ffd32a';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(cx, headY - 1, 12.5, Math.PI * 0.75, Math.PI * 2.25);
+            ctx.lineTo(cx + dir * 11, headY + 6);
+            ctx.lineTo(cx - dir * 11, headY + 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 兜トサカ
+            ctx.fillStyle = hLight;
+            ctx.beginPath();
+            ctx.moveTo(cx - dir * 4, headY - 13);
+            ctx.lineTo(cx + dir * 8, headY - 20);
+            ctx.lineTo(cx + dir * 4, headY - 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // バイザー装飾
         ctx.save();
         const vColor = this.visorColor || '#ffffff';
         ctx.strokeStyle = vColor;
@@ -820,7 +851,7 @@ class Character {
         ctx.lineTo(rightFoot.x, rightFoot.y);
         ctx.stroke();
 
-        // 鎧（下半身：立体脛当て・★シャープな菱形ニーガード・鉄靴）
+        // 鎧（下半身：立体脛当て・菱形ニーガード・鉄靴）
         if (this.outfitType === 'armor') {
             const aLegLight = adjustColor(this.armorLegsColor, 0.45);
             const aLegDark = adjustColor(this.armorLegsColor, -0.45);
@@ -842,7 +873,7 @@ class Character {
                 ctx.lineTo(foot.x, foot.y);
                 ctx.stroke();
 
-                // ★ シャープな菱形ニーガード（騎士風多角形プレート）
+                // 菱形ニーガード
                 ctx.fillStyle = aLegLight;
                 ctx.strokeStyle = '#ffd32a';
                 ctx.lineWidth = 1.6;
@@ -873,7 +904,6 @@ class Character {
         // 上半身＆腕
         if (this.outfitType === 'armor') {
             const aBodyLight = adjustColor(this.armorBodyColor, 0.55);
-            const aBodyMid = this.armorBodyColor;
             const aBodyDark = adjustColor(this.armorBodyColor, -0.5);
 
             ctx.save();
@@ -898,7 +928,7 @@ class Character {
             ctx.stroke();
 
             [leftHand, rightHand].forEach(hand => {
-                ctx.fillStyle = aBodyMid;
+                ctx.fillStyle = this.armorBodyColor;
                 ctx.strokeStyle = aBodyLight;
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
@@ -918,7 +948,7 @@ class Character {
 
             const chestGrad = ctx.createLinearGradient(cx - 10, chestY - 4, cx + 10, hipY);
             chestGrad.addColorStop(0, aBodyLight);
-            chestGrad.addColorStop(0.45, aBodyMid);
+            chestGrad.addColorStop(0.45, this.armorBodyColor);
             chestGrad.addColorStop(1, aBodyDark);
             ctx.fillStyle = chestGrad;
             ctx.beginPath();
@@ -937,7 +967,7 @@ class Character {
             ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = aBodyMid;
+            ctx.fillStyle = this.armorBodyColor;
             ctx.strokeStyle = aBodyDark;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -958,7 +988,7 @@ class Character {
                 const spGrad = ctx.createLinearGradient(spX - 5, spY - 5, spX + 5, spY + 5);
                 spGrad.addColorStop(0, '#ffffff');
                 spGrad.addColorStop(0.3, aBodyLight);
-                spGrad.addColorStop(1, aBodyMid);
+                spGrad.addColorStop(1, this.armorBodyColor);
                 ctx.fillStyle = spGrad;
                 ctx.strokeStyle = '#ffd32a';
                 ctx.lineWidth = 1.6;
@@ -1042,6 +1072,8 @@ resizeCanvas();
 
 function applyPlayerCustomization() {
     p1.outfitType = playerData.outfitType || 'normal';
+    p1.hasHelmet = playerData.hasHelmet || false;
+    p1.helmetColor = playerData.helmetColor || playerData.normalBodyColor;
     p1.visorColor = playerData.visorColor || '#ffffff';
     p1.color = playerData.normalBodyColor;
     p1.bodyColor = playerData.normalBodyColor;
@@ -1143,6 +1175,8 @@ function connectToRoom() {
 
         const myChar = (myPlayerNumber === 1) ? p1 : p2;
         myChar.outfitType = p1.outfitType;
+        myChar.hasHelmet = p1.hasHelmet;
+        myChar.helmetColor = p1.helmetColor;
         myChar.visorColor = p1.visorColor;
         myChar.color = p1.color;
         myChar.bodyColor = p1.bodyColor;
@@ -1158,6 +1192,7 @@ function connectToRoom() {
         oppChar.legsColor = CPU_COLORS[1];
         oppChar.armorBodyColor = CPU_COLORS[1];
         oppChar.armorLegsColor = CPU_COLORS[1];
+        oppChar.hasHelmet = false;
         oppChar.visorColor = '#ffffff';
         oppChar.hasCloak = false;
         oppChar.hasGodAura = false;
@@ -1202,6 +1237,8 @@ function connectToRoom() {
         if (data.legsColor) opp.legsColor = data.legsColor;
         if (data.armorBodyColor) opp.armorBodyColor = data.armorBodyColor;
         if (data.armorLegsColor) opp.armorLegsColor = data.armorLegsColor;
+        if (data.helmetColor) opp.helmetColor = data.helmetColor;
+        if (data.hasHelmet !== undefined) opp.hasHelmet = data.hasHelmet;
         if (data.color) opp.color = data.color;
         if (data.outfitType) opp.outfitType = data.outfitType;
         if (data.visorColor) opp.visorColor = data.visorColor;
@@ -1273,6 +1310,8 @@ function emitMyPhysics(extraOppState, targetOppHp) {
         legsColor: myChar.legsColor,
         armorBodyColor: myChar.armorBodyColor,
         armorLegsColor: myChar.armorLegsColor,
+        hasHelmet: myChar.hasHelmet,
+        helmetColor: myChar.helmetColor,
         outfitType: myChar.outfitType,
         visorColor: myChar.visorColor,
         hasCloak: myChar.hasCloak,
@@ -1285,6 +1324,7 @@ function generateRandomCpuSkin(excludeColor) {
     const baseColor = availableColors[Math.floor(Math.random() * availableColors.length)];
     const armorColor = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
     const wearsArmor = Math.random() < 0.75;
+    const wearsHelmet = wearsArmor && Math.random() < 0.65; // 鎧装備時に兜もランダム装備
     const randomVisorColor = PALETTE[Math.floor(Math.random() * PALETTE.length)];
 
     return {
@@ -1293,6 +1333,8 @@ function generateRandomCpuSkin(excludeColor) {
         legsColor: baseColor,
         armorBodyColor: armorColor,
         armorLegsColor: armorColor,
+        hasHelmet: wearsHelmet,
+        helmetColor: armorColor,
         outfitType: wearsArmor ? 'armor' : 'normal',
         visorColor: randomVisorColor,
         hasCloak: false,
@@ -1413,6 +1455,7 @@ function startRound() {
     }, 1000);
 }
 
+// ★ 溜め強攻撃・必殺KO大吹き飛び演出強化版 endRound
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1435,10 +1478,9 @@ function endRound(winner, reason) {
         message = reason || "DRAW";
     }
 
-    if (isMatchFinished && winner) {
-        timeScale = 0.25;
-
-        if (winner.isHeavyAttack) {
+    // ★ 溜め強攻撃KOまたは波動弾KO時はいつでも豪快に大吹き飛び！
+    if (winner) {
+        if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';
             loser.vx = 0;
             loser.vy = -22;
@@ -1446,6 +1488,10 @@ function endRound(winner, reason) {
             loser.state = 'hit';
             loser.vx = 0;
         }
+    }
+
+    if (isMatchFinished && winner) {
+        timeScale = 0.25;
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -1482,6 +1528,8 @@ function endRound(winner, reason) {
                     let winMsg = `VICTORY!\n${winStreak}連勝達成！(+${earned}G)`;
                     if (playerData.totalCpuWins === 10) {
                         winMsg += `\n🛡️ 通算10勝達成！【鎧】解放！`;
+                    } else if (playerData.totalCpuWins === 30) {
+                        winMsg += `\n👑 通算30勝達成！【兜】解放！`;
                     }
 
                     showOverlay(winMsg, 2500, startNextMatch);
@@ -1494,11 +1542,6 @@ function endRound(winner, reason) {
             }
         }, 1800);
     } else {
-        if (winner) {
-            loser.state = 'hit';
-            loser.vx = 0;
-        }
-
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
             p1.reset();

@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js（膝当て菱形化＆5連勝制覇対応版）
+// ★ event.js v17.0（兜描画 ＆ 溜め・必殺KO大吹き飛び対応）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -99,7 +99,10 @@ class Character {
         this.width = 44; this.height = 88;
         this.color = color; this.bodyColor = color; this.legsColor = color;
         this.armorBodyColor = color; this.armorLegsColor = color;
-        this.outfitType = 'normal'; this.visorColor = '#ffffff';
+        this.outfitType = 'normal';
+        this.hasHelmet = false;
+        this.helmetColor = color;
+        this.visorColor = '#ffffff';
         this.hasCloak = false; this.hasGodAura = false;
         this.isCPU = isCPU; this.startX = 0; this.startY = 0; this.x = 0; this.y = 0;
         this.vx = 0; this.vy = 0; this.hp = MAX_HP; this.sp = 0;
@@ -211,7 +214,7 @@ class Character {
         }
 
         if (this.x < 12) this.x = 12;
-        if (this.x + this.width > canvas.width - 12) this.x = canvas.width - this.width - margin;
+        if (this.x + this.width > canvas.width - 12) this.x = canvas.width - this.width - 12;
 
         if (this.state !== 'attack' && this.state !== 'hadouken' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
@@ -534,11 +537,40 @@ class Character {
             swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
         }
 
-        // 頭部
+        // 頭部素体
         ctx.fillStyle = this.color;
         ctx.beginPath(); ctx.arc(cx, headY, 11, 0, Math.PI * 2); ctx.fill();
 
-        // ★ バイザー装飾
+        // ★ 兜（フルヘルム）描画
+        if (this.hasHelmet && this.state !== 'hit') {
+            const hColor = this.helmetColor || '#ff5252';
+            const hLight = adjustColor(hColor, 0.45);
+
+            ctx.save();
+            ctx.fillStyle = hColor;
+            ctx.strokeStyle = '#ffd32a';
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(cx, headY - 1, 12.5, Math.PI * 0.75, Math.PI * 2.25);
+            ctx.lineTo(cx + dir * 11, headY + 6);
+            ctx.lineTo(cx - dir * 11, headY + 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 兜トサカ
+            ctx.fillStyle = hLight;
+            ctx.beginPath();
+            ctx.moveTo(cx - dir * 4, headY - 13);
+            ctx.lineTo(cx + dir * 8, headY - 20);
+            ctx.lineTo(cx + dir * 4, headY - 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // バイザー装飾
         ctx.save();
         const vColor = this.visorColor || '#ffffff';
         ctx.strokeStyle = vColor;
@@ -559,7 +591,7 @@ class Character {
         ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(leftFoot.x, leftFoot.y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(rightFoot.x, rightFoot.y); ctx.stroke();
 
-        // 鎧（下半身：立体脛当て・★シャープな菱形ニーガード・鉄靴）
+        // 鎧（下半身：立体脛当て・菱形ニーガード・鉄靴）
         if (this.outfitType === 'armor') {
             const aLegLight = adjustColor(this.armorLegsColor, 0.45);
             const aLegDark = adjustColor(this.armorLegsColor, -0.45);
@@ -581,7 +613,7 @@ class Character {
                 ctx.lineTo(foot.x, foot.y);
                 ctx.stroke();
 
-                // ★ シャープな菱形ニーガード
+                // 菱形ニーガード
                 ctx.fillStyle = aLegLight;
                 ctx.strokeStyle = '#ffd32a';
                 ctx.lineWidth = 1.6;
@@ -612,7 +644,6 @@ class Character {
         // 上半身＆腕
         if (this.outfitType === 'armor') {
             const aBodyLight = adjustColor(this.armorBodyColor, 0.55);
-            const aBodyMid = this.armorBodyColor;
             const aBodyDark = adjustColor(this.armorBodyColor, -0.5);
 
             ctx.save();
@@ -637,7 +668,7 @@ class Character {
             ctx.stroke();
 
             [leftHand, rightHand].forEach(hand => {
-                ctx.fillStyle = aBodyMid;
+                ctx.fillStyle = this.armorBodyColor;
                 ctx.strokeStyle = aBodyLight;
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
@@ -657,7 +688,7 @@ class Character {
 
             const chestGrad = ctx.createLinearGradient(cx - 10, chestY - 4, cx + 10, hipY);
             chestGrad.addColorStop(0, aBodyLight);
-            chestGrad.addColorStop(0.45, aBodyMid);
+            chestGrad.addColorStop(0.45, this.armorBodyColor);
             chestGrad.addColorStop(1, aBodyDark);
             ctx.fillStyle = chestGrad;
             ctx.beginPath();
@@ -676,7 +707,7 @@ class Character {
             ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = aBodyMid;
+            ctx.fillStyle = this.armorBodyColor;
             ctx.strokeStyle = aBodyDark;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -697,7 +728,7 @@ class Character {
                 const spGrad = ctx.createLinearGradient(spX - 5, spY - 5, spX + 5, spY + 5);
                 spGrad.addColorStop(0, '#ffffff');
                 spGrad.addColorStop(0.3, aBodyLight);
-                spGrad.addColorStop(1, aBodyMid);
+                spGrad.addColorStop(1, this.armorBodyColor);
                 ctx.fillStyle = spGrad;
                 ctx.strokeStyle = '#ffd32a';
                 ctx.lineWidth = 1.6;
@@ -780,6 +811,8 @@ resizeCanvas();
 
 function applyPlayerCustomization() {
     p1.outfitType = playerData.outfitType || 'normal';
+    p1.hasHelmet = playerData.hasHelmet || false;
+    p1.helmetColor = playerData.helmetColor || playerData.normalBodyColor;
     p1.visorColor = playerData.visorColor || '#ffffff';
     p1.color = playerData.normalBodyColor;
     p1.bodyColor = playerData.normalBodyColor;
@@ -821,7 +854,7 @@ function startEventBattle() {
     applyPlayerCustomization();
 
     p2.color = '#40c4ff'; p2.bodyColor = '#40c4ff'; p2.legsColor = '#40c4ff';
-    p2.outfitType = 'normal'; p2.visorColor = '#ffffff';
+    p2.outfitType = 'normal'; p2.hasHelmet = false; p2.visorColor = '#ffffff';
 
     document.getElementById('p1-name-display').innerText = "PLAYER";
     document.getElementById('p1-name-display').style.color = p1.color;
@@ -867,16 +900,19 @@ function endRound(winner, reason) {
     const loser = (winner === p1) ? p2 : p1;
     const message = (winner === p1) ? "PLAYER WIN" : ((winner === p2) ? "CPU WIN" : (reason || "DRAW"));
 
-    if (isMatchFinished && winner) {
-        timeScale = 0.25;
-
-        if (winner.isHeavyAttack) {
+    // ★ 溜め強攻撃KOまたは波動弾KO時は大吹き飛び！
+    if (winner) {
+        if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';
             loser.vx = 0; loser.vy = -22;
         } else {
             loser.state = 'hit';
             loser.vx = 0;
         }
+    }
+
+    if (isMatchFinished && winner) {
+        timeScale = 0.25;
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -918,9 +954,6 @@ function endRound(winner, reason) {
             }
         }, 1800);
     } else {
-        if (winner) {
-            loser.state = 'hit'; loser.vx = 0;
-        }
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
             p1.reset(); p2.reset(); updateScoreUI();

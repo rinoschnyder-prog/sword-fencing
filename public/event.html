@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v16.4</title>
-    <link rel="stylesheet" href="style.css?v=16.4">
+    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v17.0</title>
+    <link rel="stylesheet" href="style.css?v=17.0">
     <style>
         #event-banner {
             background: linear-gradient(135deg, #00d2d3, #ff9f43);
@@ -127,11 +127,12 @@
 
                 <div class="shop-tabs">
                     <button class="tab-btn active" onclick="switchShopTab('normal')">通常色</button>
-                    <button class="tab-btn" onclick="switchShopTab('armor')">鎧上下</button>
+                    <button class="tab-btn" onclick="switchShopTab('armor')">鎧上下＆兜</button>
                     <button class="tab-btn" onclick="switchShopTab('visor')">頭部バイザー</button>
                     <button class="tab-btn" onclick="switchShopTab('accessory')">猛者スキン</button>
                 </div>
 
+                <!-- 通常タブ -->
                 <div id="tab-normal" class="tab-content">
                     <div class="shop-item-title" id="title-normal-body">■ 上半身カラー</div>
                     <div class="color-palette-grid" id="normal-body-palette"></div>
@@ -139,25 +140,36 @@
                     <div class="color-palette-grid" id="normal-legs-palette"></div>
                 </div>
 
+                <!-- 鎧＆兜タブ -->
                 <div id="tab-armor" class="tab-content" style="display: none;">
-                    <div id="armor-unlock-status" style="margin-bottom:6px;"></div>
+                    <div id="armor-unlock-status" style="margin-bottom:4px;"></div>
                     <div class="shop-item-title" id="title-armor-body">■ 鎧・上半身アーマー</div>
                     <div class="color-palette-grid" id="armor-body-palette"></div>
-                    <div class="shop-item-title" id="title-armor-legs" style="margin-top:8px;">■ 鎧・下半身アーマー</div>
+
+                    <div class="shop-item-title" id="title-armor-legs" style="margin-top:6px;">■ 鎧・下半身アーマー</div>
                     <div class="color-palette-grid" id="armor-legs-palette"></div>
+
+                    <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.2); margin:8px 0;">
+                    
+                    <!-- 兜フルヘルム項目 -->
+                    <div id="helmet-unlock-status" style="margin-bottom:4px;"></div>
+                    <div class="shop-item-title" id="title-armor-helmet">■ 鎧・兜フルヘルム (高級品)</div>
+                    <div class="color-palette-grid" id="armor-helmet-palette"></div>
                 </div>
 
+                <!-- 頭部バイザータブ -->
                 <div id="tab-visor" class="tab-content" style="display: none;">
                     <div class="shop-item-title" id="title-visor">■ バイザーカラー (水色/赤/金はイベント解放)</div>
                     <div class="color-palette-grid" id="visor-palette"></div>
                 </div>
 
+                <!-- 猛者スキンタブ -->
                 <div id="tab-accessory" class="tab-content" style="display: none;">
                     <div class="shop-item-title">■ 猛者専用スキン (連勝達成報酬)</div>
                     <div class="accessory-grid" id="accessory-list"></div>
                 </div>
 
-                <!-- ★ リアルタイム・スキンプレビュー画面 -->
+                <!-- リアルタイム・スキンプレビュー画面 -->
                 <div id="shop-preview-container">
                     <div style="font-size: 10px; color: #ffd32a; font-weight: bold; margin-bottom: 2px;">👁️ 現在のプレビュー</div>
                     <canvas id="shop-preview-canvas" width="110" height="95"></canvas>
@@ -176,10 +188,10 @@
         </div>
     </div>
 
-    <!-- スクリプト群 -->
-    <script src="sound.js?v=16.4"></script>
-    <script src="shop.js?v=16.4"></script>
-    <script src="effects.js?v=16.4"></script>
-    <script src="event.js?v=16.4"></script>
+    <!-- スクリプト群 (v17.0) -->
+    <script src="sound.js?v=17.0"></script>
+    <script src="shop.js?v=17.0"></script>
+    <script src="effects.js?v=17.0"></script>
+    <script src="event.js?v=17.0"></script>
 </body>
 </html>
