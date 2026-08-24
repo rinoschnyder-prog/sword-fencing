@@ -40,6 +40,15 @@ function loadPlayerData() {
             if (!playerData.unlockedArmorLegsColors) playerData.unlockedArmorLegsColors = playerData.unlockedArmorColors || ['#ff5252'];
         } catch (e) {}
     }
+
+    // ★ 過去のランキングTOP3の連勝数を、通算勝利数に自動引き継ぎ・合算
+    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
+    const rankWinsSum = records.reduce((sum, r) => sum + (Number(r.streak) || 0), 0);
+    if (rankWinsSum > (playerData.totalCpuWins || 0)) {
+        playerData.totalCpuWins = rankWinsSum;
+        localStorage.setItem('fencing_player_data', JSON.stringify(playerData));
+    }
+
     updateGoldUI();
     checkDailyLoginStatus();
     if (typeof applyPlayerCustomization === 'function') {
@@ -203,7 +212,7 @@ function closeShopModal() {
     }
 }
 
-// タブ切り替え（※勝手に鎧を着脱しない）
+// タブ切り替え（勝手に鎧を着脱しない）
 function switchShopTab(tab) {
     document.getElementById('tab-normal').style.display = (tab === 'normal') ? 'block' : 'none';
     document.getElementById('tab-armor').style.display = (tab === 'armor') ? 'block' : 'none';
@@ -215,7 +224,7 @@ function switchShopTab(tab) {
     renderShopUI();
 }
 
-// ★ 鎧の着脱切り替え関数
+// 鎧の着脱切り替え
 function toggleArmorEquip(equip) {
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     if (equip && !isArmorUnlocked) {
@@ -230,17 +239,17 @@ function toggleArmorEquip(equip) {
 function renderShopUI() {
     updateGoldUI();
     
-    // ★ 1. 通常・上半身カラー (素体の色変更・鎧は脱げない)
+    // 1. 通常・上半身カラー
     renderPaletteGrid('normal-body-palette', playerData.normalBodyColor, playerData.unlockedBodyColors, (c) => {
         playerData.normalBodyColor = c;
     }, playerData.unlockedBodyColors);
 
-    // ★ 2. 通常・下半身カラー (素体の色変更・鎧は脱げない)
+    // 2. 通常・下半身カラー
     renderPaletteGrid('normal-legs-palette', playerData.normalLegsColor, playerData.unlockedLegsColors, (c) => {
         playerData.normalLegsColor = c;
     }, playerData.unlockedLegsColors);
 
-    // ★ 鎧タブのアンロック状態 ＆ 【装備する / 脱ぐ】ボタン
+    // 鎧タブのアンロック状態 ＆ 【装備する / 脱ぐ】ボタン
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     const isWearingArmor = (playerData.outfitType === 'armor');
 
@@ -261,7 +270,7 @@ function renderShopUI() {
         }
     }
 
-    // ★ 3. 鎧・上半身アーマー (選ぶと自動で鎧装備)
+    // 3. 鎧・上半身アーマー
     renderPaletteGrid('armor-body-palette', playerData.armorBodyColor, playerData.unlockedArmorBodyColors, (c) => {
         if (!isArmorUnlocked) {
             alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
@@ -271,7 +280,7 @@ function renderShopUI() {
         playerData.armorBodyColor = c;
     }, playerData.unlockedArmorBodyColors, !isArmorUnlocked);
 
-    // ★ 4. 鎧・下半身アーマー (選ぶと自動で鎧装備)
+    // 4. 鎧・下半身アーマー
     renderPaletteGrid('armor-legs-palette', playerData.armorLegsColor, playerData.unlockedArmorLegsColors, (c) => {
         if (!isArmorUnlocked) {
             alert(`鎧は【CPU戦で通算10勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/10勝）`);
