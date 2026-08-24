@@ -13,6 +13,20 @@ const btnExitWatch = document.getElementById('btn-exit-watch');
 const touchControls = document.getElementById('touch-controls');
 const specialControlContainer = document.getElementById('special-control-container');
 
+// ★ タッチ操作環境（スマホ・タブレット）かどうかを自動判別
+const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+function updateControlsVisibility() {
+    // 観戦モードまたはPC環境なら非表示、スマホでのプレイ時のみ表示
+    if (!isTouchDevice || isWatchMode || !gameActive) {
+        if (touchControls) touchControls.style.display = 'none';
+        if (specialControlContainer) specialControlContainer.style.display = 'none';
+    } else {
+        if (touchControls) touchControls.style.display = 'flex';
+        if (specialControlContainer) specialControlContainer.style.display = 'flex';
+    }
+}
+
 // 全画面動的リサイズ設定
 let GROUND_Y = 0;
 const GRAVITY = 0.65;
@@ -571,7 +585,7 @@ class Character {
             if (this.isAirAttack) {
                 if (this.attackTimer < 12) {
                     this.vx = this.direction * 5.5;
-                    this.vy = 5.0; // 斜め下へ急降下
+                    this.vy = 5.0;
                 }
             } else if (this.isHeavyAttack) {
                 if (this.attackTimer < 12) {
@@ -618,7 +632,6 @@ class Character {
         this.x += this.vx * timeScale;
         this.y += this.vy * timeScale;
 
-        // 地面着地
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
@@ -720,7 +733,6 @@ class Character {
         }
     }
 
-    // ★ CPUのAI（空中時の斜め急降下突きバグを完全修正）
     updateCPU(opponent) {
         const level = isWatchMode ? 8 : (winStreak + 1);
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
@@ -751,11 +763,10 @@ class Character {
             return;
         }
 
-        // ★ 空中ジャンプ中：狙いすまして斜め急降下突き
         if (!this.isGrounded && this.state === 'jump') {
             if (this.cpuTargetAirAttack && this.vy >= -4 && this.attackCooldown <= 0) {
                 this.state = 'attack';
-                this.isAirAttack = true; // ★ 確実に空中急降下突き
+                this.isAirAttack = true;
                 this.isHeavyAttack = false;
                 this.attackTimer = 0;
                 this.cpuTargetAirAttack = false;
@@ -847,7 +858,6 @@ class Character {
             this.vx = 0;
             this.cpuDecision = 'idle';
         } else if (this.cpuDecision === 'attack' && this.attackCooldown <= 0) {
-            // ★ 修正：空中にいるなら確実に空中攻撃（isAirAttack = true）にする！
             this.state = 'attack';
             this.isAirAttack = !this.isGrounded; 
             this.isHeavyAttack = false;
@@ -1109,7 +1119,6 @@ class Character {
             const reach = (progress >= 6 && progress <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16; 
 
             if (this.isAirAttack) {
-                // ★ 空中急降下突きのポーズ
                 headY = cy - 70;
                 chestY = cy - 52;
                 hipY = cy - 32;
@@ -1120,9 +1129,8 @@ class Character {
                 leftHand = { x: cx - dir * 18, y: cy - 60 };
 
                 swordStart = { x: rightHand.x, y: rightHand.y };
-                swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 }; // 斜め下
+                swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 };
             } else {
-                // 地上突きのポーズ
                 headY = cy - 70;
                 chestY = cy - 52;
                 hipY = cy - 30;
@@ -1230,7 +1238,7 @@ class Character {
         ctx.lineTo(rightHand.x, rightHand.y);
         ctx.stroke();
 
-        // 剣
+        // 剣（波動拳の投てき中以外で描画）
         if (this.state !== 'blowaway' && (this.state !== 'hadouken' || this.hadouTimer >= 48)) {
             ctx.save();
             ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
@@ -1415,7 +1423,7 @@ function connectToRoom() {
         document.getElementById('p1-name-display').innerText = data.p1;
         document.getElementById('p2-name-display').innerText = data.p2;
 
-        if (specialControlContainer) specialControlContainer.style.display = 'flex';
+        updateControlsVisibility();
 
         Sound.playBGM('game');
 
@@ -1543,8 +1551,7 @@ function startCPUMode() {
     document.getElementById('p2-name-display').style.color = p2.color;
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
-    if (touchControls) touchControls.style.display = 'flex';
-    if (specialControlContainer) specialControlContainer.style.display = 'flex';
+    updateControlsVisibility();
 
     titleScreen.style.display = 'none';
     uiLayer.style.display = 'flex';
@@ -1580,8 +1587,7 @@ function startWatchMode() {
     document.getElementById('p2-name-display').innerText = "CPU 2";
     document.getElementById('p2-name-display').style.color = p2.color;
 
-    if (touchControls) touchControls.style.display = 'none';
-    if (specialControlContainer) specialControlContainer.style.display = 'none';
+    updateControlsVisibility();
     if (btnExitWatch) btnExitWatch.style.display = 'block';
 
     titleScreen.style.display = 'none';
@@ -1613,6 +1619,8 @@ function startRound() {
     timerEl.innerText = roundTimer;
     roundOver = false;
     gameActive = true;
+
+    updateControlsVisibility();
 
     if (timerInterval) clearInterval(timerInterval);
     timerInterval = setInterval(() => {
@@ -1737,8 +1745,7 @@ function returnToTitle() {
     gameOverlay.classList.remove('show');
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
-    if (touchControls) touchControls.style.display = 'flex';
-    if (specialControlContainer) specialControlContainer.style.display = 'flex';
+    updateControlsVisibility();
 
     p1.reset();
     p2.reset();
@@ -1991,7 +1998,7 @@ function gameLoop(currentTime = performance.now()) {
         slashes[i].draw();
     }
 
-    for (let i = 0; i < particles.length; i++) {
+    for (let i = particles.length; i < particles.length; i++) {
         particles[i].draw();
     }
 
