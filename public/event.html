@@ -3,17 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-
-    <!-- ★ バージョン表記 v16.0.3 -->
-    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v16.0.3</title>
-
-    <!-- ★ CSSのバージョンを 16.0.3 に更新 -->
-    <link rel="stylesheet" href="style.css?v=16.0.3">
-
+    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v16.0.1</title>
+    <link rel="stylesheet" href="style.css?v=16.0.1">
     <style>
         #event-banner {
             background: linear-gradient(135deg, #00d2d3, #ff9f43);
@@ -105,7 +96,7 @@
         <!-- イベントタイトル画面 -->
         <div id="title-screen" class="screen">
             <div id="event-banner">
-                <div id="event-timer-badge">🔰 常設イベント（無期限・いつでも挑戦可能！）</div>
+                <div id="event-timer-badge">🔰 常設イベント（無期限・5連勝で制覇！）</div>
                 <h2 class="event-title">🔰 フェイス・バイザー獲得祭</h2>
                 <div style="font-size: 10px; color: #fff; margin-top:2px;">練習用CPUを倒して限定バイザーをGET！</div>
             </div>
@@ -116,10 +107,10 @@
 
             <!-- イベント報酬一覧ガイド -->
             <div id="ranking-board" style="margin-top: 12px; font-size:11px;">
-                <h3 style="color:#ffd32a;">🎁 イベント連勝報酬一覧</h3>
+                <h3 style="color:#ffd32a;">🎁 イベント連勝報酬一覧 (全5戦)</h3>
                 <div class="ranking-row"><span>🔷 1勝達成</span><span>サイバー・アイ</span></div>
                 <div class="ranking-row"><span>🔥 3連勝達成</span><span>フレイム・ブレイズ</span></div>
-                <div class="ranking-row"><span>👑 5連勝達成</span><span>ゴッド・クラウン</span></div>
+                <div class="ranking-row"><span>👑 5連勝達成 (制覇)</span><span>ゴッド・クラウン</span></div>
             </div>
         </div>
 
@@ -137,17 +128,17 @@
                 </div>
 
                 <div id="tab-normal" class="tab-content">
-                    <div class="shop-item-title">■ 上半身カラー (各15G)</div>
+                    <div class="shop-item-title" id="title-normal-body">■ 上半身カラー</div>
                     <div class="color-palette-grid" id="normal-body-palette"></div>
-                    <div class="shop-item-title" style="margin-top:10px;">■ 下半身カラー (各15G)</div>
+                    <div class="shop-item-title" id="title-normal-legs" style="margin-top:10px;">■ 下半身カラー</div>
                     <div class="color-palette-grid" id="normal-legs-palette"></div>
                 </div>
 
                 <div id="tab-armor" class="tab-content" style="display: none;">
                     <div id="armor-unlock-status" style="margin-bottom:6px;"></div>
-                    <div class="shop-item-title">■ 鎧・上半身アーマー (各15G)</div>
+                    <div class="shop-item-title" id="title-armor-body">■ 鎧・上半身アーマー</div>
                     <div class="color-palette-grid" id="armor-body-palette"></div>
-                    <div class="shop-item-title" style="margin-top:10px;">■ 鎧・下半身アーマー (各15G)</div>
+                    <div class="shop-item-title" id="title-armor-legs" style="margin-top:10px;">■ 鎧・下半身アーマー</div>
                     <div class="color-palette-grid" id="armor-legs-palette"></div>
                 </div>
 
@@ -163,6 +154,7 @@
 
                 <div class="modal-buttons" style="margin-top: 15px;">
                     <button class="menu-btn" onclick="closeShopModal()">完了</button>
+                    <button class="menu-btn cancel-btn" style="background:#d63031; font-size:11px;" onclick="resetAllPlayerData()">⚠️ 初期化</button>
                 </div>
             </div>
         </div>
@@ -173,10 +165,10 @@
         </div>
     </div>
 
-    <!-- ★ JavaScript のバージョンをすべて 16.0.3 に更新 -->
-    <script src="sound.js?v=16.0.3"></script>
-    <script src="shop.js?v=16.0.3"></script>
-    <script src="effects.js?v=16.0.3"></script>
-    <script src="event.js?v=16.0.3"></script>
+    <!-- スクリプト群 -->
+    <script src="sound.js?v=16.0.1"></script>
+    <script src="shop.js?v=16.0.1"></script>
+    <script src="effects.js?v=16.0.1"></script>
+    <script src="event.js?v=16.0.1"></script>
 </body>
 </html>

@@ -2,7 +2,8 @@
 // ★ shop.js（セーブデータ・ショップ・賭け・ランキング・バイザー）
 // ==========================================
 
-const COLOR_PRICE = 15;
+const BASE_COLOR_PRICE = 15;
+const PRICE_INCREMENT = 5;
 const PALETTE = [
     '#ff5252', '#40c4ff', '#2ecc71', '#9b59b6', '#e67e22',
     '#ffd32a', '#1abc9c', '#e056fd', '#f5f6fa', '#2c3e50'
@@ -26,10 +27,9 @@ let playerData = {
     unlockedArmorLegsColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
-    // ★ 頭部バイザー装飾データ
     equippedVisor: 'none',
     unlockedVisors: ['none'],
-    lastLoginDate: ''
+    lastLoginTimestamp: 0 // 24h判定用ミリ秒
 };
 
 function loadPlayerData() {
@@ -37,15 +37,14 @@ function loadPlayerData() {
     if (saved) {
         try {
             playerData = { ...playerData, ...JSON.parse(saved) };
-            if (!playerData.unlockedBodyColors) playerData.unlockedBodyColors = playerData.unlockedColors || ['#ff5252'];
-            if (!playerData.unlockedLegsColors) playerData.unlockedLegsColors = playerData.unlockedColors || ['#ff5252'];
-            if (!playerData.unlockedArmorBodyColors) playerData.unlockedArmorBodyColors = playerData.unlockedArmorColors || ['#ff5252'];
-            if (!playerData.unlockedArmorLegsColors) playerData.unlockedArmorLegsColors = playerData.unlockedArmorColors || ['#ff5252'];
+            if (!playerData.unlockedBodyColors) playerData.unlockedBodyColors = ['#ff5252'];
+            if (!playerData.unlockedLegsColors) playerData.unlockedLegsColors = ['#ff5252'];
+            if (!playerData.unlockedArmorBodyColors) playerData.unlockedArmorBodyColors = ['#ff5252'];
+            if (!playerData.unlockedArmorLegsColors) playerData.unlockedArmorLegsColors = ['#ff5252'];
             if (!playerData.unlockedVisors) playerData.unlockedVisors = ['none'];
         } catch (e) {}
     }
 
-    // 過去ランキングTOP3の連勝数を自動合算
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
     const rankWinsSum = records.reduce((sum, r) => sum + (Number(r.streak) || 0), 0);
     if (rankWinsSum > (playerData.totalCpuWins || 0)) {
@@ -54,7 +53,7 @@ function loadPlayerData() {
     }
 
     updateGoldUI();
-    checkDailyLoginStatus();
+    startDailyLoginTimer();
     if (typeof applyPlayerCustomization === 'function') {
         applyPlayerCustomization();
     }
@@ -63,7 +62,6 @@ function loadPlayerData() {
 function savePlayerData() {
     localStorage.setItem('fencing_player_data', JSON.stringify(playerData));
     updateGoldUI();
-    checkDailyLoginStatus();
     if (typeof applyPlayerCustomization === 'function') {
         applyPlayerCustomization();
     }
@@ -73,6 +71,25 @@ function updateGoldUI() {
     const goldDisplay = document.getElementById('gold-amount');
     if (goldDisplay) goldDisplay.innerText = playerData.gold;
     document.querySelectorAll('.current-gold-span').forEach(el => el.innerText = playerData.gold);
+}
+
+// 購入数に応じた動的価格計算 (15G, 20G, 25G...)
+function getCurrentColorPrice(unlockedList) {
+    const purchasedCount = Math.max(0, unlockedList.length - 1);
+    return BASE_COLOR_PRICE + (purchasedCount * PRICE_INCREMENT);
+}
+
+// ★ 全データ初期化（iPhoneのテストデータ消去用）
+function resetAllPlayerData() {
+    if (confirm("⚠️ セーブデータを完全に初期化しますか？\n（所持金、スキン、連勝記録がすべて初期状態に戻ります）")) {
+        localStorage.removeItem('fencing_player_data');
+        localStorage.removeItem('fencing_ranking');
+        localStorage.removeItem('fencing_first_login_time');
+        localStorage.removeItem('fencing_event_visor_data');
+        localStorage.removeItem('fencing_event_max_streak');
+        alert("データを完全にリセットしました！");
+        location.reload();
+    }
 }
 
 // デバッグ全解放 (+10G / 鎧解放 / 100連勝スキン解放 / バイザー全解放)
@@ -96,34 +113,53 @@ function debugAddGold() {
     if (typeof Sound !== 'undefined') Sound.playSE('bom');
 }
 
-// デイリーログインボーナス
-function checkDailyLoginStatus() {
-    const today = new Date().toISOString().split('T')[0];
+// ★ 24時間カウントダウン式ログインボーナス
+let loginTimerInterval = null;
+function startDailyLoginTimer() {
+    if (loginTimerInterval) clearInterval(loginTimerInterval);
+    updateLoginBonusUI();
+    loginTimerInterval = setInterval(updateLoginBonusUI, 1000);
+}
+
+function updateLoginBonusUI() {
     const dailyLoginBtn = document.getElementById('daily-login-btn');
-    if (dailyLoginBtn) {
-        if (playerData.lastLoginDate === today) {
-            dailyLoginBtn.classList.add('claimed');
-            dailyLoginBtn.innerText = "✅ 本日受取済";
-        } else {
-            dailyLoginBtn.classList.remove('claimed');
-            dailyLoginBtn.innerText = "🎁 ログインボーナス！";
-        }
+    if (!dailyLoginBtn) return;
+
+    const now = Date.now();
+    const lastTime = Number(playerData.lastLoginTimestamp) || 0;
+    const cooldownMs = 24 * 60 * 60 * 1000;
+    const remainingMs = cooldownMs - (now - lastTime);
+
+    if (remainingMs <= 0) {
+        dailyLoginBtn.classList.remove('claimed');
+        dailyLoginBtn.innerText = "🎁 ログインボーナス！";
+    } else {
+        dailyLoginBtn.classList.add('claimed');
+        const totalSec = Math.floor(remainingMs / 1000);
+        const hrs = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+        const secs = String(totalSec % 60).padStart(2, '0');
+        dailyLoginBtn.innerText = `⏳ 次回まで ${hrs}:${mins}:${secs}`;
     }
 }
 
 function claimDailyLoginBonus() {
-    const today = new Date().toISOString().split('T')[0];
-    if (playerData.lastLoginDate === today) {
-        alert("本日のログインボーナスは受取済みです！\n明日また受け取ってね！");
+    const now = Date.now();
+    const lastTime = Number(playerData.lastLoginTimestamp) || 0;
+    const cooldownMs = 24 * 60 * 60 * 1000;
+
+    if (now - lastTime < cooldownMs) {
+        alert("まだ受け取れません！\n24時間のカウントダウンが終了するまでお待ちください。");
         return;
     }
 
     const bonus = Math.floor(Math.random() * 5) + 1;
     playerData.gold += bonus;
-    playerData.lastLoginDate = today;
+    playerData.lastLoginTimestamp = now;
     savePlayerData();
 
     Sound.playSE('bom');
+    updateLoginBonusUI();
     alert(`🎉 ログインボーナス獲得！\n+${bonus} G を手に入れた！\n(現在の所持金: ${playerData.gold} G)`);
 }
 
@@ -236,7 +272,6 @@ function toggleArmorEquip(equip) {
     renderShopUI();
 }
 
-// 定義：フェイス・バイザー一覧
 const VISOR_LIST = [
     { id: 'none', name: '標準バイザー (白)', desc: '標準仕様のアイバイザー', color: '#ffffff', eventReq: 0 },
     { id: 'cyber', name: '🔷 サイバー・アイ (水色)', desc: 'イベント1勝で解放', color: '#00d2d3', eventReq: 1 },
@@ -247,15 +282,31 @@ const VISOR_LIST = [
 function renderShopUI() {
     updateGoldUI();
     
+    // 各部位ごとの現在価格を計算
+    const normalBodyPrice = getCurrentColorPrice(playerData.unlockedBodyColors);
+    const normalLegsPrice = getCurrentColorPrice(playerData.unlockedLegsColors);
+    const armorBodyPrice = getCurrentColorPrice(playerData.unlockedArmorBodyColors);
+    const armorLegsPrice = getCurrentColorPrice(playerData.unlockedArmorLegsColors);
+
+    // タイトルに価格を反映
+    const tNB = document.getElementById('title-normal-body');
+    if (tNB) tNB.innerText = `■ 上半身カラー (次回: ${normalBodyPrice}G)`;
+    const tNL = document.getElementById('title-normal-legs');
+    if (tNL) tNL.innerText = `■ 下半身カラー (次回: ${normalLegsPrice}G)`;
+    const tAB = document.getElementById('title-armor-body');
+    if (tAB) tAB.innerText = `■ 鎧・上半身アーマー (次回: ${armorBodyPrice}G)`;
+    const tAL = document.getElementById('title-armor-legs');
+    if (tAL) tAL.innerText = `■ 鎧・下半身アーマー (次回: ${armorLegsPrice}G)`;
+
     // 1. 通常・上半身
     renderPaletteGrid('normal-body-palette', playerData.normalBodyColor, playerData.unlockedBodyColors, (c) => {
         playerData.normalBodyColor = c;
-    }, playerData.unlockedBodyColors);
+    }, playerData.unlockedBodyColors, false, normalBodyPrice);
 
     // 2. 通常・下半身
     renderPaletteGrid('normal-legs-palette', playerData.normalLegsColor, playerData.unlockedLegsColors, (c) => {
         playerData.normalLegsColor = c;
-    }, playerData.unlockedLegsColors);
+    }, playerData.unlockedLegsColors, false, normalLegsPrice);
 
     // 鎧タブ
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
@@ -283,16 +334,16 @@ function renderShopUI() {
         if (!isArmorUnlocked) { alert(`鎧は【CPU戦で通算10勝】すると解放されます！`); return; }
         playerData.outfitType = 'armor';
         playerData.armorBodyColor = c;
-    }, playerData.unlockedArmorBodyColors, !isArmorUnlocked);
+    }, playerData.unlockedArmorBodyColors, !isArmorUnlocked, armorBodyPrice);
 
     // 4. 鎧・下半身
     renderPaletteGrid('armor-legs-palette', playerData.armorLegsColor, playerData.unlockedArmorLegsColors, (c) => {
         if (!isArmorUnlocked) { alert(`鎧は【CPU戦で通算10勝】すると解放されます！`); return; }
         playerData.outfitType = 'armor';
         playerData.armorLegsColor = c;
-    }, playerData.unlockedArmorLegsColors, !isArmorUnlocked);
+    }, playerData.unlockedArmorLegsColors, !isArmorUnlocked, armorLegsPrice);
 
-    // ★ 5. 頭部バイザー装飾タブの描画
+    // 5. 頭部バイザー
     const visorListEl = document.getElementById('shop-visor-list');
     if (visorListEl) {
         visorListEl.innerHTML = '';
@@ -365,7 +416,7 @@ function renderShopUI() {
     }
 }
 
-function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked) {
+function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unlockList, isParentLocked, currentPrice) {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = '';
@@ -380,14 +431,14 @@ function renderPaletteGrid(elementId, currentColor, unlockedArray, onSelect, unl
             if (isUnlocked) {
                 onSelect(c);
             } else {
-                if (playerData.gold >= COLOR_PRICE) {
-                    if (confirm(`このカラーを ${COLOR_PRICE}G で購入しますか？`)) {
-                        playerData.gold -= COLOR_PRICE;
+                if (playerData.gold >= currentPrice) {
+                    if (confirm(`このカラーを ${currentPrice} G で購入しますか？\n（※次回からは価格が+5G増えます）`)) {
+                        playerData.gold -= currentPrice;
                         unlockList.push(c);
                         onSelect(c);
                     }
                 } else {
-                    alert(`ゴールドが足りません！（必要: ${COLOR_PRICE}G / 現在: ${playerData.gold}G）`);
+                    alert(`ゴールドが足りません！（必要: ${currentPrice}G / 現在: ${playerData.gold}G）`);
                 }
             }
             savePlayerData();

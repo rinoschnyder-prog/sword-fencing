@@ -8,9 +8,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v16.0.1</title>
+    <title>ソード・フェンシング v16.0.2</title>
     
-    <link rel="stylesheet" href="style.css?v=16.0.1">
+    <link rel="stylesheet" href="style.css?v=16.0.2">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -88,9 +88,7 @@
             <h1 class="game-title">ソード・フェンシング</h1>
             <div class="subtitle">〜 30秒決戦！通常10打 / 溜め一撃KO＆必殺波動弾 〜</div>
             
-            <!-- ★ 初心者限定イベントへの導線ボタン (無期限) -->
             <button class="menu-btn" style="background: linear-gradient(135deg, #00d2d3, #ff9f43);" onclick="location.href='event.html'">🔰 初心者バイザー獲得祭 (開催中)</button>
-
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
             <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
             <button class="menu-btn watch-btn" onclick="openBetModal()">観戦・賭けバトル (CPU vs CPU)</button>
@@ -158,26 +156,33 @@
                     <button class="tab-btn" onclick="switchShopTab('accessory')">猛者スキン</button>
                 </div>
 
+                <!-- 通常タブ -->
                 <div id="tab-normal" class="tab-content">
-                    <div class="shop-item-title">■ 上半身カラー (各15G)</div>
+                    <div class="shop-item-title" id="title-normal-body">■ 上半身カラー</div>
                     <div class="color-palette-grid" id="normal-body-palette"></div>
-                    <div class="shop-item-title" style="margin-top:10px;">■ 下半身カラー (各15G)</div>
+                    
+                    <div class="shop-item-title" id="title-normal-legs" style="margin-top:10px;">■ 下半身カラー</div>
                     <div class="color-palette-grid" id="normal-legs-palette"></div>
                 </div>
 
+                <!-- 鎧タブ -->
                 <div id="tab-armor" class="tab-content" style="display: none;">
                     <div id="armor-unlock-status" style="margin-bottom:6px;"></div>
-                    <div class="shop-item-title">■ 鎧・上半身アーマー (各15G)</div>
+                    
+                    <div class="shop-item-title" id="title-armor-body">■ 鎧・上半身アーマー</div>
                     <div class="color-palette-grid" id="armor-body-palette"></div>
-                    <div class="shop-item-title" style="margin-top:10px;">■ 鎧・下半身アーマー (各15G)</div>
+                    
+                    <div class="shop-item-title" id="title-armor-legs" style="margin-top:10px;">■ 鎧・下半身アーマー</div>
                     <div class="color-palette-grid" id="armor-legs-palette"></div>
                 </div>
 
+                <!-- 頭部バイザータブ -->
                 <div id="tab-visor" class="tab-content" style="display: none;">
                     <div class="shop-item-title">■ フェイス・バイザー装飾 (初心者イベント報酬)</div>
                     <div class="accessory-grid" id="shop-visor-list"></div>
                 </div>
 
+                <!-- 猛者スキンタブ -->
                 <div id="tab-accessory" class="tab-content" style="display: none;">
                     <div class="shop-item-title">■ 猛者専用スキン (連勝達成報酬)</div>
                     <div class="accessory-grid" id="accessory-list"></div>
@@ -185,6 +190,8 @@
 
                 <div class="modal-buttons" style="margin-top: 15px;">
                     <button class="menu-btn" onclick="closeShopModal()">完了</button>
+                    <!-- ★ データ初期化ボタン -->
+                    <button class="menu-btn cancel-btn" style="background:#d63031; font-size:11px;" onclick="resetAllPlayerData()">⚠️ 初期化</button>
                 </div>
             </div>
         </div>
@@ -210,9 +217,9 @@
     </div>
 
     <!-- 安全な分割読み込み -->
-    <script src="sound.js?v=16.0.1"></script>
-    <script src="shop.js?v=16.0.1"></script>
-    <script src="effects.js?v=16.0.1"></script>
-    <script src="game.js?v=16.0.1"></script>
+    <script src="sound.js?v=16.0.2"></script>
+    <script src="shop.js?v=16.0.2"></script>
+    <script src="effects.js?v=16.0.2"></script>
+    <script src="game.js?v=16.0.2"></script>
 </body>
 </html>

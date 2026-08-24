@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js（本編KO・スロー・吹き飛び演出完全同一版）
+// ★ event.js（5連勝で完全制覇＆イベント終了版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -90,11 +90,9 @@ touchBinds.forEach(b => {
     if (btn) {
         btn.addEventListener('touchstart', e => { e.preventDefault(); keys[b.key] = true; }, { passive: false });
         btn.addEventListener('touchend', e => { e.preventDefault(); keys[b.key] = false; }, { passive: false });
-        btn.addEventListener('touchcancel', e => { e.preventDefault(); keys[b.key] = false; }, { passive: false });
     }
 });
 
-// キャラクター クラス
 class Character {
     constructor(color, isCPU) {
         this.width = 44; this.height = 88;
@@ -211,9 +209,8 @@ class Character {
             this.isGrounded = false;
         }
 
-        const margin = 12;
-        if (this.x < margin) this.x = margin;
-        if (this.x + this.width > canvas.width - margin) this.x = canvas.width - this.width - margin;
+        if (this.x < 12) this.x = 12;
+        if (this.x + this.width > canvas.width - 12) this.x = canvas.width - this.width - 12;
 
         if (this.state !== 'attack' && this.state !== 'hadouken' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
@@ -298,7 +295,6 @@ class Character {
             if (this.chargeTimer >= MAX_CHARGE_FRAMES) {
                 this.state = 'attack';
                 this.isHeavyAttack = true;
-                this.isAirAttack = false;
                 this.attackTimer = 0;
                 this.chargeTimer = 0;
                 Sound.playSE('swing');
@@ -420,9 +416,7 @@ class Character {
         if (this === p1 && gameActive && this.state !== 'hit' && this.state !== 'blowaway' && youMarkerTimer > 0) {
             const bob = Math.sin(this.animFrame * 0.15) * 4;
             const markerY = headY - 26 + bob;
-            const alpha = Math.min(1, youMarkerTimer / 30);
             ctx.save();
-            ctx.globalAlpha = alpha;
             ctx.font = 'bold 12px "Segoe UI", sans-serif';
             ctx.fillStyle = '#ffd32a'; ctx.textAlign = 'center';
             ctx.shadowBlur = 8; ctx.shadowColor = '#ffd32a';
@@ -529,7 +523,8 @@ class Character {
             swordEnd = { x: rightHand.x + dir * 55, y: rightHand.y - 4 };
         }
         else if (this.state === 'attack') {
-            const reach = (this.attackTimer >= 6 && this.attackTimer <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16;
+            const progress = this.attackTimer;
+            const reach = (progress >= 6 && progress <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16;
             if (this.isAirAttack) {
                 headY = cy - 70; chestY = cy - 52; hipY = cy - 32;
                 leftFoot = { x: cx - dir * 16, y: cy - 20 }; rightFoot = { x: cx + dir * 8, y: cy - 10 };
@@ -620,7 +615,7 @@ class Character {
         }
         ctx.restore();
 
-        // 上半身＆腕
+        // 胴体
         if (this.outfitType === 'armor') {
             const aBodyLight = adjustColor(this.armorBodyColor, 0.55);
             const aBodyMid = this.armorBodyColor;
@@ -678,13 +673,13 @@ class Character {
         } else {
             ctx.strokeStyle = this.bodyColor;
             ctx.beginPath(); ctx.moveTo(cx, headY + 11); ctx.lineTo(cx, hipY); ctx.stroke();
-
             ctx.save(); ctx.fillStyle = this.bodyColor;
             ctx.beginPath(); ctx.ellipse(cx, (chestY + hipY) / 2, 7, 14, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
 
             ctx.save(); ctx.strokeStyle = this.bodyColor; ctx.lineWidth = 5.5;
             ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(leftHand.x, leftHand.y); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(rightHand.x, rightHand.y); ctx.stroke(); ctx.restore();
+            ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(rightHand.x, rightHand.y); ctx.stroke();
+            ctx.restore();
         }
 
         // 剣
@@ -796,7 +791,7 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 本編と完全に同じKO・スローモーション・大吹き飛び演出
+// ★ 本編と完全同一のKOスローモーション＆吹き飛び演出 ＋ 5連勝終了処理
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true; clearInterval(timerInterval);
@@ -811,7 +806,7 @@ function endRound(winner, reason) {
         timeScale = 0.25; // ★ KOスローモーション
 
         if (winner.isHeavyAttack) {
-            loser.state = 'blowaway'; // ★ 強攻撃フィニッシュ時大吹き飛び
+            loser.state = 'blowaway'; // ★ 大吹き飛び
             loser.vx = 0; loser.vy = -22;
         } else {
             loser.state = 'hit'; // ★ 通常ダウン
@@ -824,7 +819,7 @@ function endRound(winner, reason) {
 
             if (p1Score >= MAX_SCORE) {
                 winStreak++;
-                playerData.gold += 2; // イベント勝利ボーナス 2G
+                playerData.gold += 2; // 勝利ボーナス 2G
 
                 let unlockMsg = "";
                 if (winStreak >= 1 && !playerData.unlockedVisors.includes('cyber')) {
@@ -841,12 +836,19 @@ function endRound(winner, reason) {
                 }
                 savePlayerData();
 
-                showOverlay(`🎉 VICTORY！\n${winStreak} 連勝達成！(+2G)${unlockMsg}`, 2500, () => {
-                    p1Score = 0; p2Score = 0; currentRound = 1; timeScale = 1.0;
-                    streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
-                    p1.reset(); p2.reset(); updateScoreUI();
-                    showOverlay(`ROUND ${currentRound}\n(VS 練習用CPU)`, 1500, startRound);
-                });
+                // ★ 5連勝達成でイベント全制覇・タイトルへ帰還！
+                if (winStreak >= 5) {
+                    showOverlay(`🎊 祝・イベント完全制覇！\n全バイザー解放達成！(+2G)${unlockMsg}\nおめでとうございます！`, 3500, () => {
+                        location.reload();
+                    });
+                } else {
+                    showOverlay(`🎉 VICTORY！\n${winStreak} 連勝達成！(+2G)${unlockMsg}`, 2500, () => {
+                        p1Score = 0; p2Score = 0; currentRound = 1; timeScale = 1.0;
+                        streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
+                        p1.reset(); p2.reset(); updateScoreUI();
+                        showOverlay(`ROUND ${currentRound}\n(VS 練習用CPU)`, 1500, startRound);
+                    });
+                }
             } else {
                 showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 2500, () => location.reload());
             }
@@ -1007,26 +1009,15 @@ function gameLoop(currentTime = performance.now()) {
         screenShakeTimer -= 1 * timeScale;
     }
 
-    const groundGrad = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
-    groundGrad.addColorStop(0, 'rgba(30, 39, 46, 0.85)');
-    groundGrad.addColorStop(1, 'rgba(10, 15, 20, 0.98)');
-    ctx.fillStyle = groundGrad;
+    ctx.fillStyle = 'rgba(20, 25, 35, 0.9)';
     ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+    ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(canvas.width, GROUND_Y); ctx.stroke();
 
-    ctx.strokeStyle = '#00d2d3';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y);
-    ctx.lineTo(canvas.width, GROUND_Y);
-    ctx.stroke();
-
-    p1.draw(false);
-    p2.draw(false);
-
+    p1.draw(false); p2.draw(false);
     for (let i = 0; i < energyBalls.length; i++) energyBalls[i].draw(ctx);
     for (let i = 0; i < slashes.length; i++) slashes[i].draw(ctx);
     for (let i = 0; i < particles.length; i++) particles[i].draw(ctx);
-
     ctx.restore();
 
     requestAnimationFrame(gameLoop);
