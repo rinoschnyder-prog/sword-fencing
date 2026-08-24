@@ -373,17 +373,36 @@ html, body {
     box-shadow: 0 5px 15px rgba(243, 156, 18, 0.4);
 }
 
+/* ★ ランキングボード（文字色ホワイト化＆くっきり表示） */
 #ranking-board {
     margin-top: 10px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 8px 14px;
-    border-radius: 10px;
-    width: min(85vw, 250px);
-    font-size: 11px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    padding: 10px 16px;
+    border-radius: 12px;
+    width: min(85vw, 260px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
 }
-#ranking-board h3 { margin: 0 0 4px 0; text-align: center; color: #0be881; font-size: 12px; }
-.ranking-row { display: flex; justify-content: space-between; margin: 2px 0; font-family: ui-monospace, monospace; }
+
+#ranking-board h3 { 
+    margin: 0 0 6px 0; 
+    text-align: center; 
+    color: #0be881; 
+    font-size: 13px; 
+    font-weight: 900;
+    text-shadow: 0 0 8px rgba(11, 232, 129, 0.5);
+}
+
+.ranking-row { 
+    display: flex; 
+    justify-content: space-between; 
+    margin: 3px 0; 
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: bold;
+    color: #ffffff !important; /* ★ 真っ白な文字色 */
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9); /* ★ 背景に埋もれない黒フチ影 */
+}
 
 .title-footer { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; width: min(85vw, 250px); }
 .credit-text { font-size: 10px; color: #a4b0be; text-align: center; }
