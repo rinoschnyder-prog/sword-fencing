@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>🔰 初心者応援！フェイス・バイザー獲得祭</title>
+    <link rel="stylesheet" href="style.css?v=16.0.1">
+    <style>
+        #event-banner {
+            background: linear-gradient(135deg, #00d2d3, #ff9f43);
+            border: 2px solid #ffd32a;
+            border-radius: 14px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            text-align: center;
+            width: min(88vw, 300px);
+            box-shadow: 0 6px 20px rgba(255, 159, 67, 0.4);
+        }
+        #event-timer-badge {
+            font-size: 11px;
+            font-weight: 900;
+            color: #222;
+            background: #ffd32a;
+            padding: 2px 10px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+        .event-title {
+            font-size: 16px;
+            font-weight: 900;
+            color: #fff;
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- 全画面ゲームCanvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <button id="btn-exit-watch" onclick="location.href='index.html'">✕ 通常版へ戻る</button>
+
+        <!-- UIレイヤー -->
+        <div id="ui-layer">
+            <div class="player-info p1-info">
+                <div class="name-score">
+                    <span id="p1-name-display" style="color: #ff5252;">YOU (挑戦者)</span>
+                    <div class="score" id="p1-score">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                </div>
+                <div class="hp-bar"><div class="hp-fill" id="p1-hp"></div></div>
+                <div class="sp-bar"><div class="sp-fill" id="p1-sp"></div></div>
+            </div>
+
+            <div id="timer-container">
+                <div id="timer">30</div>
+                <div id="streak-counter">イベント連勝: 0</div>
+            </div>
+
+            <div class="player-info p2-info">
+                <div class="name-score" style="justify-content: flex-end;">
+                    <div class="score" id="p2-score">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                    <span id="p2-name-display" style="color: #40c4ff;">CPU (練習用)</span>
+                </div>
+                <div class="hp-bar"><div class="hp-fill" id="p2-hp"></div></div>
+                <div class="sp-bar"><div class="sp-fill" id="p2-sp"></div></div>
+            </div>
+        </div>
+
+        <!-- タッチコントローラー -->
+        <div id="touch-controls">
+            <div class="control-group left-group">
+                <button id="btn-left" class="touch-btn">◀</button>
+                <button id="btn-right" class="touch-btn">▶</button>
+            </div>
+            <div class="control-group right-group">
+                <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
+                <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
+                <button id="btn-attack" class="touch-btn action-btn red">ATTACK<br><span style="font-size: 8px;">(長押し溜め)</span></button>
+            </div>
+        </div>
+
+        <!-- SPECIALボタン -->
+        <div id="special-control-container">
+            <button id="btn-special" class="touch-btn special-btn">⚡ SPECIAL (気功波動弾) ⚡</button>
+        </div>
+
+        <!-- イベントタイトル画面 -->
+        <div id="title-screen" class="screen">
+            <div id="event-banner">
+                <div id="event-timer-badge">🔰 常設イベント（無期限・いつでも挑戦可能！）</div>
+                <h2 class="event-title">🔰 フェイス・バイザー獲得祭</h2>
+                <div style="font-size: 10px; color: #fff; margin-top:2px;">弱いCPUを倒して限定頭部バイザーをGET！</div>
+            </div>
+
+            <button class="menu-btn" style="background: linear-gradient(135deg, #00d2d3, #0984e3);" onclick="startEventBattle()">⚔️ イベント挑戦 (弱体化CPU)</button>
+            <button class="menu-btn shop-btn" onclick="openShopModal()">🎨 スキン工房 (着替え)</button>
+            <button class="menu-btn cancel-btn" style="background:#607d8b; margin-top: 10px;" onclick="location.href='index.html'">🏠 通常タイトルへ戻る</button>
+
+            <!-- イベント報酬一覧ガイド -->
+            <div id="ranking-board" style="margin-top: 12px; font-size:11px;">
+                <h3 style="color:#ffd32a;">🎁 イベント連勝報酬一覧</h3>
+                <div class="ranking-row"><span>🔷 1勝達成</span><span>サイバー・アイ</span></div>
+                <div class="ranking-row"><span>🔥 3連勝達成</span><span>フレイム・ブレイズ</span></div>
+                <div class="ranking-row"><span>👑 5連勝達成</span><span>ゴッド・クラウン</span></div>
+            </div>
+        </div>
+
+        <!-- スキン工房モーダル -->
+        <div id="shop-screen" class="screen modal-screen" style="display: none;">
+            <div class="modal-box shop-box">
+                <h2><span onclick="debugAddGold()" style="cursor: pointer; display: inline-block;">🎨</span> スキン工房</h2>
+                <div class="shop-gold">💰 所持金: <span class="current-gold-span">0</span> G</div>
+
+                <div class="shop-tabs">
+                    <button class="tab-btn active" onclick="switchShopTab('normal')">通常色</button>
+                    <button class="tab-btn" onclick="switchShopTab('armor')">鎧上下</button>
+                    <button class="tab-btn" onclick="switchShopTab('visor')">頭部バイザー</button>
+                    <button class="tab-btn" onclick="switchShopTab('accessory')">猛者スキン</button>
+                </div>
+
+                <div id="tab-normal" class="tab-content">
+                    <div class="shop-item-title">■ 上半身カラー (各15G)</div>
+                    <div class="color-palette-grid" id="normal-body-palette"></div>
+                    <div class="shop-item-title" style="margin-top:10px;">■ 下半身カラー (各15G)</div>
+                    <div class="color-palette-grid" id="normal-legs-palette"></div>
+                </div>
+
+                <div id="tab-armor" class="tab-content" style="display: none;">
+                    <div id="armor-unlock-status" style="margin-bottom:6px;"></div>
+                    <div class="shop-item-title">■ 鎧・上半身アーマー (各15G)</div>
+                    <div class="color-palette-grid" id="armor-body-palette"></div>
+                    <div class="shop-item-title" style="margin-top:10px;">■ 鎧・下半身アーマー (各15G)</div>
+                    <div class="color-palette-grid" id="armor-legs-palette"></div>
+                </div>
+
+                <div id="tab-visor" class="tab-content" style="display: none;">
+                    <div class="shop-item-title">■ フェイス・バイザー装飾 (初心者イベント報酬)</div>
+                    <div class="accessory-grid" id="shop-visor-list"></div>
+                </div>
+
+                <div id="tab-accessory" class="tab-content" style="display: none;">
+                    <div class="shop-item-title">■ 猛者専用スキン (連勝達成報酬)</div>
+                    <div class="accessory-grid" id="accessory-list"></div>
+                </div>
+
+                <div class="modal-buttons" style="margin-top: 15px;">
+                    <button class="menu-btn" onclick="closeShopModal()">完了</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- メッセージオーバーレイ -->
+        <div id="game-overlay" class="screen">
+            <div id="overlay-text">ROUND 1</div>
+        </div>
+    </div>
+
+    <!-- 本編と共通のスクリプト群 -->
+    <script src="sound.js?v=16.0.1"></script>
+    <script src="shop.js?v=16.0.1"></script>
+    <script src="effects.js?v=16.0.1"></script>
+    <script src="game.js?v=16.0.1"></script>
+
+    <script>
+        // イベントバトル開始（無期限）
+        function startEventBattle() {
+            startCPUMode();
+            document.getElementById('p2-name-display').innerText = "CPU (練習用)";
+            document.getElementById('p2-name-display').style.color = "#40c4ff";
+            streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
+        }
+
+        // イベント戦勝利時のバイザー即時解放フック
+        const originalEndRound = endRound;
+        endRound = function(winner, reason) {
+            originalEndRound(winner, reason);
+            if (winner === p1 && p1Score >= MAX_SCORE) {
+                let unlockedMsg = "";
+                if (winStreak >= 1 && !playerData.unlockedVisors.includes('cyber')) {
+                    playerData.unlockedVisors.push('cyber');
+                    unlockedMsg += "\n🔷【サイバー・アイ】解放！";
+                }
+                if (winStreak >= 3 && !playerData.unlockedVisors.includes('flame')) {
+                    playerData.unlockedVisors.push('flame');
+                    unlockedMsg += "\n🔥【フレイム・ブレイズ】解放！";
+                }
+                if (winStreak >= 5 && !playerData.unlockedVisors.includes('crown')) {
+                    playerData.unlockedVisors.push('crown');
+                    unlockedMsg += "\n👑【ゴッド・クラウン】解放！";
+                }
+                if (unlockedMsg) {
+                    savePlayerData();
+                    showOverlay(`🎉 連勝達成！${unlockedMsg}`, 2500, startNextMatch);
+                }
+            }
+        };
+    </script>
+</body>
+</html>
