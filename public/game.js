@@ -28,9 +28,9 @@ let isWatchMode = false;
 let roundEndTimeout = null;
 let overlayTimeout = null;
 
-// ★ 60fps固定タイムステップ制御用変数
+// 60fps固定タイムステップ制御用変数
 const TARGET_FPS = 60;
-const STEP = 1000 / TARGET_FPS; // 1フレーム約16.66ms
+const STEP = 1000 / TARGET_FPS;
 let lastFrameTime = performance.now();
 let accumulator = 0;
 
@@ -571,7 +571,7 @@ class Character {
             if (this.isAirAttack) {
                 if (this.attackTimer < 12) {
                     this.vx = this.direction * 5.5;
-                    this.vy = 5.0;
+                    this.vy = 5.0; // 斜め下へ急降下
                 }
             } else if (this.isHeavyAttack) {
                 if (this.attackTimer < 12) {
@@ -618,6 +618,7 @@ class Character {
         this.x += this.vx * timeScale;
         this.y += this.vy * timeScale;
 
+        // 地面着地
         if (this.y + this.height >= GROUND_Y) {
             this.y = GROUND_Y - this.height;
             this.vy = 0;
@@ -719,6 +720,7 @@ class Character {
         }
     }
 
+    // ★ CPUのAI（空中時の斜め急降下突きバグを完全修正）
     updateCPU(opponent) {
         const level = isWatchMode ? 8 : (winStreak + 1);
         const distance = Math.abs((this.x + this.width / 2) - (opponent.x + opponent.width / 2));
@@ -749,10 +751,11 @@ class Character {
             return;
         }
 
+        // ★ 空中ジャンプ中：狙いすまして斜め急降下突き
         if (!this.isGrounded && this.state === 'jump') {
             if (this.cpuTargetAirAttack && this.vy >= -4 && this.attackCooldown <= 0) {
                 this.state = 'attack';
-                this.isAirAttack = true;
+                this.isAirAttack = true; // ★ 確実に空中急降下突き
                 this.isHeavyAttack = false;
                 this.attackTimer = 0;
                 this.cpuTargetAirAttack = false;
@@ -844,8 +847,9 @@ class Character {
             this.vx = 0;
             this.cpuDecision = 'idle';
         } else if (this.cpuDecision === 'attack' && this.attackCooldown <= 0) {
+            // ★ 修正：空中にいるなら確実に空中攻撃（isAirAttack = true）にする！
             this.state = 'attack';
-            this.isAirAttack = false;
+            this.isAirAttack = !this.isGrounded; 
             this.isHeavyAttack = false;
             this.attackTimer = 0;
             this.cpuDecision = 'idle';
@@ -1105,6 +1109,7 @@ class Character {
             const reach = (progress >= 6 && progress <= 14) ? (this.isHeavyAttack ? 52 : 38) : 16; 
 
             if (this.isAirAttack) {
+                // ★ 空中急降下突きのポーズ
                 headY = cy - 70;
                 chestY = cy - 52;
                 hipY = cy - 32;
@@ -1115,8 +1120,9 @@ class Character {
                 leftHand = { x: cx - dir * 18, y: cy - 60 };
 
                 swordStart = { x: rightHand.x, y: rightHand.y };
-                swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 };
+                swordEnd = { x: rightHand.x + dir * 52, y: rightHand.y + 40 }; // 斜め下
             } else {
+                // 地上突きのポーズ
                 headY = cy - 70;
                 chestY = cy - 52;
                 hipY = cy - 30;
@@ -1224,7 +1230,7 @@ class Character {
         ctx.lineTo(rightHand.x, rightHand.y);
         ctx.stroke();
 
-        // 剣（波動拳の投てき中以外で描画）
+        // 剣
         if (this.state !== 'blowaway' && (this.state !== 'hadouken' || this.hadouTimer >= 48)) {
             ctx.save();
             ctx.strokeStyle = this.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
@@ -1234,6 +1240,7 @@ class Character {
             ctx.lineTo(swordEnd.x, swordEnd.y);
             ctx.stroke();
 
+            // 鍔
             ctx.strokeStyle = '#ffd32a';
             ctx.lineWidth = 5;
             ctx.beginPath();
@@ -1909,7 +1916,7 @@ function checkHits() {
     }
 }
 
-// ★ 60fps固定物理ステップ実行関数
+// 60fps固定物理更新
 function updatePhysics() {
     if (youMarkerTimer > 0) {
         youMarkerTimer -= 1 * timeScale;
@@ -1938,21 +1945,18 @@ function updatePhysics() {
     }
 }
 
-// ★ メインゲームループ（どんなモニターでも完全固定60fps同期）
+// メインゲームループ
 function gameLoop(currentTime = performance.now()) {
     const delta = currentTime - lastFrameTime;
     lastFrameTime = currentTime;
 
-    // 非アクティブ時の飛び防止（上限100ms）
     accumulator += Math.min(delta, 100);
 
-    // 16.66ms（60fps）刻みで正確に物理演算を実行（PCでの倍速化を完全防止）
     while (accumulator >= STEP) {
         updatePhysics();
         accumulator -= STEP;
     }
 
-    // 画面描画
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
