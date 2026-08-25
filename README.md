@@ -1,4 +1,4 @@
-# ⚔️ Sword Fencing is mobile
+# ⚔️ Sword Fencing is mobile only
 
 > A fast-paced, high-octane 30-second stickman fencing duel game.  
 > Win through 10 precision slashes, a devastating 1-hit Charged Heavy Strike, or unleash the ultimate **Qi Energy Blast**!
