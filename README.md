@@ -82,17 +82,6 @@ Equip, recolor, and preview your custom warrior in real-time inside the **Skin W
 - **Audio Engine:** `SoundManager` utilizing Web Audio API with automatic HTML5 Audio fallback.
 - **Storage:** Safe `localStorage` schema with backwards-compatible migration.
 
-### 📁 File Structure
-```text
-├── index.html       # Main game interface & shop modals (v17.0)
-├── event.html       # Beginner Visor Event page (v17.0)
-├── game.js          # Core battle loop, AI, physics & multiplayer
-├── event.js         # Event-exclusive AI logic & visor reward handler
-├── shop.js          # Economy, customization, betting & live preview
-├── effects.js       # Particle effects, slash trails & energy blasts
-├── sound.js         # Audio manager for BGM and SFX
-├── style.css        # Responsive UI styles & theme
-└── bgm/ & se/       # Audio assets
 🎵 Credits & License
 BGM & Sound: 独り音 (Hitorine)
 Engine & Design: Custom Canvas Game Engine (v17.0)
