@@ -40,7 +40,6 @@
 | :--- | :---: | :---: | :--- |
 | **Move Left / Right** | `A` / `D` | `◀` / `▶` | Character movement & spacing. |
 | **Jump** | `W` | `JUMP` | Leap into the air to dodge attacks. |
-| **Guard** | `S` | `GUARD` | Block frontal slashes (reduces damage & gains SP). |
 | **Normal Attack** | `F` (Tap) | `ATTACK` (Tap) | Fast slash (deals 1 HP damage). |
 | **Charged Strike** | `F` (Hold) | `ATTACK` (Hold) | Charges up a **1-Hit KO Heavy Slash** that breaks guards and blows the opponent into the sky. |
 | **Aerial Attack** | `W` + `F` | `JUMP` + `ATTACK` | Diving downward slash from the air. |
