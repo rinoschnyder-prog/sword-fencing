@@ -8,9 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v18.1</title>
+    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v18.1.1</title>
     
-    <!-- ★ PWA用マニフェスト＆iOS用設定 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f1419">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +17,7 @@
     <meta name="apple-mobile-web-app-title" content="フェンシング">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <link rel="stylesheet" href="style.css?v=18.1">
+    <link rel="stylesheet" href="style.css?v=18.1.1">
     <style>
         #event-banner {
             background: linear-gradient(135deg, #00d2d3, #ff9f43);
@@ -130,7 +129,7 @@
         <!-- スキン工房モーダル -->
         <div id="shop-screen" class="screen modal-screen" style="display: none;">
             <div class="modal-box shop-box">
-                <h2><span onclick="debugAddGold()" style="cursor: pointer; display: inline-block;">🎨</span> スキン工房</h2>
+                <h2>🎨 スキン工房</h2>
                 <div class="shop-gold">💰 所持金: <span class="current-gold-span">0</span> G</div>
 
                 <div class="shop-tabs">
@@ -195,20 +194,11 @@
         </div>
     </div>
 
-    <!-- スクリプト群 (v18.1) -->
-    <script src="sound.js?v=18.1"></script>
-    <script src="shop.js?v=18.1"></script>
-    <script src="effects.js?v=18.1"></script>
-    <script src="renderer.js?v=18.1"></script>
-    <script src="event.js?v=18.1"></script>
-
-    <!-- ★ PWA Service Worker 自動登録スクリプト -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=18.1').catch(() => {});
-            });
-        }
-    </script>
+    <!-- スクリプト群 -->
+    <script src="sound.js?v=18.1.1"></script>
+    <script src="shop.js?v=18.1.1"></script>
+    <script src="effects.js?v=18.1.1"></script>
+    <script src="renderer.js?v=18.1.1"></script>
+    <script src="event.js?v=18.1.1"></script>
 </body>
 </html>

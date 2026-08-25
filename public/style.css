@@ -104,6 +104,25 @@ html, body {
     box-shadow: 0 0 10px rgba(255, 211, 42, 0.4);
 }
 
+/* ★ タイトル画面の小さめデバッグボタン */
+#title-debug-btn {
+    position: absolute;
+    top: calc(42px + env(safe-area-inset-top));
+    right: 14px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px dashed rgba(255, 255, 255, 0.4);
+    color: #a4b0be;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+#title-debug-btn:active {
+    background: rgba(255, 211, 42, 0.4);
+    color: #fff;
+}
+
 /* UIレイヤー */
 #ui-layer {
     position: absolute;
@@ -481,7 +500,7 @@ html, body {
 .acc-item-btn.active { border-color: #ffd32a; background: rgba(255, 211, 42, 0.2); }
 .acc-item-btn.locked { opacity: 0.6; }
 
-/* ★ スキン工房リアルタイムプレビュー枠（ゆったり配置） */
+/* スキン工房リアルタイムプレビュー枠 */
 #shop-preview-container {
     display: flex;
     flex-direction: column;
@@ -500,6 +519,45 @@ html, body {
     background: radial-gradient(circle at center, rgba(30, 45, 60, 0.8), rgba(10, 15, 25, 0.95));
     border-radius: 10px;
     border: 1.5px solid rgba(255, 211, 42, 0.4);
+}
+
+/* ★ デバッグモーダル用スタイル */
+.debug-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    margin: 10px 0;
+}
+
+.debug-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #fff;
+    background: rgba(255,255,255,0.08);
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+
+.debug-input {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 211, 42, 0.5);
+    color: #ffd32a;
+    padding: 4px 8px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    outline: none;
+}
+
+.debug-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #ffd32a;
+    cursor: pointer;
 }
 
 #online-form { display: flex; flex-direction: column; gap: 10px; width: min(80vw, 260px); }

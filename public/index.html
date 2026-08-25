@@ -8,18 +8,16 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v18.1</title>
+    <title>ソード・フェンシング v18.1.1</title>
     
-    <!-- ★ PWA用マニフェスト＆iOS用設定 -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f1419">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="フェンシング">
-    <link rel="apple-touch-icon" href="icon-192.png?v=1">
+    <link rel="apple-touch-icon" href="icon-192.png">
 
-
-    <link rel="stylesheet" href="style.css?v=18.1">
+    <link rel="stylesheet" href="style.css?v=18.1.1">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -91,7 +89,10 @@
         <!-- タイトル画面 -->
         <div id="title-screen" class="screen">
             <button id="daily-login-btn" onclick="claimDailyLoginBonus()">🎁 ログインボーナス！</button>
+            
+            <!-- 所持金表示 ＆ ★その下に小さなデバッグボタン -->
             <div id="top-gold-display">💰 所持金: <span id="gold-amount">0</span> G</div>
+            <button id="title-debug-btn" onclick="openDebugModal()">🛠️ デバッグ</button>
 
             <h1 class="game-title">ソード・フェンシング</h1>
             <div class="subtitle">〜 30秒決戦！通常10打 / 後ろガード / 溜め一撃KO＆必殺波動弾 〜</div>
@@ -154,7 +155,7 @@
         <!-- スキン工房モーダル -->
         <div id="shop-screen" class="screen modal-screen" style="display: none;">
             <div class="modal-box shop-box">
-                <h2><span onclick="debugAddGold()" style="cursor: pointer; display: inline-block;">🎨</span> スキン工房</h2>
+                <h2>🎨 スキン工房</h2>
                 <div class="shop-gold">💰 所持金: <span class="current-gold-span">0</span> G</div>
 
                 <div class="shop-tabs">
@@ -213,6 +214,43 @@
             </div>
         </div>
 
+        <!-- ★ パスワード付きデバッグ設定モーダル (Pass: 776954) -->
+        <div id="debug-screen" class="screen modal-screen" style="display: none;">
+            <div class="modal-box" style="width: min(90vw, 300px);">
+                <h2>🛠️ デバッグ設定</h2>
+                
+                <div class="debug-form-group">
+                    <div class="debug-row">
+                        <span>パスワード:</span>
+                        <input type="password" id="debug-pass-input" class="debug-input" placeholder="パスワード入力" style="width: 130px;">
+                    </div>
+
+                    <div class="debug-row">
+                        <span>お金設定:</span>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <input type="number" id="debug-gold-input" class="debug-input" style="width: 80px;" min="0" value="0">
+                            <span>G</span>
+                        </div>
+                    </div>
+
+                    <div class="debug-row">
+                        <span>初心者スキン (バイザー全解放):</span>
+                        <input type="checkbox" id="debug-check-visor" class="debug-checkbox">
+                    </div>
+
+                    <div class="debug-row">
+                        <span>猛者スキン (マント・オーラ解放):</span>
+                        <input type="checkbox" id="debug-check-veteran" class="debug-checkbox">
+                    </div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button class="menu-btn" onclick="applyDebugSettings()">適用する</button>
+                    <button class="menu-btn cancel-btn" onclick="closeDebugModal()">閉じる</button>
+                </div>
+            </div>
+        </div>
+
         <!-- オンライン設定画面 -->
         <div id="online-screen" class="screen" style="display: none;">
             <h2>オンライン対戦</h2>
@@ -234,13 +272,13 @@
     </div>
 
     <!-- 安全な分割読み込み -->
-    <script src="sound.js?v=18.1"></script>
-    <script src="shop.js?v=18.1"></script>
-    <script src="effects.js?v=18.1"></script>
-    <script src="renderer.js?v=18.1"></script>
-    <script src="game.js?v=18.1"></script>
+    <script src="sound.js?v=18.1.1"></script>
+    <script src="shop.js?v=18.1.1"></script>
+    <script src="effects.js?v=18.1.1"></script>
+    <script src="renderer.js?v=18.1.1"></script>
+    <script src="game.js?v=18.1.1"></script>
 
-    <!-- ★ PWA Service Worker 自動登録スクリプト -->
+    <!-- PWA Service Worker 自動登録スクリプト -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js v18.1（プレビュー上下余白ゆったり最適化版）
+// ★ shop.js v18.1（パスワード付きデバッグモーダル対応版）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -57,7 +57,7 @@ function loadPlayerData() {
     if ((eventMaxStreak >= 1 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('cyber'))) && !playerData.unlockedVisorColors.includes('#40c4ff')) {
         playerData.unlockedVisorColors.push('#40c4ff');
     }
-    if ((eventMaxStreak >= 3 || (playerData.unlockedVisors && playerData.unlockedVisorColors.includes('flame'))) && !playerData.unlockedVisorColors.includes('#ff5252')) {
+    if ((eventMaxStreak >= 3 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('flame'))) && !playerData.unlockedVisorColors.includes('#ff5252')) {
         playerData.unlockedVisorColors.push('#ff5252');
     }
     if ((eventMaxStreak >= 5 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('crown'))) && !playerData.unlockedVisorColors.includes('#ffd32a')) {
@@ -115,25 +115,80 @@ function resetAllPlayerData() {
     }
 }
 
-function debugAddGold() {
-    playerData.gold += 10;
-    playerData.totalCpuWins = Math.max(playerData.totalCpuWins || 0, 30);
-    playerData.outfitType = 'armor';
-    playerData.hasHelmet = true;
-    playerData.unlockedVisorColors = ['#ffffff', '#40c4ff', '#ff5252', '#ffd32a'];
-    savePlayerData();
+// ==========================================
+// ★ パスワード付きデバッグモーダル機能 (Pass: 776954)
+// ==========================================
+function openDebugModal() {
+    const goldInput = document.getElementById('debug-gold-input');
+    if (goldInput) goldInput.value = playerData.gold;
 
-    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-    if (!records.some(r => r.streak >= 100)) {
-        records.push({ name: 'MASTER', streak: 100 });
-        records.sort((a, b) => b.streak - a.streak);
-        if (records.length > 3) records.length = 3;
-        localStorage.setItem('fencing_ranking', JSON.stringify(records));
-        updateRankingUI();
+    const passInput = document.getElementById('debug-pass-input');
+    if (passInput) passInput.value = '';
+
+    const visorCheck = document.getElementById('debug-check-visor');
+    if (visorCheck) {
+        visorCheck.checked = playerData.unlockedVisorColors.includes('#40c4ff') &&
+                             playerData.unlockedVisorColors.includes('#ff5252') &&
+                             playerData.unlockedVisorColors.includes('#ffd32a');
     }
 
-    renderShopUI();
+    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
+    const veteranCheck = document.getElementById('debug-check-veteran');
+    if (veteranCheck) {
+        veteranCheck.checked = records.some(r => r.streak >= 100);
+    }
+
+    const modal = document.getElementById('debug-screen');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeDebugModal() {
+    const modal = document.getElementById('debug-screen');
+    if (modal) modal.style.display = 'none';
+}
+
+function applyDebugSettings() {
+    const passInput = document.getElementById('debug-pass-input');
+    if (!passInput || passInput.value.trim() !== '776954') {
+        alert("❌ パスワードが間違っています！");
+        return;
+    }
+
+    // 1. お金の変更
+    const goldInput = document.getElementById('debug-gold-input');
+    if (goldInput) {
+        const val = parseInt(goldInput.value, 10);
+        if (!isNaN(val) && val >= 0) {
+            playerData.gold = val;
+        }
+    }
+
+    // 2. 初心者スキン（バイザー）
+    const visorCheck = document.getElementById('debug-check-visor');
+    if (visorCheck && visorCheck.checked) {
+        ['#40c4ff', '#ff5252', '#ffd32a'].forEach(c => {
+            if (!playerData.unlockedVisorColors.includes(c)) playerData.unlockedVisorColors.push(c);
+        });
+        localStorage.setItem('fencing_event_max_streak', 5);
+    }
+
+    // 3. 猛者スキン（マント・ゴッドオーラ）
+    const veteranCheck = document.getElementById('debug-check-veteran');
+    if (veteranCheck && veteranCheck.checked) {
+        const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
+        if (!records.some(r => r.streak >= 100)) {
+            records.push({ name: 'MASTER', streak: 100 });
+            records.sort((a, b) => b.streak - a.streak);
+            if (records.length > 3) records.length = 3;
+            localStorage.setItem('fencing_ranking', JSON.stringify(records));
+            updateRankingUI();
+        }
+    }
+
+    savePlayerData();
     if (typeof Sound !== 'undefined') Sound.playSE('bom');
+    alert("✅ デバッグ設定を適用しました！");
+    closeDebugModal();
 }
 
 let loginTimerInterval = null;
@@ -307,17 +362,15 @@ function toggleHelmetEquip(equip) {
     renderShopPreview();
 }
 
-// ★ プレビュー描画（高さを拡張し、上下中央に美しく配置）
 function renderShopPreview() {
     const pCanvas = document.getElementById('shop-preview-canvas');
     if (!pCanvas || typeof drawCharacter !== 'function') return;
     const pCtx = pCanvas.getContext('2d');
     pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
 
-    // ★ 高さ120pxの中央・自然な着地位置へオフセット配置
     const dummyChar = {
         x: pCanvas.width / 2 - 22,
-        y: pCanvas.height - 88 - 14, // 上下のトサカと影が綺麗に収まる位置
+        y: pCanvas.height - 88 - 14,
         width: 44,
         height: 88,
         direction: 1,
