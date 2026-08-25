@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v18.1（renderer.js 完全連携＆ゲーム本体）
+// ★ game.js v18.1（溜め・必殺の壁激突大吹き飛び＆通常ダウン決着版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -212,9 +212,28 @@ class Character {
             ));
         }
 
+        // ★ 豪快な後方大吹き飛び＆壁激突物理
         if (this.state === 'blowaway') {
+            this.x += this.vx * timeScale;
             this.y += this.vy * timeScale;
-            this.vy += GRAVITY * 0.8 * timeScale;
+            this.vy += GRAVITY * 1.1 * timeScale;
+
+            // 壁に激突したときの跳ね返り＆衝撃
+            if (this.x <= 12) {
+                this.x = 12;
+                this.vx = Math.abs(this.vx) * 0.4;
+                screenShakeTimer = 8;
+                screenShakeIntensity = 6;
+                Sound.playSE('bom');
+            } else if (this.x + this.width >= canvas.width - 12) {
+                this.x = canvas.width - this.width - 12;
+                this.vx = -Math.abs(this.vx) * 0.4;
+                screenShakeTimer = 8;
+                screenShakeIntensity = 6;
+                Sound.playSE('bom');
+            }
+
+            // 地面に着地してダウン
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
@@ -359,7 +378,6 @@ class Character {
             }
         }
 
-        // オートガード判定
         const isBackingUp = (this.direction === 1 && keys.a) || (this.direction === -1 && keys.d);
         const isOpponentAttacking = (opponent && (opponent.state === 'attack' || opponent.state === 'hadouken' || energyBalls.length > 0));
 
@@ -541,7 +559,6 @@ class Character {
         return null;
     }
 
-    // ★ 独立した renderer.js に描画を完全委譲！
     draw(isDarkTone) {
         if (typeof drawCharacter === 'function') {
             const isMyChar = !isWatchMode && (isOnlineMode ? 
@@ -945,6 +962,7 @@ function startRound() {
     }, 1000);
 }
 
+// ★ 溜め・必殺は後方大吹き飛び壁激突＆通常はダウン決着
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -967,19 +985,20 @@ function endRound(winner, reason) {
         message = reason || "DRAW";
     }
 
+    // ★ 溜め強攻撃または波動弾での決着時は後方大吹き飛び（壁激突へ）
     if (winner) {
         if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';
-            loser.vx = 0;
-            loser.vy = -22;
+            loser.vx = winner.direction * 18; // 勝者の攻撃方向に吹き飛ぶ
+            loser.vy = -16;
         } else {
-            loser.state = 'hit';
+            loser.state = 'hit'; // 通常攻撃時はダウン
             loser.vx = 0;
         }
     }
 
     if (isMatchFinished && winner) {
-        timeScale = 0.25;
+        timeScale = 0.35; // 迫力のあるスローモーション
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -1028,7 +1047,7 @@ function endRound(winner, reason) {
                     });
                 }
             }
-        }, 1800);
+        }, 2000);
     } else {
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -1040,7 +1059,7 @@ function endRound(winner, reason) {
                 currentRound++;
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
             });
-        }, 800);
+        }, 1000);
     }
 }
 

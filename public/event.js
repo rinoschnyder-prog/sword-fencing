@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js v18.1（renderer.js 完全連携版）
+// ★ event.js v18.1（溜め・必殺の壁激突大吹き飛び＆通常ダウン決着版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -119,12 +119,30 @@ class Character {
         this.animFrame += 1 * timeScale;
         if (!this.isGrounded) this.vy += GRAVITY * timeScale;
 
+        // ★ 豪快な後方大吹き飛び＆壁激突物理
         if (this.state === 'blowaway') {
+            this.x += this.vx * timeScale;
             this.y += this.vy * timeScale;
-            this.vy += GRAVITY * 0.8 * timeScale;
+            this.vy += GRAVITY * 1.1 * timeScale;
+
+            if (this.x <= 12) {
+                this.x = 12;
+                this.vx = Math.abs(this.vx) * 0.4;
+                screenShakeTimer = 8;
+                screenShakeIntensity = 6;
+                Sound.playSE('bom');
+            } else if (this.x + this.width >= canvas.width - 12) {
+                this.x = canvas.width - this.width - 12;
+                this.vx = -Math.abs(this.vx) * 0.4;
+                screenShakeTimer = 8;
+                screenShakeIntensity = 6;
+                Sound.playSE('bom');
+            }
+
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
-                this.vy = 0; this.vx = 0;
+                this.vy = 0;
+                this.vx = 0;
                 this.state = 'hit';
             }
             return;
@@ -391,7 +409,6 @@ class Character {
         return null;
     }
 
-    // ★ renderer.js に描画を完全委譲！
     draw(isDarkTone) {
         if (typeof drawCharacter === 'function') {
             drawCharacter(ctx, this, {
@@ -489,6 +506,7 @@ function startRound() {
     }, 1000);
 }
 
+// ★ 溜め・必殺は後方大吹き飛び壁激突＆通常はダウン決着
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true; clearInterval(timerInterval);
@@ -499,10 +517,12 @@ function endRound(winner, reason) {
     const loser = (winner === p1) ? p2 : p1;
     const message = (winner === p1) ? "PLAYER WIN" : ((winner === p2) ? "CPU WIN" : (reason || "DRAW"));
 
+    // 溜め・必殺は後方大吹き飛び、通常はダウン
     if (winner) {
         if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';
-            loser.vx = 0; loser.vy = -22;
+            loser.vx = winner.direction * 18;
+            loser.vy = -16;
         } else {
             loser.state = 'hit';
             loser.vx = 0;
@@ -510,7 +530,7 @@ function endRound(winner, reason) {
     }
 
     if (isMatchFinished && winner) {
-        timeScale = 0.25;
+        timeScale = 0.35;
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -550,7 +570,7 @@ function endRound(winner, reason) {
             } else {
                 showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 2500, () => location.reload());
             }
-        }, 1800);
+        }, 2000);
     } else {
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -558,7 +578,7 @@ function endRound(winner, reason) {
             showOverlay(message, 1500, () => {
                 currentRound++; showOverlay(`ROUND ${currentRound}`, 1500, startRound);
             });
-        }, 800);
+        }, 1000);
     }
 }
 
