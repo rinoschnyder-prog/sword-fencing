@@ -1,5 +1,5 @@
 // ==========================================
-// ★ sound.js v18.1.6（音量調整・ON/OFFミュート・ローテーションBGM対応）
+// ★ sound.js v18.1（BGM完全ローテーション切り替え版）
 // ==========================================
 
 class SoundManager {
@@ -128,10 +128,10 @@ class SoundManager {
         }
     }
 
+    // ★ 試合ごとに確実に次のBGMへ切り替えて再生
     playBGM(type) {
         this.unlockAudio();
-        
-        if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) return;
+
         if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) return;
 
         this.stopBGM();

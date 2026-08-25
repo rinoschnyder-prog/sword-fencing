@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js v18.1（VS対戦カード演出連携版）
+// ★ event.js v18.1（決着時BGM停止＆次戦BGM切り替え対応）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -149,7 +149,8 @@ class Character {
 
         if (this.state === 'hadouken') {
             this.hadouTimer += 1 * timeScale;
-            this.vx = 0; this.vy = 0;
+            this.vx = 0;
+            this.vy = 0;
             if (Math.floor(this.hadouTimer) === 24) {
                 const ballX = (this.direction === 1) ? (this.x + this.width + 12) : (this.x - 12);
                 const ballY = this.y + 42;
@@ -464,7 +465,6 @@ function showOverlay(t, d = 1500, cb) {
     overlayTimeout = setTimeout(() => { gameOverlay.classList.remove('show'); if (cb) cb(); }, d);
 }
 
-// ★ イベント挑戦開始（Round 1前にVS対戦カード演出）
 function startEventBattle() {
     winStreak = 0; p1Score = 0; p2Score = 0; currentRound = 1; timeScale = 1.0;
     applyPlayerCustomization();
@@ -482,12 +482,11 @@ function startEventBattle() {
 
     titleScreen.style.display = 'none'; uiLayer.style.display = 'flex';
     streakCounterEl.style.display = 'block'; streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
-    Sound.playBGM('game');
 
     p1.reset(); p2.reset(); updateScoreUI(); updateControlsVisibility();
 
-    // ★ 対戦カードVS演出 ➔ ROUND 1
     showVsIntro(p1, p2, p1Name, p2Name, () => {
+        Sound.playBGM('game'); // ★ VS画面終了後にBGM再生開始
         showOverlay(`🔰 初心者イベント\nROUND ${currentRound}`, 1500, startRound);
     });
 }
@@ -536,6 +535,7 @@ function endRound(winner, reason) {
 
     if (isMatchFinished && winner) {
         timeScale = 0.35;
+        Sound.stopBGM(); // ★ 決着時にBGMを停止！
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -570,8 +570,8 @@ function endRound(winner, reason) {
                         streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
                         p1.reset(); p2.reset(); updateScoreUI();
 
-                        // ★ 試合間もVS演出
                         showVsIntro(p1, p2, "PLAYER", "CPU (練習用)", () => {
+                            Sound.playBGM('game'); // ★ 次のBGM再生開始
                             showOverlay(`ROUND ${currentRound}\n(VS 練習用CPU)`, 1500, startRound);
                         });
                     });

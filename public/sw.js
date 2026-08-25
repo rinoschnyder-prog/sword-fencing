@@ -2,7 +2,7 @@
 // ★ sw.js v18.1.6（PWAクラッシュ防止・安全キャッシュ版）
 // ==========================================
 
-const VERSION = '18.1.7';
+const VERSION = '18.1.8';
 const CACHE_NAME = `sword-fencing-v${VERSION}`;
 
 const ASSETS_TO_CACHE = [

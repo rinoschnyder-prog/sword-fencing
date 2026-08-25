@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v18.1（VS対戦カード演出連携版）
+// ★ game.js v18.1（決着時BGM停止＆次戦BGM切り替え対応）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -375,7 +375,6 @@ class Character {
             }
         }
 
-        // オートガード判定
         const isBackingUp = (this.direction === 1 && keys.a) || (this.direction === -1 && keys.d);
         const isOpponentAttacking = (opponent && (opponent.state === 'attack' || opponent.state === 'hadouken' || energyBalls.length > 0));
 
@@ -706,7 +705,6 @@ function connectToRoom() {
         document.getElementById('p2-name-display').innerText = data.p2;
 
         updateControlsVisibility();
-        Sound.playBGM('game');
 
         setTimeout(() => {
             onlineScreen.style.display = 'none';
@@ -716,8 +714,8 @@ function connectToRoom() {
             p2.reset();
             updateScoreUI();
 
-            // ★ 対戦カードVS演出 ➔ ROUND 1
             showVsIntro(p1, p2, data.p1, data.p2, () => {
+                Sound.playBGM('game'); // ★ VS画面終了後にBGM再生開始
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
             });
         }, 800);
@@ -851,7 +849,7 @@ function generateRandomCpuSkin(excludeColor) {
     };
 }
 
-// ★ CPU戦開始（Round 1前にVS演出）
+// CPU戦開始
 function startCPUMode() {
     isOnlineMode = false;
     isWatchMode = false;
@@ -885,15 +883,13 @@ function startCPUMode() {
     uiLayer.style.display = 'flex';
     streakCounterEl.style.display = 'block';
     streakCounterEl.innerText = `連勝: ${winStreak}`;
-    
-    Sound.playBGM('game');
 
     p1.reset();
     p2.reset();
     updateScoreUI();
 
-    // ★ 対戦カードVS演出 ➔ ROUND 1
     showVsIntro(p1, p2, p1Name, p2Name, () => {
+        Sound.playBGM('game'); // ★ VS画面終了後にBGM再生開始
         showOverlay(`ROUND ${currentRound}`, 1500, startRound);
     });
 }
@@ -932,14 +928,12 @@ function startWatchMode() {
     uiLayer.style.display = 'flex';
     streakCounterEl.style.display = 'none';
 
-    Sound.playBGM('game');
-
     p1.reset();
     p2.reset();
     updateScoreUI();
 
-    // ★ 対戦カードVS演出 ➔ WATCH MATCH
     showVsIntro(p1, p2, p1Name, p2Name, () => {
+        Sound.playBGM('game'); // ★ VS画面終了後にBGM再生開始
         showOverlay(`WATCH MATCH\nROUND ${currentRound}`, 1500, startRound);
     });
 }
@@ -980,6 +974,7 @@ function startRound() {
     }, 1000);
 }
 
+// 試合終了・決着
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1015,6 +1010,7 @@ function endRound(winner, reason) {
 
     if (isMatchFinished && winner) {
         timeScale = 0.35;
+        Sound.stopBGM(); // ★ 試合が決着した瞬間にBGMを停止！
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -1079,7 +1075,7 @@ function endRound(winner, reason) {
     }
 }
 
-// 連勝時（VSカードなしでスムーズに次の試合へ）
+// 次のCPU戦マッチ（次曲BGM再生開始）
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
@@ -1093,14 +1089,12 @@ function startNextMatch() {
     document.getElementById('p2-name-display').innerText = p2Name;
     document.getElementById('p2-name-display').style.color = p2.color;
 
-    Sound.playBGM('game');
-
     p1.reset();
     p2.reset();
     updateScoreUI();
 
-    // ★ 試合切り替え時もVSカード演出
     showVsIntro(p1, p2, "PLAYER 1", p2Name, () => {
+        Sound.playBGM('game'); // ★ 次のBGMを再生開始！
         showOverlay(`ROUND ${currentRound}`, 1500, startRound);
     });
 }
