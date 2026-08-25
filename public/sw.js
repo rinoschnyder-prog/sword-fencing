@@ -3,7 +3,7 @@
 // ==========================================
 
 // ★ 今後はこの「バージョン番号」の1行だけを書き換えるだけでOK！
-const VERSION = '18.1.1';
+const VERSION = '18.1.2';
 
 const CACHE_NAME = `sword-fencing-v${VERSION}`;
 

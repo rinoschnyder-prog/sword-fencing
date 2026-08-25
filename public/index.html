@@ -8,7 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v18.1.1</title>
+    <title>ソード・フェンシング v18.1.2</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f1419">
@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-title" content="フェンシング">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <link rel="stylesheet" href="style.css?v=18.1.1">
+    <link rel="stylesheet" href="style.css?v=18.1.2">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -90,7 +90,6 @@
         <div id="title-screen" class="screen">
             <button id="daily-login-btn" onclick="claimDailyLoginBonus()">🎁 ログインボーナス！</button>
             
-            <!-- 所持金表示 ＆ ★その下に小さなデバッグボタン -->
             <div id="top-gold-display">💰 所持金: <span id="gold-amount">0</span> G</div>
             <button id="title-debug-btn" onclick="openDebugModal()">🛠️ デバッグ</button>
 
@@ -214,9 +213,9 @@
             </div>
         </div>
 
-        <!-- ★ パスワード付きデバッグ設定モーダル (Pass: 776954) -->
+        <!-- ★ パスワード付きデバッグ設定モーダル（マントとオーラを分割） -->
         <div id="debug-screen" class="screen modal-screen" style="display: none;">
-            <div class="modal-box" style="width: min(90vw, 300px);">
+            <div class="modal-box" style="width: min(90vw, 305px);">
                 <h2>🛠️ デバッグ設定</h2>
                 
                 <div class="debug-form-group">
@@ -238,9 +237,15 @@
                         <input type="checkbox" id="debug-check-visor" class="debug-checkbox">
                     </div>
 
+                    <!-- ★ マントとオーラを個別にチェック可能 -->
                     <div class="debug-row">
-                        <span>猛者スキン (マント・オーラ解放):</span>
-                        <input type="checkbox" id="debug-check-veteran" class="debug-checkbox">
+                        <span>🦹 英雄のマント解放 (10連勝):</span>
+                        <input type="checkbox" id="debug-check-cloak" class="debug-checkbox">
+                    </div>
+
+                    <div class="debug-row">
+                        <span>✨ ゴッドオーラ解放 (100連勝):</span>
+                        <input type="checkbox" id="debug-check-aura" class="debug-checkbox">
                     </div>
                 </div>
 
@@ -272,17 +277,17 @@
     </div>
 
     <!-- 安全な分割読み込み -->
-    <script src="sound.js?v=18.1.1"></script>
-    <script src="shop.js?v=18.1.1"></script>
-    <script src="effects.js?v=18.1.1"></script>
-    <script src="renderer.js?v=18.1.1"></script>
-    <script src="game.js?v=18.1.1"></script>
+    <script src="sound.js?v=18.1.2"></script>
+    <script src="shop.js?v=18.1.2"></script>
+    <script src="effects.js?v=18.1.2"></script>
+    <script src="renderer.js?v=18.1.2"></script>
+    <script src="game.js?v=18.1.2"></script>
 
     <!-- PWA Service Worker 自動登録スクリプト -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js?v=18.1').catch(() => {});
+                navigator.serviceWorker.register('./sw.js?v=18.1.2').catch(() => {});
             });
         }
     </script>
