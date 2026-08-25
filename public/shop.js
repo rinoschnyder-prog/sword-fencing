@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js v18.1（パスワード付きデバッグモーダル対応版）
+// ★ shop.js v18.1（マント・オーラ確実解放修正版）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -34,6 +34,9 @@ let playerData = {
     unlockedHelmetColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
+    // ★ マント＆オーラの直接解放フラグ
+    unlockedCloak: false,
+    unlockedGodAura: false,
     visorColor: '#ffffff',
     unlockedVisorColors: ['#ffffff'],
     lastLoginTimestamp: 0
@@ -70,6 +73,11 @@ function loadPlayerData() {
         playerData.totalCpuWins = rankWinsSum;
         localStorage.setItem('fencing_player_data', JSON.stringify(playerData));
     }
+
+    // 過去のランキング連勝記録からマント・オーラを自動解放判定
+    const maxStreak = records.length > 0 ? Math.max(...records.map(r => r.streak)) : 0;
+    if (maxStreak >= 10) playerData.unlockedCloak = true;
+    if (maxStreak >= 100) playerData.unlockedGodAura = true;
 
     updateGoldUI();
     startDailyLoginTimer();
@@ -115,9 +123,7 @@ function resetAllPlayerData() {
     }
 }
 
-// ==========================================
-// ★ パスワード付きデバッグモーダル機能 (Pass: 776954)
-// ==========================================
+// ★ デバッグモーダルを開く
 function openDebugModal() {
     const goldInput = document.getElementById('debug-gold-input');
     if (goldInput) goldInput.value = playerData.gold;
@@ -132,10 +138,14 @@ function openDebugModal() {
                              playerData.unlockedVisorColors.includes('#ffd32a');
     }
 
-    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-    const veteranCheck = document.getElementById('debug-check-veteran');
-    if (veteranCheck) {
-        veteranCheck.checked = records.some(r => r.streak >= 100);
+    const cloakCheck = document.getElementById('debug-check-cloak');
+    if (cloakCheck) {
+        cloakCheck.checked = !!playerData.unlockedCloak;
+    }
+
+    const auraCheck = document.getElementById('debug-check-aura');
+    if (auraCheck) {
+        auraCheck.checked = !!playerData.unlockedGodAura;
     }
 
     const modal = document.getElementById('debug-screen');
@@ -147,6 +157,7 @@ function closeDebugModal() {
     if (modal) modal.style.display = 'none';
 }
 
+// ★ パスワード認証＆デバッグ設定適用 (Pass: 776954)
 function applyDebugSettings() {
     const passInput = document.getElementById('debug-pass-input');
     if (!passInput || passInput.value.trim() !== '776954') {
@@ -172,20 +183,34 @@ function applyDebugSettings() {
         localStorage.setItem('fencing_event_max_streak', 5);
     }
 
-    // 3. 猛者スキン（マント・ゴッドオーラ）
-    const veteranCheck = document.getElementById('debug-check-veteran');
-    if (veteranCheck && veteranCheck.checked) {
-        const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
-        if (!records.some(r => r.streak >= 100)) {
-            records.push({ name: 'MASTER', streak: 100 });
-            records.sort((a, b) => b.streak - a.streak);
-            if (records.length > 3) records.length = 3;
-            localStorage.setItem('fencing_ranking', JSON.stringify(records));
-            updateRankingUI();
-        }
+    // 3. 🦹 英雄のマント解放
+    const cloakCheck = document.getElementById('debug-check-cloak');
+    if (cloakCheck) {
+        playerData.unlockedCloak = cloakCheck.checked;
+    }
+
+    // 4. ✨ ゴッドオーラ解放
+    const auraCheck = document.getElementById('debug-check-aura');
+    if (auraCheck) {
+        playerData.unlockedGodAura = auraCheck.checked;
+    }
+
+    // ランキング側にも安全に反映
+    const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
+    if (playerData.unlockedGodAura && !records.some(r => r.streak >= 100)) {
+        records.push({ name: 'MASTER', streak: 100 });
+    } else if (playerData.unlockedCloak && !records.some(r => r.streak >= 10)) {
+        records.push({ name: 'HERO', streak: 10 });
+    }
+    if (records.length > 0) {
+        records.sort((a, b) => b.streak - a.streak);
+        if (records.length > 3) records.length = 3;
+        localStorage.setItem('fencing_ranking', JSON.stringify(records));
+        updateRankingUI();
     }
 
     savePlayerData();
+    renderShopUI();
     if (typeof Sound !== 'undefined') Sound.playSE('bom');
     alert("✅ デバッグ設定を適用しました！");
     closeDebugModal();
@@ -492,7 +517,7 @@ function renderShopUI() {
         playerData.visorColor = c;
     }, playerData.unlockedVisorColors, false, visorPrice, visorPaletteWithWhite);
 
-    // 7. 猛者スキン
+    // 7. 猛者スキン（直接フラグ判定で確実に解放）
     const accList = document.getElementById('accessory-list');
     if (accList) {
         accList.innerHTML = '';
@@ -501,13 +526,13 @@ function renderShopUI() {
         const currentBest = Math.max((typeof winStreak !== 'undefined' ? winStreak : 0), maxRecordStreak);
 
         const accessories = [
-            { id: 'none', name: 'なし (標準)', reqStreak: 0 },
-            { id: 'cloak', name: '🦹 英雄のマント', reqStreak: 10 },
-            { id: 'god', name: '✨ 黄金のゴッドオーラ', reqStreak: 100 }
+            { id: 'none', name: 'なし (標準)', reqStreak: 0, unlocked: true },
+            { id: 'cloak', name: '🦹 英雄のマント', reqStreak: 10, unlocked: (currentBest >= 10 || !!playerData.unlockedCloak) },
+            { id: 'god', name: '✨ 黄金のゴッドオーラ', reqStreak: 100, unlocked: (currentBest >= 100 || !!playerData.unlockedGodAura) }
         ];
 
         accessories.forEach(acc => {
-            const isUnlocked = (acc.reqStreak === 0) || (currentBest >= acc.reqStreak);
+            const isUnlocked = acc.unlocked;
             const isEquipped = (acc.id === 'cloak' && playerData.hasCloak) || (acc.id === 'god' && playerData.hasGodAura) || (acc.id === 'none' && !playerData.hasCloak && !playerData.hasGodAura);
 
             const btn = document.createElement('button');
