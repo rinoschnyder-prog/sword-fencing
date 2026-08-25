@@ -149,8 +149,7 @@ class Character {
 
         if (this.state === 'hadouken') {
             this.hadouTimer += 1 * timeScale;
-            this.vx = 0;
-            this.vy = 0;
+            this.vx = 0; this.vy = 0;
             if (Math.floor(this.hadouTimer) === 24) {
                 const ballX = (this.direction === 1) ? (this.x + this.width + 12) : (this.x - 12);
                 const ballY = this.y + 42;
@@ -486,7 +485,7 @@ function startEventBattle() {
     p1.reset(); p2.reset(); updateScoreUI(); updateControlsVisibility();
 
     showVsIntro(p1, p2, p1Name, p2Name, () => {
-        Sound.playBGM('game'); // ★ VS画面終了後にBGM再生開始
+        Sound.playBGM('game'); // ★ VS画面終了後に確実に再生開始
         showOverlay(`🔰 初心者イベント\nROUND ${currentRound}`, 1500, startRound);
     });
 }

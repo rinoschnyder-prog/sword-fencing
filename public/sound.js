@@ -1,5 +1,5 @@
 // ==========================================
-// ★ sound.js v18.1（BGM完全ローテーション切り替え版）
+// ★ sound.js v18.1（自動再生ブロック完全回避・BGMローテーション版）
 // ==========================================
 
 class SoundManager {
@@ -128,17 +128,19 @@ class SoundManager {
         }
     }
 
-    // ★ 試合ごとに確実に次のBGMへ切り替えて再生
+    // ★ 確実に切り替えて再生するBGM制御
     playBGM(type) {
         this.unlockAudio();
 
         if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) return;
 
+        // 一旦全BGMを停止
         this.stopBGM();
 
         let audio = null;
         if (type === 'game') {
             audio = this.gameBgmAudioElements[this.currentGameBgmIndex];
+            // 次回用にインデックスを1つ進める
             this.currentGameBgmIndex = (this.currentGameBgmIndex + 1) % this.gameBgmAudioElements.length;
         } else {
             audio = this.bgmAudioElements['title'];
@@ -147,7 +149,19 @@ class SoundManager {
         if (audio) {
             audio.currentTime = 0;
             audio.volume = this.getEffectiveBgmVolume();
-            audio.play().catch(() => {});
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // タップなしでブロックされた場合、次のユーザー操作時に再試行
+                    const retryPlay = () => {
+                        audio.play().catch(() => {});
+                        window.removeEventListener('touchstart', retryPlay);
+                        window.removeEventListener('mousedown', retryPlay);
+                    };
+                    window.addEventListener('touchstart', retryPlay, { once: true });
+                    window.addEventListener('mousedown', retryPlay, { once: true });
+                });
+            }
             this.currentBgm = audio;
             this.currentBgmType = type;
         }
@@ -159,6 +173,16 @@ class SoundManager {
             this.currentBgm.currentTime = 0;
             this.currentBgm = null;
             this.currentBgmType = null;
+        }
+        for (let k in this.bgmAudioElements) {
+            this.bgmAudioElements[k].pause();
+            this.bgmAudioElements[k].currentTime = 0;
+        }
+        if (this.gameBgmAudioElements) {
+            this.gameBgmAudioElements.forEach(a => {
+                a.pause();
+                a.currentTime = 0;
+            });
         }
     }
 }
