@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v17.0（兜描画 ＆ 溜め強攻撃・波動弾KO大吹き飛び対応）
+// ★ game.js v18.0（レバー後ろ入れオートガード対応版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -106,7 +106,8 @@ let youMarkerTimer = 0;
 let screenShakeTimer = 0;
 let screenShakeIntensity = 0;
 
-const keys = { a: false, d: false, w: false, s: false, f: false, space: false };
+// ★ キーバインド（ガードボタン廃止に伴いシンプル化）
+const keys = { a: false, d: false, w: false, f: false, space: false };
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     if (key === ' ') keys.space = true;
@@ -122,7 +123,6 @@ const touchBinds = [
     { btnId: 'btn-left', key: 'a' },
     { btnId: 'btn-right', key: 'd' },
     { btnId: 'btn-jump', key: 'w' },
-    { btnId: 'btn-guard', key: 's' },
     { btnId: 'btn-attack', key: 'f' },
     { btnId: 'btn-special', key: 'space' }
 ];
@@ -136,7 +136,6 @@ touchBinds.forEach(bind => {
     }
 });
 
-// キャラクター クラス
 class Character {
     constructor(color, isCPU) {
         this.width = 44;
@@ -147,7 +146,6 @@ class Character {
         this.armorBodyColor = color;
         this.armorLegsColor = color;
         this.outfitType = 'normal';
-        // ★ 兜プロパティ
         this.hasHelmet = false;
         this.helmetColor = color;
         this.visorColor = '#ffffff';
@@ -304,9 +302,9 @@ class Character {
         if (this.attackCooldown > 0) this.attackCooldown -= 1 * timeScale;
 
         if (this.state !== 'hit' && this.state !== 'flinch' && this.state !== 'break' && !roundOver) {
-            if (isOnlineMode) this.updatePlayer(); 
+            if (isOnlineMode) this.updatePlayer(opponent); 
             else if (this.isCPU) this.updateCPU(opponent);
-            else this.updatePlayer();
+            else this.updatePlayer(opponent);
         } else if (this.state === 'hit' || this.state === 'break') {
             this.vx = 0;
         }
@@ -333,8 +331,11 @@ class Character {
         }
     }
 
-    updatePlayer() {
+    // ★ レバー後ろ入れオートガード対応プレイヤー更新
+    updatePlayer(opponent) {
         this.vx = 0;
+
+        // 必殺技
         if (keys.space && this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'hadouken') {
             this.state = 'hadouken';
             this.isSpecialAttack = true;
@@ -344,6 +345,7 @@ class Character {
             return;
         }
 
+        // 溜め攻撃
         if (this.state === 'charge') {
             if (keys.f) {
                 this.chargeTimer++;
@@ -359,15 +361,7 @@ class Character {
             }
         }
 
-        if (keys.s && this.isGrounded && this.state !== 'attack' && this.state !== 'charge' && this.state !== 'hadouken') {
-            this.state = 'guard';
-            this.guardActive = true;
-            return;
-        } else {
-            this.guardActive = false;
-            if (this.state === 'guard') this.state = 'idle';
-        }
-
+        // 攻撃開始
         if (keys.f && this.attackCooldown <= 0 && this.state !== 'attack' && this.state !== 'hadouken') {
             if (this.isGrounded) {
                 this.state = 'charge';
@@ -383,6 +377,21 @@ class Character {
             }
         }
 
+        // ★ レバー後ろ入れオートガード判定（下がり入力中に敵が攻撃してきたら自動ガード）
+        const isBackingUp = (this.direction === 1 && keys.a) || (this.direction === -1 && keys.d);
+        const isOpponentAttacking = (opponent && (opponent.state === 'attack' || opponent.state === 'hadouken' || energyBalls.length > 0));
+
+        if (isBackingUp && this.isGrounded && isOpponentAttacking && this.state !== 'attack' && this.state !== 'charge' && this.state !== 'hadouken') {
+            this.state = 'guard';
+            this.guardActive = true;
+            this.vx = 0;
+            return;
+        } else {
+            this.guardActive = false;
+            if (this.state === 'guard') this.state = 'idle';
+        }
+
+        // 移動＆ジャンプ
         if (this.state !== 'attack' && this.state !== 'charge' && this.state !== 'hadouken') {
             if (keys.a) {
                 this.vx = -4.5;
@@ -1065,7 +1074,6 @@ class Character {
     }
 }
 
-// キャラクター初期化
 const p1 = new Character('#ff5252', false); 
 const p2 = new Character(CPU_COLORS[0], true);  
 resizeCanvas();
@@ -1140,7 +1148,6 @@ function hideOnlineMenu() {
     if (socket) socket.emit('leave_room');
 }
 
-// オンライン対戦（Socket.io）
 function connectToRoom() {
     const roomId = document.getElementById('room-id-input').value.trim();
     const playerName = document.getElementById('player-name-input').value.trim() || "PLAYER";
@@ -1324,7 +1331,7 @@ function generateRandomCpuSkin(excludeColor) {
     const baseColor = availableColors[Math.floor(Math.random() * availableColors.length)];
     const armorColor = CPU_COLORS[Math.floor(Math.random() * CPU_COLORS.length)];
     const wearsArmor = Math.random() < 0.75;
-    const wearsHelmet = wearsArmor && Math.random() < 0.65; // 鎧装備時に兜もランダム装備
+    const wearsHelmet = wearsArmor && Math.random() < 0.65;
     const randomVisorColor = PALETTE[Math.floor(Math.random() * PALETTE.length)];
 
     return {
@@ -1455,7 +1462,6 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 溜め強攻撃・必殺KO大吹き飛び演出強化版 endRound
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1478,7 +1484,6 @@ function endRound(winner, reason) {
         message = reason || "DRAW";
     }
 
-    // ★ 溜め強攻撃KOまたは波動弾KO時はいつでも豪快に大吹き飛び！
     if (winner) {
         if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';

@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js v17.0（兜描画 ＆ 溜め・必殺KO大吹き飛び対応）
+// ★ event.js v18.0（レバー後ろ入れオートガード対応版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -72,7 +72,7 @@ let p1Score = 0, p2Score = 0, currentRound = 1, roundTimer = ROUND_TIME_LIMIT;
 let timerInterval = null, gameActive = false, roundOver = false, winStreak = 0;
 let youMarkerTimer = 0, screenShakeTimer = 0, screenShakeIntensity = 0;
 
-const keys = { a: false, d: false, w: false, s: false, f: false, space: false };
+const keys = { a: false, d: false, w: false, f: false, space: false };
 window.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === ' ') keys.space = true; if (k in keys) keys[k] = true; });
 window.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k === ' ') keys.space = false; if (k in keys) keys[k] = false; });
 
@@ -80,7 +80,6 @@ const touchBinds = [
     { btnId: 'btn-left', key: 'a' },
     { btnId: 'btn-right', key: 'd' },
     { btnId: 'btn-jump', key: 'w' },
-    { btnId: 'btn-guard', key: 's' },
     { btnId: 'btn-attack', key: 'f' },
     { btnId: 'btn-special', key: 'space' }
 ];
@@ -109,7 +108,8 @@ class Character {
         this.direction = isCPU ? -1 : 1; this.isGrounded = true; this.state = 'idle';
         this.isAirAttack = false; this.isHeavyAttack = false; this.isSpecialAttack = false;
         this.hadouTimer = 0; this.chargeTimer = 0; this.attackTimer = 0; this.attackCooldown = 0;
-        this.flinchTimer = 0; this.breakTimer = 0; this.guardActive = false; this.animFrame = 0;
+        this.flinchTimer = 0; this.breakTimer = 0;
+        this.guardActive = false; this.animFrame = 0;
         this.cpuActionTimer = 0; this.cpuDecision = 'idle';
         this.cpuTargetAirAttack = false;
     }
@@ -195,7 +195,7 @@ class Character {
 
         if (this.state !== 'hit' && this.state !== 'flinch' && this.state !== 'break' && !roundOver) {
             if (this.isCPU) this.updateEventCPU(opponent);
-            else this.updatePlayer();
+            else this.updatePlayer(opponent);
         } else if (this.state === 'hit' || this.state === 'break') {
             this.vx = 0;
         }
@@ -213,16 +213,19 @@ class Character {
             this.isGrounded = false;
         }
 
-        if (this.x < 12) this.x = 12;
-        if (this.x + this.width > canvas.width - 12) this.x = canvas.width - this.width - 12;
+        const margin = 12;
+        if (this.x < margin) this.x = margin;
+        if (this.x + this.width > canvas.width - margin) this.x = canvas.width - this.width - margin;
 
         if (this.state !== 'attack' && this.state !== 'hadouken' && this.state !== 'hit' && this.state !== 'break' && !roundOver) {
             this.direction = (opponent.x > this.x) ? 1 : -1;
         }
     }
 
-    updatePlayer() {
+    // ★ オートガード対応プレイヤー更新
+    updatePlayer(opponent) {
         this.vx = 0;
+
         if (keys.space && this.sp >= MAX_SP && this.isGrounded && this.state !== 'attack' && this.state !== 'hadouken') {
             this.state = 'hadouken';
             this.isSpecialAttack = true;
@@ -247,15 +250,6 @@ class Character {
             }
         }
 
-        if (keys.s && this.isGrounded && this.state !== 'attack' && this.state !== 'charge' && this.state !== 'hadouken') {
-            this.state = 'guard';
-            this.guardActive = true;
-            return;
-        } else {
-            this.guardActive = false;
-            if (this.state === 'guard') this.state = 'idle';
-        }
-
         if (keys.f && this.attackCooldown <= 0 && this.state !== 'attack' && this.state !== 'hadouken') {
             if (this.isGrounded) {
                 this.state = 'charge';
@@ -269,6 +263,20 @@ class Character {
                 Sound.playSE('swing');
                 return;
             }
+        }
+
+        // ★ レバー後ろ入れオートガード
+        const isBackingUp = (this.direction === 1 && keys.a) || (this.direction === -1 && keys.d);
+        const isOpponentAttacking = (opponent && (opponent.state === 'attack' || opponent.state === 'hadouken' || energyBalls.length > 0));
+
+        if (isBackingUp && this.isGrounded && isOpponentAttacking && this.state !== 'attack' && this.state !== 'charge' && this.state !== 'hadouken') {
+            this.state = 'guard';
+            this.guardActive = true;
+            this.vx = 0;
+            return;
+        } else {
+            this.guardActive = false;
+            if (this.state === 'guard') this.state = 'idle';
         }
 
         if (this.state !== 'attack' && this.state !== 'charge' && this.state !== 'hadouken') {
@@ -417,7 +425,6 @@ class Character {
         let swordStart = { x: 0, y: 0 }; let swordEnd = { x: 0, y: 0 };
         const dir = this.direction;
 
-        // YOUマーカー
         if (this === p1 && gameActive && this.state !== 'hit' && this.state !== 'blowaway' && youMarkerTimer > 0) {
             const bob = Math.sin(this.animFrame * 0.15) * 4;
             const markerY = headY - 26 + bob;
@@ -432,7 +439,6 @@ class Character {
             ctx.restore();
         }
 
-        // 溜め発光
         if (this.state === 'charge') {
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
             const flashSpeed = isFull ? 0.4 : 0.18;
@@ -449,7 +455,6 @@ class Character {
             }
         }
 
-        // 波動拳
         if (this.state === 'hadouken') {
             headY = cy - 68; chestY = cy - 50; hipY = cy - 30;
             leftFoot = { x: cx - dir * 18, y: cy }; rightFoot = { x: cx + dir * 22, y: cy };
@@ -489,8 +494,8 @@ class Character {
             return;
         }
         else if (this.state === 'charge') {
-            const pullBack = Math.min(12, this.chargeTimer * 0.3);
             const isFull = this.chargeTimer >= MAX_CHARGE_FRAMES;
+            const pullBack = Math.min(12, this.chargeTimer * 0.3);
             const shake = isFull ? (Math.random() - 0.5) * 2.5 : 0;
             headY = cy - 66 + shake; chestY = cy - 48 + shake; hipY = cy - 28;
             leftFoot = { x: cx - dir * 20, y: cy }; rightFoot = { x: cx + dir * 16, y: cy };
@@ -541,7 +546,7 @@ class Character {
         ctx.fillStyle = this.color;
         ctx.beginPath(); ctx.arc(cx, headY, 11, 0, Math.PI * 2); ctx.fill();
 
-        // ★ 兜（フルヘルム）描画
+        // 兜（フルヘルム）
         if (this.hasHelmet && this.state !== 'hit') {
             const hColor = this.helmetColor || '#ff5252';
             const hLight = adjustColor(hColor, 0.45);
@@ -585,7 +590,7 @@ class Character {
         ctx.stroke();
         ctx.restore();
 
-        // 脚
+        // 下半身
         ctx.save();
         ctx.strokeStyle = this.legsColor; ctx.lineWidth = 5.5;
         ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(leftFoot.x, leftFoot.y); ctx.stroke();
@@ -900,7 +905,6 @@ function endRound(winner, reason) {
     const loser = (winner === p1) ? p2 : p1;
     const message = (winner === p1) ? "PLAYER WIN" : ((winner === p2) ? "CPU WIN" : (reason || "DRAW"));
 
-    // ★ 溜め強攻撃KOまたは波動弾KO時は大吹き飛び！
     if (winner) {
         if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';

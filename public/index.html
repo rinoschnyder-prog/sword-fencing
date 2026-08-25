@@ -8,10 +8,10 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v17.0.1</title>
+    <title>ソード・フェンシング v18.0</title>
     
-    <!-- ★ 最新バージョン v=17.0.1 -->
-    <link rel="stylesheet" href="style.css?v=17.0.1">
+    <!-- ★ 最新バージョン v=18.0 -->
+    <link rel="stylesheet" href="style.css?v=18.0">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -63,7 +63,7 @@
             </div>
         </div>
 
-        <!-- メインコントローラー -->
+        <!-- ★ メインコントローラー（押しやすい2ボタン化） -->
         <div id="touch-controls">
             <div class="control-group left-group">
                 <button id="btn-left" class="touch-btn">◀</button>
@@ -71,7 +71,6 @@
             </div>
             <div class="control-group right-group">
                 <button id="btn-jump" class="touch-btn action-btn blue">JUMP</button>
-                <button id="btn-guard" class="touch-btn action-btn yellow">GUARD</button>
                 <button id="btn-attack" class="touch-btn action-btn red">ATTACK<br><span style="font-size: 8px;">(長押し溜め)</span></button>
             </div>
         </div>
@@ -87,7 +86,7 @@
             <div id="top-gold-display">💰 所持金: <span id="gold-amount">0</span> G</div>
 
             <h1 class="game-title">ソード・フェンシング</h1>
-            <div class="subtitle">〜 30秒決戦！通常10打 / 溜め一撃KO＆必殺波動弾 〜</div>
+            <div class="subtitle">〜 30秒決戦！通常10打 / 後ろガード / 溜め一撃KO＆必殺波動弾 〜</div>
             
             <button class="menu-btn" style="background: linear-gradient(135deg, #00d2d3, #ff9f43);" onclick="location.href='event.html'">🔰 初心者バイザー獲得祭 (開催中)</button>
             <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
@@ -176,7 +175,6 @@
 
                     <hr style="border:none; border-top:1px dashed rgba(255,255,255,0.2); margin:8px 0;">
                     
-                    <!-- ★ 兜フルヘルム項目 -->
                     <div id="helmet-unlock-status" style="margin-bottom:4px;"></div>
                     <div class="shop-item-title" id="title-armor-helmet">■ 鎧・兜フルヘルム (高級品)</div>
                     <div class="color-palette-grid" id="armor-helmet-palette"></div>
@@ -227,10 +225,10 @@
         </div>
     </div>
 
-    <!-- 安全な分割読み込み (v17.0) -->
-    <script src="sound.js?v=17.0.1"></script>
-    <script src="shop.js?v=17.0.1"></script>
-    <script src="effects.js?v=17.0.1"></script>
-    <script src="game.js?v=17.0.1"></script>
+    <!-- 安全な分割読み込み (v18.0) -->
+    <script src="sound.js?v=18.0"></script>
+    <script src="shop.js?v=18.0"></script>
+    <script src="effects.js?v=18.0"></script>
+    <script src="game.js?v=18.0"></script>
 </body>
 </html>
