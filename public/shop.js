@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js v18.1（マント・オーラ確実解放修正版）
+// ★ shop.js v18.1.6（設定セーブ＆ON/OFF連動対応版）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -34,11 +34,15 @@ let playerData = {
     unlockedHelmetColors: ['#ff5252'],
     hasCloak: false,
     hasGodAura: false,
-    // ★ マント＆オーラの直接解放フラグ
     unlockedCloak: false,
     unlockedGodAura: false,
     visorColor: '#ffffff',
     unlockedVisorColors: ['#ffffff'],
+    // ★ 音量＆ミュート設定のセーブ項目
+    bgmVolume: 0.45,
+    seVolume: 0.7,
+    bgmMuted: false,
+    seMuted: false,
     lastLoginTimestamp: 0
 };
 
@@ -74,10 +78,19 @@ function loadPlayerData() {
         localStorage.setItem('fencing_player_data', JSON.stringify(playerData));
     }
 
-    // 過去のランキング連勝記録からマント・オーラを自動解放判定
     const maxStreak = records.length > 0 ? Math.max(...records.map(r => r.streak)) : 0;
     if (maxStreak >= 10) playerData.unlockedCloak = true;
     if (maxStreak >= 100) playerData.unlockedGodAura = true;
+
+    // ★ 保存されていた音量設定を Sound に反映
+    if (typeof Sound !== 'undefined') {
+        Sound.bgmVolume = (playerData.bgmVolume !== undefined) ? playerData.bgmVolume : 0.45;
+        Sound.seVolume = (playerData.seVolume !== undefined) ? playerData.seVolume : 0.7;
+        Sound.bgmMuted = !!playerData.bgmMuted;
+        Sound.seMuted = !!playerData.seMuted;
+        Sound.updateBgmVolumes();
+        Sound.updateSeVolumes();
+    }
 
     updateGoldUI();
     startDailyLoginTimer();
@@ -123,7 +136,69 @@ function resetAllPlayerData() {
     }
 }
 
-// ★ デバッグモーダルを開く
+// ==========================================
+// ★ 各種設定モーダルの開閉＆音量・ON/OFF連動
+// ==========================================
+function openSettingsModal() {
+    const bgmSlider = document.getElementById('settings-bgm-slider');
+    if (bgmSlider) bgmSlider.value = (playerData.bgmVolume !== undefined) ? playerData.bgmVolume : 0.45;
+
+    const seSlider = document.getElementById('settings-se-slider');
+    if (seSlider) seSlider.value = (playerData.seVolume !== undefined) ? playerData.seVolume : 0.7;
+
+    const bgmCheck = document.getElementById('settings-bgm-mute');
+    if (bgmCheck) bgmCheck.checked = !playerData.bgmMuted; // ONの時にチェック
+
+    const seCheck = document.getElementById('settings-se-mute');
+    if (seCheck) seCheck.checked = !playerData.seMuted; // ONの時にチェック
+
+    const modal = document.getElementById('settings-screen');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeSettingsModal() {
+    savePlayerData();
+    const modal = document.getElementById('settings-screen');
+    if (modal) modal.style.display = 'none';
+}
+
+function changeBgmVolume(val) {
+    playerData.bgmVolume = parseFloat(val);
+    if (typeof Sound !== 'undefined') {
+        Sound.bgmVolume = playerData.bgmVolume;
+        Sound.updateBgmVolumes();
+    }
+    savePlayerData();
+}
+
+function changeSeVolume(val) {
+    playerData.seVolume = parseFloat(val);
+    if (typeof Sound !== 'undefined') {
+        Sound.seVolume = playerData.seVolume;
+        Sound.updateSeVolumes();
+    }
+    savePlayerData();
+}
+
+function toggleBgmEnable(enabled) {
+    playerData.bgmMuted = !enabled;
+    if (typeof Sound !== 'undefined') {
+        Sound.bgmMuted = playerData.bgmMuted;
+        Sound.updateBgmVolumes();
+    }
+    savePlayerData();
+}
+
+function toggleSeEnable(enabled) {
+    playerData.seMuted = !enabled;
+    if (typeof Sound !== 'undefined') {
+        Sound.seMuted = playerData.seMuted;
+        Sound.updateSeVolumes();
+    }
+    savePlayerData();
+}
+
+// デバッグモーダル
 function openDebugModal() {
     const goldInput = document.getElementById('debug-gold-input');
     if (goldInput) goldInput.value = playerData.gold;
@@ -139,14 +214,10 @@ function openDebugModal() {
     }
 
     const cloakCheck = document.getElementById('debug-check-cloak');
-    if (cloakCheck) {
-        cloakCheck.checked = !!playerData.unlockedCloak;
-    }
+    if (cloakCheck) cloakCheck.checked = !!playerData.unlockedCloak;
 
     const auraCheck = document.getElementById('debug-check-aura');
-    if (auraCheck) {
-        auraCheck.checked = !!playerData.unlockedGodAura;
-    }
+    if (auraCheck) auraCheck.checked = !!playerData.unlockedGodAura;
 
     const modal = document.getElementById('debug-screen');
     if (modal) modal.style.display = 'flex';
@@ -157,7 +228,6 @@ function closeDebugModal() {
     if (modal) modal.style.display = 'none';
 }
 
-// ★ パスワード認証＆デバッグ設定適用 (Pass: 776954)
 function applyDebugSettings() {
     const passInput = document.getElementById('debug-pass-input');
     if (!passInput || passInput.value.trim() !== '776954') {
@@ -165,16 +235,12 @@ function applyDebugSettings() {
         return;
     }
 
-    // 1. お金の変更
     const goldInput = document.getElementById('debug-gold-input');
     if (goldInput) {
         const val = parseInt(goldInput.value, 10);
-        if (!isNaN(val) && val >= 0) {
-            playerData.gold = val;
-        }
+        if (!isNaN(val) && val >= 0) playerData.gold = val;
     }
 
-    // 2. 初心者スキン（バイザー）
     const visorCheck = document.getElementById('debug-check-visor');
     if (visorCheck && visorCheck.checked) {
         ['#40c4ff', '#ff5252', '#ffd32a'].forEach(c => {
@@ -183,19 +249,12 @@ function applyDebugSettings() {
         localStorage.setItem('fencing_event_max_streak', 5);
     }
 
-    // 3. 🦹 英雄のマント解放
     const cloakCheck = document.getElementById('debug-check-cloak');
-    if (cloakCheck) {
-        playerData.unlockedCloak = cloakCheck.checked;
-    }
+    if (cloakCheck) playerData.unlockedCloak = cloakCheck.checked;
 
-    // 4. ✨ ゴッドオーラ解放
     const auraCheck = document.getElementById('debug-check-aura');
-    if (auraCheck) {
-        playerData.unlockedGodAura = auraCheck.checked;
-    }
+    if (auraCheck) playerData.unlockedGodAura = auraCheck.checked;
 
-    // ランキング側にも安全に反映
     const records = JSON.parse(localStorage.getItem('fencing_ranking')) || [];
     if (playerData.unlockedGodAura && !records.some(r => r.streak >= 100)) {
         records.push({ name: 'MASTER', streak: 100 });
@@ -517,7 +576,7 @@ function renderShopUI() {
         playerData.visorColor = c;
     }, playerData.unlockedVisorColors, false, visorPrice, visorPaletteWithWhite);
 
-    // 7. 猛者スキン（直接フラグ判定で確実に解放）
+    // 7. 猛者スキン
     const accList = document.getElementById('accessory-list');
     if (accList) {
         accList.innerHTML = '';

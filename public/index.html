@@ -8,8 +8,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- ★ 今後バージョンアップ時はこの1行を書き換えるだけで全て自動連動！ -->
-    <script>const VERSION = '18.1.5';</script>
+    <script>const VERSION = '18.1.6';</script>
 
     <title>ソード・フェンシング</title>
     
@@ -20,7 +19,6 @@
     <meta name="apple-mobile-web-app-title" content="フェンシング">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <!-- CSSを自動バージョン連動で読み込み -->
     <script>document.write(`<link rel="stylesheet" href="style.css?v=${VERSION}">`);</script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
@@ -100,11 +98,21 @@
             <h1 class="game-title">ソード・フェンシング</h1>
             <div class="subtitle">〜 30秒決戦！通常10打 / 後ろガード / 溜め一撃KO＆必殺波動弾 〜</div>
             
-            <button class="menu-btn" style="background: linear-gradient(135deg, #00d2d3, #ff9f43);" onclick="location.href='event.html'">🔰 初心者バイザー獲得祭 (開催中)</button>
-            <button class="menu-btn" onclick="startCPUMode()">CPU戦 (連勝に挑戦)</button>
-            <button class="menu-btn" onclick="showOnlineMenu()">対戦モード (オンライン)</button>
-            <button class="menu-btn watch-btn" onclick="openBetModal()">観戦・賭けバトル (CPU vs CPU)</button>
-            <button class="menu-btn shop-btn" onclick="openShopModal()">🎨 スキン工房 (着替え＆SHOP)</button>
+            <div id="title-menu-container">
+                <button class="menu-btn full-width" style="background: linear-gradient(135deg, #00d2d3, #ff9f43);" onclick="location.href='event.html'">🔰 初心者バイザー獲得祭 (開催中)</button>
+
+                <div class="menu-row">
+                    <button class="menu-btn" onclick="startCPUMode()">⚔️ CPU戦 (連勝挑戦)</button>
+                    <button class="menu-btn" onclick="showOnlineMenu()">🌐 対戦モード (通信)</button>
+                </div>
+
+                <div class="menu-row">
+                    <button class="menu-btn watch-btn" onclick="openBetModal()">🎰 観戦・賭けバトル</button>
+                    <button class="menu-btn shop-btn" onclick="openShopModal()">🎨 スキン工房</button>
+                </div>
+
+                <button class="menu-btn settings-btn full-width" onclick="openSettingsModal()">⚙️ 各種設定 (音量・BGM)</button>
+            </div>
 
             <div id="ranking-board">
                 <h3>🏆 歴代連勝記録 TOP 3</h3>
@@ -217,6 +225,41 @@
             </div>
         </div>
 
+        <!-- ★ 各種設定モーダル (ON/OFFチェックボックス付き) -->
+        <div id="settings-screen" class="screen modal-screen" style="display: none;">
+            <div class="modal-box" style="width: min(92vw, 320px);">
+                <h2>⚙️ 各種設定</h2>
+                
+                <div class="settings-form-group">
+                    <div class="settings-row">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span>🎵 BGM:</span>
+                            <input type="range" id="settings-bgm-slider" class="settings-slider" min="0" max="1" step="0.05" oninput="changeBgmVolume(this.value)">
+                        </div>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                            <input type="checkbox" id="settings-bgm-mute" class="settings-checkbox" onchange="toggleBgmEnable(this.checked)">
+                            <span style="font-size:11px;">ON</span>
+                        </label>
+                    </div>
+
+                    <div class="settings-row">
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <span>🔊 SE:</span>
+                            <input type="range" id="settings-se-slider" class="settings-slider" min="0" max="1" step="0.05" oninput="changeSeVolume(this.value)">
+                        </div>
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                            <input type="checkbox" id="settings-se-mute" class="settings-checkbox" onchange="toggleSeEnable(this.checked)">
+                            <span style="font-size:11px;">ON</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button class="menu-btn" onclick="closeSettingsModal()">閉じる</button>
+                </div>
+            </div>
+        </div>
+
         <!-- パスワード付きデバッグ設定モーダル -->
         <div id="debug-screen" class="screen modal-screen" style="display: none;">
             <div class="modal-box" style="width: min(90vw, 305px);">
@@ -279,7 +322,7 @@
         </div>
     </div>
 
-    <!-- ★ 全スクリプト＆ServiceWorkerを自動バージョン連動で一括読み込み -->
+    <!-- 安全な分割読み込み -->
     <script>
         ['sound.js', 'shop.js', 'effects.js', 'renderer.js', 'game.js'].forEach(file => {
             document.write(`<script src="${file}?v=${VERSION}"><\/script>`);

@@ -1,6 +1,7 @@
 // ==========================================
-// ★ オーディオマネージャー（sound.js 完全確実再生版）
+// ★ sound.js v18.1.6（音量調整・ON/OFFミュート・ローテーションBGM対応）
 // ==========================================
+
 class SoundManager {
     constructor() {
         this.ctx = null;
@@ -9,6 +10,8 @@ class SoundManager {
         this.currentBgmType = null;
         this.bgmVolume = 0.45;
         this.seVolume = 0.7;
+        this.bgmMuted = false;
+        this.seMuted = false;
 
         this.seFiles = {
             hit: 'se/se_hit.wav',
@@ -19,37 +22,59 @@ class SoundManager {
             bom: 'se/se_bom.wav'
         };
 
-        this.bgmFiles = {
-            title: 'bgm/top-iimhero.mp3',
-            game1: 'bgm/back-bgm1.mp3',
-            game2: 'bgm/back-bgm2.mp3'
-        };
+        this.titleBgmUrl = 'bgm/top-iimhero.mp3';
+        this.gameBgmList = [
+            'bgm/back-bgm1.mp3',
+            'bgm/back-bgm2.mp3'
+        ];
+        this.currentGameBgmIndex = 0;
 
-        // BGMプレイヤー
         this.bgmAudioElements = {};
-        for (const [key, url] of Object.entries(this.bgmFiles)) {
-            const audio = new Audio(url);
-            audio.loop = true;
-            audio.volume = this.bgmVolume;
-            audio.addEventListener('ended', () => {
-                audio.currentTime = 0;
-                audio.play().catch(() => {});
-            });
-            this.bgmAudioElements[key] = audio;
-        }
+        const titleAudio = new Audio(this.titleBgmUrl);
+        titleAudio.loop = true;
+        titleAudio.volume = this.getEffectiveBgmVolume();
+        this.bgmAudioElements['title'] = titleAudio;
 
-        // SEフォールバック用Audioプール（Web Audioがブロックされた時も確実に鳴らす）
+        this.gameBgmAudioElements = this.gameBgmList.map(url => {
+            const a = new Audio(url);
+            a.loop = true;
+            a.volume = this.getEffectiveBgmVolume();
+            return a;
+        });
+
         this.seAudioPool = {};
         for (const [key, url] of Object.entries(this.seFiles)) {
             this.seAudioPool[key] = [];
             for (let i = 0; i < 3; i++) {
                 const a = new Audio(url);
-                a.volume = this.seVolume;
+                a.volume = this.getEffectiveSeVolume();
                 this.seAudioPool[key].push(a);
             }
         }
 
         this.initAudioContext();
+    }
+
+    getEffectiveBgmVolume() {
+        return this.bgmMuted ? 0 : this.bgmVolume;
+    }
+
+    getEffectiveSeVolume() {
+        return this.seMuted ? 0 : this.seVolume;
+    }
+
+    updateBgmVolumes() {
+        const vol = this.getEffectiveBgmVolume();
+        if (this.currentBgm) this.currentBgm.volume = vol;
+        for (let k in this.bgmAudioElements) this.bgmAudioElements[k].volume = vol;
+        if (this.gameBgmAudioElements) this.gameBgmAudioElements.forEach(a => a.volume = vol);
+    }
+
+    updateSeVolumes() {
+        const vol = this.getEffectiveSeVolume();
+        for (let k in this.seAudioPool) {
+            this.seAudioPool[k].forEach(a => a.volume = vol);
+        }
     }
 
     initAudioContext() {
@@ -77,17 +102,16 @@ class SoundManager {
         }
     }
 
-    // ★ どんな環境でも100%確実に鳴るSE再生
     playSE(name) {
+        if (this.seMuted) return;
         this.unlockAudio();
 
-        // 1. Web Audio APIで超高速再生
         if (this.ctx && this.buffers[name]) {
             try {
                 const source = this.ctx.createBufferSource();
                 const gain = this.ctx.createGain();
                 source.buffer = this.buffers[name];
-                gain.gain.value = this.seVolume;
+                gain.gain.value = this.getEffectiveSeVolume();
                 source.connect(gain);
                 gain.connect(this.ctx.destination);
                 source.start(0);
@@ -95,27 +119,34 @@ class SoundManager {
             } catch (e) {}
         }
 
-        // 2. フォールバック（Audio要素で再生）
         const pool = this.seAudioPool[name];
         if (pool) {
             const audio = pool.find(a => a.paused || a.ended) || pool[0];
             audio.currentTime = 0;
-            audio.volume = this.seVolume;
+            audio.volume = this.getEffectiveSeVolume();
             audio.play().catch(() => {});
         }
     }
 
     playBGM(type) {
         this.unlockAudio();
+        
         if (type === 'game' && this.currentBgmType === 'game' && this.currentBgm && !this.currentBgm.paused) return;
         if (type === 'title' && this.currentBgmType === 'title' && this.currentBgm && !this.currentBgm.paused) return;
 
         this.stopBGM();
-        let targetKey = type === 'game' ? (Math.random() < 0.5 ? 'game1' : 'game2') : 'title';
-        const audio = this.bgmAudioElements[targetKey];
+
+        let audio = null;
+        if (type === 'game') {
+            audio = this.gameBgmAudioElements[this.currentGameBgmIndex];
+            this.currentGameBgmIndex = (this.currentGameBgmIndex + 1) % this.gameBgmAudioElements.length;
+        } else {
+            audio = this.bgmAudioElements['title'];
+        }
+
         if (audio) {
             audio.currentTime = 0;
-            audio.volume = this.bgmVolume;
+            audio.volume = this.getEffectiveBgmVolume();
             audio.play().catch(() => {});
             this.currentBgm = audio;
             this.currentBgmType = type;

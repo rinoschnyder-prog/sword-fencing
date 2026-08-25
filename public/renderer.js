@@ -1,5 +1,5 @@
 // ==========================================
-// ★ renderer.js v18.1（プレビュー静止対応＆スキン共通描画）
+// ★ renderer.js v18.1.6（スキン同系色フチ取り・統一質感版）
 // ==========================================
 
 function adjustColor(hex, lum) {
@@ -20,7 +20,7 @@ function drawCharacter(ctx, char, options = {}) {
     const isMyCharacter = options.isMyCharacter || false;
     const youMarkerTimer = options.youMarkerTimer || 0;
     const gameActive = (options.gameActive !== undefined) ? options.gameActive : true;
-    const isPreview = options.isPreview || false; // ★ プレビューフラグ
+    const isPreview = options.isPreview || false;
     const groundY = (typeof GROUND_Y !== 'undefined') ? GROUND_Y : (char.y + char.height);
 
     const cx = char.x + char.width / 2; 
@@ -241,7 +241,6 @@ function drawCharacter(ctx, char, options = {}) {
         swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 32, y: rightHand.y - 22 };
     }
     else {
-        // ★ プレビュー時は呼吸揺れを完全に静止
         const breathe = isPreview ? 0 : (Math.sin((char.animFrame || 0) * 0.05) * 1.5);
         headY += breathe; chestY += breathe * 0.5;
         swordStart = { x: rightHand.x, y: rightHand.y }; swordEnd = { x: rightHand.x + dir * 22, y: rightHand.y - 32 };
@@ -281,14 +280,15 @@ function drawCharacter(ctx, char, options = {}) {
     ctx.arc(cx, headY, 11, 0, Math.PI * 2);
     ctx.fill();
 
-    // 兜（フルヘルム）
+    // ★ 兜（フルヘルム・同系色の輝くハイライトフチ取り）
     if (char.hasHelmet && char.state !== 'hit') {
         const hColor = char.helmetColor || '#ff5252';
-        const hLight = adjustColor(hColor, 0.45);
+        const hLight = adjustColor(hColor, 0.55); // 同系色のハイライト
+        const hDark = adjustColor(hColor, -0.45);
 
         ctx.save();
         ctx.fillStyle = hColor;
-        ctx.strokeStyle = '#ffd32a';
+        ctx.strokeStyle = hLight; // ★ 同系色フチ取り
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.arc(cx, headY - 1, 12.5, Math.PI * 0.75, Math.PI * 2.25);
@@ -338,9 +338,9 @@ function drawCharacter(ctx, char, options = {}) {
     ctx.lineTo(rightFoot.x, rightFoot.y);
     ctx.stroke();
 
-    // 鎧（下半身：立体脛当て・菱形ニーガード・鉄靴）
+    // ★ 鎧（下半身：立体脛当て・同系色フチの菱形ニーガード・鉄靴）
     if (char.outfitType === 'armor') {
-        const aLegLight = adjustColor(char.armorLegsColor, 0.45);
+        const aLegLight = adjustColor(char.armorLegsColor, 0.55);
         const aLegDark = adjustColor(char.armorLegsColor, -0.45);
 
         [leftFoot, rightFoot].forEach((foot) => {
@@ -360,9 +360,9 @@ function drawCharacter(ctx, char, options = {}) {
             ctx.lineTo(foot.x, foot.y);
             ctx.stroke();
 
-            // 菱形ニーガード
+            // ★ 菱形ニーガード（同系色の明色フチ取り）
             ctx.fillStyle = aLegLight;
-            ctx.strokeStyle = '#ffd32a';
+            ctx.strokeStyle = aLegLight;
             ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.moveTo(kneeX, kneeY - 5.5);
@@ -388,7 +388,7 @@ function drawCharacter(ctx, char, options = {}) {
     }
     ctx.restore();
 
-    // 上半身＆腕
+    // ★ 上半身＆腕（同系色ショルダーフチ＆同系色コア）
     if (char.outfitType === 'armor') {
         const aBodyLight = adjustColor(char.armorBodyColor, 0.55);
         const aBodyDark = adjustColor(char.armorBodyColor, -0.5);
@@ -449,7 +449,8 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.lineTo(cx, hipY - 2);
         ctx.stroke();
 
-        ctx.fillStyle = '#ffd32a';
+        // ★ 胸のコア（同系色ハイライト）
+        ctx.fillStyle = aBodyLight;
         ctx.beginPath();
         ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
         ctx.fill();
@@ -463,6 +464,7 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.fill();
         ctx.stroke();
 
+        // ★ 2段ショルダーガード（同系色の明色フチ取り）
         [-1, 1].forEach(side => {
             const spX = cx + side * 8;
             const spY = chestY - 3;
@@ -477,7 +479,7 @@ function drawCharacter(ctx, char, options = {}) {
             spGrad.addColorStop(0.3, aBodyLight);
             spGrad.addColorStop(1, char.armorBodyColor);
             ctx.fillStyle = spGrad;
-            ctx.strokeStyle = '#ffd32a';
+            ctx.strokeStyle = aBodyLight; // ★ 同系色フチ取り
             ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.ellipse(spX, spY, 7, 5, side * 0.25, 0, Math.PI * 2);
@@ -514,7 +516,7 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.restore();
     }
 
-    // 剣（刀身 ＆ 黄色の鍔・柄）
+    // 剣
     if (char.state !== 'blowaway' && (char.state !== 'hadouken' || (char.hadouTimer || 0) >= 48)) {
         ctx.save();
         ctx.strokeStyle = char.isHeavyAttack ? '#ffd32a' : '#ecf0f1'; 
