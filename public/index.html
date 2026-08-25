@@ -10,6 +10,14 @@
     
     <title>ソード・フェンシング v18.1</title>
     
+    <!-- ★ PWA用マニフェスト＆iOS用設定 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f1419">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="フェンシング">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
     <link rel="stylesheet" href="style.css?v=18.1">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
@@ -187,11 +195,11 @@
 
                 <!-- 猛者スキンタブ -->
                 <div id="tab-accessory" class="tab-content" style="display: none;">
-                    <div class="shop-item-title">■ 猛者専用スキン (連勝達成報酬)</div>
+                    <div class="shop-item-title" id="title-accessory">■ 猛者専用スキン (連勝達成報酬)</div>
                     <div class="accessory-grid" id="accessory-list"></div>
                 </div>
 
-                <!-- ★ プレビューCanvas（高さ120pxに拡張してゆったり配置） -->
+                <!-- リアルタイム・スキンプレビュー画面 -->
                 <div id="shop-preview-container">
                     <div style="font-size: 10px; color: #ffd32a; font-weight: bold; margin-bottom: 2px;">👁️ 現在のプレビュー</div>
                     <canvas id="shop-preview-canvas" width="120" height="120"></canvas>
@@ -224,11 +232,20 @@
         </div>
     </div>
 
-    <!-- 安全な分割読み込み (v18.1) -->
+    <!-- 安全な分割読み込み -->
     <script src="sound.js?v=18.1"></script>
     <script src="shop.js?v=18.1"></script>
     <script src="effects.js?v=18.1"></script>
     <script src="renderer.js?v=18.1"></script>
     <script src="game.js?v=18.1"></script>
+
+    <!-- ★ PWA Service Worker 自動登録スクリプト -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js?v=18.1').catch(() => {});
+            });
+        }
+    </script>
 </body>
 </html>
