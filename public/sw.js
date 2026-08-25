@@ -1,13 +1,10 @@
 // ==========================================
-// ★ sw.js（バージョン1箇所変更だけで全自動連動版）
+// ★ sw.js v18.1.6（PWAクラッシュ防止・安全キャッシュ版）
 // ==========================================
 
-// ★ 今後はこの「バージョン番号」の1行だけを書き換えるだけでOK！
 const VERSION = '18.1.6';
-
 const CACHE_NAME = `sword-fencing-v${VERSION}`;
 
-// 自動で ?v=${VERSION} が入るため、下のリストを毎回書き換える必要はありません！
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -19,20 +16,23 @@ const ASSETS_TO_CACHE = [
   `./renderer.js?v=${VERSION}`,
   `./effects.js?v=${VERSION}`,
   `./sound.js?v=${VERSION}`,
-  './manifest.json',
-  './background.jpg'
+  './manifest.json'
 ];
 
-// インストール時にキャッシュ
+// インストール（1つ失敗してもクラッシュさせない安全処理）
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          await cache.add(asset);
+        } catch (e) {}
+      }
     }).then(() => self.skipWaiting())
   );
 });
 
-// 新バージョン時に古いキャッシュを自動削除
+// 古いキャッシュを安全に消去
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -43,7 +43,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ネットワーク優先（オフライン時はキャッシュから配信）
+// ネットワーク優先
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(

@@ -7,8 +7,15 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    
-    <script>const VERSION = '18.1.6';</script>
+
+    <!-- ★ バージョンアップ時はこの1箇所だけを書き換えるだけでOK！ -->
+    <script>
+        const VERSION = '18.1.6';
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = `style.css?v=${VERSION}`;
+        document.head.appendChild(link);
+    </script>
 
     <title>ソード・フェンシング</title>
     
@@ -19,7 +26,6 @@
     <meta name="apple-mobile-web-app-title" content="フェンシング">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <script>document.write(`<link rel="stylesheet" href="style.css?v=${VERSION}">`);</script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -225,7 +231,7 @@
             </div>
         </div>
 
-        <!-- ★ 各種設定モーダル (ON/OFFチェックボックス付き) -->
+        <!-- 各種設定モーダル -->
         <div id="settings-screen" class="screen modal-screen" style="display: none;">
             <div class="modal-box" style="width: min(92vw, 320px);">
                 <h2>⚙️ 各種設定</h2>
@@ -322,17 +328,24 @@
         </div>
     </div>
 
-    <!-- 安全な分割読み込み -->
+    <!-- ★ Androidでも100%安全に動くバージョン連動・自動チェーンローダー -->
     <script>
-        ['sound.js', 'shop.js', 'effects.js', 'renderer.js', 'game.js'].forEach(file => {
-            document.write(`<script src="${file}?v=${VERSION}"><\/script>`);
-        });
-
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register(`./sw.js?v=${VERSION}`).catch(() => {});
-            });
+        const scripts = ['sound.js', 'shop.js', 'effects.js', 'renderer.js', 'game.js'];
+        function loadScriptsSequentially(list, i = 0) {
+            if (i >= list.length) {
+                if ('serviceWorker' in navigator) {
+                    window.addEventListener('load', () => {
+                        navigator.serviceWorker.register(`./sw.js?v=${VERSION}`).catch(() => {});
+                    });
+                }
+                return;
+            }
+            const s = document.createElement('script');
+            s.src = `${list[i]}?v=${VERSION}`;
+            s.onload = () => loadScriptsSequentially(list, i + 1);
+            document.body.appendChild(s);
         }
+        loadScriptsSequentially(scripts);
     </script>
 </body>
 </html>
