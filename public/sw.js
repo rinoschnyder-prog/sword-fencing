@@ -1,19 +1,24 @@
 // ==========================================
-// ★ sw.js v18.1（Service Worker キャッシュ＆高速起動）
+// ★ sw.js（バージョン1箇所変更だけで全自動連動版）
 // ==========================================
 
-const CACHE_NAME = 'sword-fencing-v18.1';
+// ★ 今後はこの「バージョン番号」の1行だけを書き換えるだけでOK！
+const VERSION = '18.1';
+
+const CACHE_NAME = `sword-fencing-v${VERSION}`;
+
+// 自動で ?v=${VERSION} が入るため、下のリストを毎回書き換える必要はありません！
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './event.html',
-  './style.css?v=18.1',
-  './game.js?v=18.1',
-  './event.js?v=18.1',
-  './shop.js?v=18.1',
-  './renderer.js?v=18.1',
-  './effects.js?v=18.1',
-  './sound.js?v=18.1',
+  `./style.css?v=${VERSION}`,
+  `./game.js?v=${VERSION}`,
+  `./event.js?v=${VERSION}`,
+  `./shop.js?v=${VERSION}`,
+  `./renderer.js?v=${VERSION}`,
+  `./effects.js?v=${VERSION}`,
+  `./sound.js?v=${VERSION}`,
   './manifest.json',
   './background.jpg'
 ];
