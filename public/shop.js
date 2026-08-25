@@ -1,11 +1,10 @@
 // ==========================================
-// ★ shop.js v17.0（戦闘中の見た目とプレビューを完全同期版）
+// ★ shop.js v18.1（プレビュー上下余白ゆったり最適化版）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
 const PRICE_INCREMENT = 5;
 
-// 兜専用価格（初期50G、1つごとに+20G）
 const HELMET_BASE_PRICE = 50;
 const HELMET_PRICE_INCREMENT = 20;
 
@@ -58,7 +57,7 @@ function loadPlayerData() {
     if ((eventMaxStreak >= 1 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('cyber'))) && !playerData.unlockedVisorColors.includes('#40c4ff')) {
         playerData.unlockedVisorColors.push('#40c4ff');
     }
-    if ((eventMaxStreak >= 3 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('flame'))) && !playerData.unlockedVisorColors.includes('#ff5252')) {
+    if ((eventMaxStreak >= 3 || (playerData.unlockedVisors && playerData.unlockedVisorColors.includes('flame'))) && !playerData.unlockedVisorColors.includes('#ff5252')) {
         playerData.unlockedVisorColors.push('#ff5252');
     }
     if ((eventMaxStreak >= 5 || (playerData.unlockedVisors && playerData.unlockedVisors.includes('crown'))) && !playerData.unlockedVisorColors.includes('#ffd32a')) {
@@ -308,298 +307,36 @@ function toggleHelmetEquip(equip) {
     renderShopPreview();
 }
 
-function adjustPreviewColor(hex, lum) {
-    hex = String(hex).replace(/[^0-9a-f]/gi, '');
-    if (hex.length < 6) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
-    lum = lum || 0;
-    let rgb = "#", c, i;
-    for (i = 0; i < 3; i++) {
-        c = parseInt(hex.substr(i*2, 2), 16);
-        c = Math.round(Math.min(Math.max(0, c + (c * lum)), 255)).toString(16);
-        rgb += ("00"+c).substr(c.length);
-    }
-    return rgb;
-}
-
-// ★ 戦闘中の見た目（剣の鍔・柄・鎧キール線・サイドタセット・2段肩）を100%完全再現したプレビュー描画
+// ★ プレビュー描画（高さを拡張し、上下中央に美しく配置）
 function renderShopPreview() {
     const pCanvas = document.getElementById('shop-preview-canvas');
-    if (!pCanvas) return;
+    if (!pCanvas || typeof drawCharacter !== 'function') return;
     const pCtx = pCanvas.getContext('2d');
     pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
 
-    const cx = pCanvas.width / 2;
-    const cy = pCanvas.height - 14;
+    // ★ 高さ120pxの中央・自然な着地位置へオフセット配置
+    const dummyChar = {
+        x: pCanvas.width / 2 - 22,
+        y: pCanvas.height - 88 - 14, // 上下のトサカと影が綺麗に収まる位置
+        width: 44,
+        height: 88,
+        direction: 1,
+        color: playerData.normalBodyColor,
+        bodyColor: playerData.normalBodyColor,
+        legsColor: playerData.normalLegsColor,
+        armorBodyColor: playerData.armorBodyColor,
+        armorLegsColor: playerData.armorLegsColor,
+        outfitType: playerData.outfitType,
+        hasHelmet: playerData.hasHelmet,
+        helmetColor: playerData.helmetColor,
+        visorColor: playerData.visorColor,
+        hasCloak: playerData.hasCloak,
+        hasGodAura: playerData.hasGodAura,
+        state: 'idle',
+        animFrame: 0
+    };
 
-    pCtx.save();
-    pCtx.lineWidth = 4.5;
-    pCtx.lineCap = 'round';
-    pCtx.lineJoin = 'round';
-
-    // 影
-    pCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-    pCtx.beginPath();
-    pCtx.ellipse(cx, cy + 2, 22, 5, 0, 0, Math.PI * 2);
-    pCtx.fill();
-
-    const headY = cy - 64;
-    const chestY = cy - 46;
-    const hipY = cy - 28;
-
-    const leftFoot = { x: cx - 10, y: cy };
-    const rightFoot = { x: cx + 10, y: cy };
-    const leftHand = { x: cx - 10, y: cy - 40 };
-    const rightHand = { x: cx + 10, y: cy - 40 };
-
-    // マント
-    if (playerData.hasCloak) {
-        pCtx.fillStyle = 'rgba(192, 57, 43, 0.85)';
-        pCtx.beginPath();
-        pCtx.moveTo(cx - 4, chestY);
-        pCtx.quadraticCurveTo(cx - 20, cy - 25, cx - 24, cy - 8);
-        pCtx.lineTo(cx - 12, cy - 6);
-        pCtx.closePath();
-        pCtx.fill();
-    }
-
-    // ゴッドオーラ
-    if (playerData.hasGodAura) {
-        pCtx.fillStyle = '#ffd32a';
-        pCtx.shadowBlur = 8;
-        pCtx.shadowColor = '#ffd32a';
-        for (let i = 0; i < 4; i++) {
-            pCtx.beginPath();
-            pCtx.arc(cx + (Math.sin(Date.now() * 0.005 + i) * 16), cy - 20 - (i * 12), 2.5, 0, Math.PI * 2);
-            pCtx.fill();
-        }
-    }
-
-    // 頭部
-    pCtx.fillStyle = playerData.normalBodyColor;
-    pCtx.beginPath();
-    pCtx.arc(cx, headY, 9.5, 0, Math.PI * 2);
-    pCtx.fill();
-
-    // 兜（フルヘルム）
-    if (playerData.hasHelmet) {
-        const hColor = playerData.helmetColor || '#ff5252';
-        const hLight = adjustPreviewColor(hColor, 0.45);
-
-        pCtx.save();
-        pCtx.fillStyle = hColor;
-        pCtx.strokeStyle = '#ffd32a';
-        pCtx.lineWidth = 1.4;
-        pCtx.beginPath();
-        pCtx.arc(cx, headY - 1, 11, Math.PI * 0.75, Math.PI * 2.25);
-        pCtx.lineTo(cx + 9, headY + 5);
-        pCtx.lineTo(cx - 9, headY + 5);
-        pCtx.closePath();
-        pCtx.fill();
-        pCtx.stroke();
-
-        // 兜トサカ
-        pCtx.fillStyle = hLight;
-        pCtx.beginPath();
-        pCtx.moveTo(cx - 3, headY - 11);
-        pCtx.lineTo(cx + 6, headY - 17);
-        pCtx.lineTo(cx + 3, headY - 10);
-        pCtx.closePath();
-        pCtx.fill();
-        pCtx.stroke();
-        pCtx.restore();
-    }
-
-    // バイザー
-    pCtx.save();
-    const vColor = playerData.visorColor || '#ffffff';
-    pCtx.strokeStyle = vColor;
-    pCtx.lineWidth = (vColor === '#ffffff') ? 2 : 3;
-    if (vColor !== '#ffffff') {
-        pCtx.shadowBlur = 6;
-        pCtx.shadowColor = vColor;
-    }
-    pCtx.beginPath();
-    pCtx.moveTo(cx + 2, headY - 1);
-    pCtx.lineTo(cx + 10, headY - 1);
-    pCtx.stroke();
-    pCtx.restore();
-
-    // 下半身（素体ライン）
-    pCtx.strokeStyle = playerData.normalLegsColor;
-    pCtx.beginPath();
-    pCtx.moveTo(cx, hipY); pCtx.lineTo(leftFoot.x, leftFoot.y); pCtx.stroke();
-    pCtx.beginPath();
-    pCtx.moveTo(cx, hipY); pCtx.lineTo(rightFoot.x, rightFoot.y); pCtx.stroke();
-
-    // 鎧・下半身（立体脛当て ＆ 菱形ニーガード ＆ 鉄靴）
-    if (playerData.outfitType === 'armor') {
-        const aLegLight = adjustPreviewColor(playerData.armorLegsColor, 0.45);
-        const aLegDark = adjustPreviewColor(playerData.armorLegsColor, -0.45);
-
-        [leftFoot, rightFoot].forEach((foot) => {
-            const kneeX = (cx + foot.x) / 2;
-            const kneeY = (hipY + foot.y) / 2;
-
-            pCtx.strokeStyle = playerData.armorLegsColor;
-            pCtx.lineWidth = 6;
-            pCtx.beginPath();
-            pCtx.moveTo(kneeX, kneeY); pCtx.lineTo(foot.x, foot.y); pCtx.stroke();
-
-            // 菱形ニーガード
-            pCtx.save();
-            pCtx.fillStyle = aLegLight;
-            pCtx.strokeStyle = '#ffd32a';
-            pCtx.lineWidth = 1.3;
-            pCtx.beginPath();
-            pCtx.moveTo(kneeX, kneeY - 4.5);
-            pCtx.lineTo(kneeX + 4, kneeY);
-            pCtx.lineTo(kneeX, kneeY + 4.5);
-            pCtx.lineTo(kneeX - 4, kneeY);
-            pCtx.closePath();
-            pCtx.fill();
-            pCtx.stroke();
-            pCtx.restore();
-
-            // 鉄靴サバトン
-            pCtx.fillStyle = aLegDark;
-            pCtx.beginPath();
-            pCtx.ellipse(foot.x + 2, foot.y, 6, 3.5, 0, 0, Math.PI * 2);
-            pCtx.fill();
-
-            pCtx.fillStyle = '#ecf0f1';
-            pCtx.beginPath();
-            pCtx.ellipse(foot.x + 2, foot.y - 1, 3.5, 1.8, 0, 0, Math.PI * 2);
-            pCtx.fill();
-        });
-    }
-
-    // 上半身
-    if (playerData.outfitType === 'armor') {
-        const aBodyLight = adjustPreviewColor(playerData.armorBodyColor, 0.55);
-        const aBodyDark = adjustPreviewColor(playerData.armorBodyColor, -0.5);
-
-        // インナー背骨
-        pCtx.strokeStyle = playerData.normalBodyColor;
-        pCtx.beginPath();
-        pCtx.moveTo(cx, headY + 9); pCtx.lineTo(cx, hipY); pCtx.stroke();
-
-        // 腕（ガントレット付き）
-        pCtx.strokeStyle = playerData.normalBodyColor;
-        pCtx.beginPath();
-        pCtx.moveTo(cx, chestY); pCtx.lineTo(leftHand.x, leftHand.y); pCtx.stroke();
-        pCtx.beginPath();
-        pCtx.moveTo(cx, chestY); pCtx.lineTo(rightHand.x, rightHand.y); pCtx.stroke();
-
-        [leftHand, rightHand].forEach(hand => {
-            pCtx.fillStyle = playerData.armorBodyColor;
-            pCtx.strokeStyle = aBodyLight;
-            pCtx.lineWidth = 1.3;
-            pCtx.beginPath();
-            pCtx.arc(hand.x, hand.y, 3.5, 0, Math.PI * 2);
-            pCtx.fill(); pCtx.stroke();
-        });
-
-        // 胸部プレートアーマー（グラデーション＋キール線＋金色コア）
-        pCtx.fillStyle = aBodyDark;
-        pCtx.beginPath();
-        pCtx.ellipse(cx, (chestY + hipY) / 2, 11, 15, 0, 0, Math.PI * 2);
-        pCtx.fill();
-
-        pCtx.fillStyle = playerData.armorBodyColor;
-        pCtx.beginPath();
-        pCtx.ellipse(cx, (chestY + hipY) / 2, 9.5, 13, 0, 0, Math.PI * 2);
-        pCtx.fill();
-
-        // 中央キール線
-        pCtx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-        pCtx.lineWidth = 1.6;
-        pCtx.beginPath();
-        pCtx.moveTo(cx, chestY - 2);
-        pCtx.lineTo(cx, hipY - 2);
-        pCtx.stroke();
-
-        // 金色コア
-        pCtx.fillStyle = '#ffd32a';
-        pCtx.beginPath();
-        pCtx.arc(cx, chestY + 5, 3, 0, Math.PI * 2);
-        pCtx.fill();
-
-        // 腰のサイドタセット装甲
-        pCtx.fillStyle = playerData.armorBodyColor;
-        pCtx.strokeStyle = aBodyDark;
-        pCtx.lineWidth = 1.3;
-        pCtx.beginPath();
-        pCtx.ellipse(cx - 7, hipY + 1, 3.5, 5, -0.3, 0, Math.PI * 2);
-        pCtx.ellipse(cx + 7, hipY + 1, 3.5, 5, 0.3, 0, Math.PI * 2);
-        pCtx.fill(); pCtx.stroke();
-
-        // 2段ショルダーガード
-        [-1, 1].forEach(side => {
-            const spX = cx + side * 7;
-            const spY = chestY - 2;
-
-            pCtx.fillStyle = aBodyDark;
-            pCtx.beginPath();
-            pCtx.ellipse(spX, spY + 2, 6.5, 4.5, side * 0.3, 0, Math.PI * 2);
-            pCtx.fill();
-
-            pCtx.fillStyle = playerData.armorBodyColor;
-            pCtx.strokeStyle = '#ffd32a';
-            pCtx.lineWidth = 1.4;
-            pCtx.beginPath();
-            pCtx.ellipse(spX, spY, 6, 4.5, side * 0.25, 0, Math.PI * 2);
-            pCtx.fill(); pCtx.stroke();
-        });
-
-    } else {
-        // 通常の上半身
-        pCtx.strokeStyle = playerData.normalBodyColor;
-        pCtx.beginPath();
-        pCtx.moveTo(cx, headY + 9); pCtx.lineTo(cx, hipY); pCtx.stroke();
-        pCtx.fillStyle = playerData.normalBodyColor;
-        pCtx.beginPath();
-        pCtx.ellipse(cx, (chestY + hipY) / 2, 6, 11, 0, 0, Math.PI * 2);
-        pCtx.fill();
-
-        pCtx.strokeStyle = playerData.normalBodyColor;
-        pCtx.beginPath();
-        pCtx.moveTo(cx, chestY); pCtx.lineTo(leftHand.x, leftHand.y); pCtx.stroke();
-        pCtx.beginPath();
-        pCtx.moveTo(cx, chestY); pCtx.lineTo(rightHand.x, rightHand.y); pCtx.stroke();
-    }
-
-    // ★ 剣（刀身 ＆ 黄色い鍔・柄）
-    const swordStartX = rightHand.x;
-    const swordStartY = rightHand.y;
-    const swordEndX = rightHand.x + 18;
-    const swordEndY = rightHand.y - 24;
-
-    pCtx.save();
-    // 刀身
-    pCtx.strokeStyle = '#ecf0f1';
-    pCtx.lineWidth = 3.2;
-    pCtx.beginPath();
-    pCtx.moveTo(swordStartX, swordStartY);
-    pCtx.lineTo(swordEndX, swordEndY);
-    pCtx.stroke();
-
-    // ★ 黄色の鍔（ツバ・クロスガード）
-    pCtx.strokeStyle = '#ffd32a';
-    pCtx.lineWidth = 4.5;
-    const sDx = swordEndX - swordStartX;
-    const sDy = swordEndY - swordStartY;
-    const sLen = Math.hypot(sDx, sDy) || 1;
-    const perpX = (-sDy / sLen) * 5.5;
-    const perpY = (sDx / sLen) * 5.5;
-    const tsubaX = swordStartX + (sDx / sLen) * 5;
-    const tsubaY = swordStartY + (sDy / sLen) * 5;
-    pCtx.beginPath();
-    pCtx.moveTo(tsubaX - perpX, tsubaY - perpY);
-    pCtx.lineTo(tsubaX + perpX, tsubaY + perpY);
-    pCtx.stroke();
-    pCtx.restore();
-
-    pCtx.restore();
+    drawCharacter(pCtx, dummyChar, { gameActive: false, isMyCharacter: false, isPreview: true });
 }
 
 function renderShopUI() {
@@ -635,7 +372,7 @@ function renderShopUI() {
         playerData.normalLegsColor = c;
     }, playerData.unlockedLegsColors, false, normalLegsPrice);
 
-    // 鎧タブ（鎧上下 ＆ 兜）
+    // 鎧タブ
     const isArmorUnlocked = (playerData.totalCpuWins || 0) >= 10;
     const isWearingArmor = (playerData.outfitType === 'armor');
 
@@ -689,7 +426,7 @@ function renderShopUI() {
         playerData.armorLegsColor = c;
     }, playerData.unlockedArmorLegsColors, !isArmorUnlocked, armorLegsPrice);
 
-    // 5. 鎧・兜パレット (50G〜+20G)
+    // 5. 鎧・兜
     renderPaletteGrid('armor-helmet-palette', playerData.helmetColor, playerData.unlockedHelmetColors, (c) => {
         if (!isHelmetUnlocked) { alert(`兜は【CPU戦で通算30勝】すると解放されます！（現在: ${playerData.totalCpuWins || 0}/30勝）`); return; }
         playerData.hasHelmet = true;

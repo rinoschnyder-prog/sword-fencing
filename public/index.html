@@ -8,10 +8,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <title>ソード・フェンシング v18.0</title>
+    <title>ソード・フェンシング v18.1</title>
     
-    <!-- ★ 最新バージョン v=18.0 -->
-    <link rel="stylesheet" href="style.css?v=18.0">
+    <link rel="stylesheet" href="style.css?v=18.1">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
@@ -63,7 +62,7 @@
             </div>
         </div>
 
-        <!-- ★ メインコントローラー（押しやすい2ボタン化） -->
+        <!-- メインコントローラー -->
         <div id="touch-controls">
             <div class="control-group left-group">
                 <button id="btn-left" class="touch-btn">◀</button>
@@ -192,10 +191,10 @@
                     <div class="accessory-grid" id="accessory-list"></div>
                 </div>
 
-                <!-- リアルタイム・スキンプレビュー画面 -->
+                <!-- ★ プレビューCanvas（高さ120pxに拡張してゆったり配置） -->
                 <div id="shop-preview-container">
                     <div style="font-size: 10px; color: #ffd32a; font-weight: bold; margin-bottom: 2px;">👁️ 現在のプレビュー</div>
-                    <canvas id="shop-preview-canvas" width="110" height="95"></canvas>
+                    <canvas id="shop-preview-canvas" width="120" height="120"></canvas>
                 </div>
 
                 <div class="modal-buttons">
@@ -225,10 +224,11 @@
         </div>
     </div>
 
-    <!-- 安全な分割読み込み (v18.0) -->
-    <script src="sound.js?v=18.0"></script>
-    <script src="shop.js?v=18.0"></script>
-    <script src="effects.js?v=18.0"></script>
-    <script src="game.js?v=18.0"></script>
+    <!-- 安全な分割読み込み (v18.1) -->
+    <script src="sound.js?v=18.1"></script>
+    <script src="shop.js?v=18.1"></script>
+    <script src="effects.js?v=18.1"></script>
+    <script src="renderer.js?v=18.1"></script>
+    <script src="game.js?v=18.1"></script>
 </body>
 </html>

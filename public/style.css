@@ -269,7 +269,6 @@ html, body {
 
 .left-group .touch-btn { width: 66px; height: 66px; }
 
-/* ★ 2ボタン化で押しやすくなった右側ボタンスタイル */
 .action-btn { width: 70px; height: 64px; font-size: 12px; font-weight: 900; border-radius: 20px; }
 .action-btn.red { background: rgba(255, 82, 82, 0.55); border-color: rgba(255, 82, 82, 0.95); }
 .action-btn.blue { background: rgba(64, 196, 255, 0.55); border-color: rgba(64, 196, 255, 0.95); }
@@ -432,7 +431,7 @@ html, body {
 }
 .modal-box h2 { margin: 0 0 4px 0; font-size: 17px; color: #ffd32a; }
 
-.modal-buttons { display: flex; gap: 8px; width: 100%; margin-top: 10px; }
+.modal-buttons { display: flex; gap: 8px; width: 100%; margin-top: 8px; }
 .modal-buttons .menu-btn { flex: 1; font-size: 13px; margin: 0; }
 .modal-buttons .cancel-btn { background: #607d8b; }
 
@@ -482,25 +481,25 @@ html, body {
 .acc-item-btn.active { border-color: #ffd32a; background: rgba(255, 211, 42, 0.2); }
 .acc-item-btn.locked { opacity: 0.6; }
 
-/* スキン工房リアルタイムプレビュー枠 */
+/* ★ スキン工房リアルタイムプレビュー枠（ゆったり配置） */
 #shop-preview-container {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     width: 100%;
-    margin: 8px 0 2px 0;
-    padding: 4px;
+    margin: 6px 0 2px 0;
+    padding: 6px;
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
+    border-radius: 12px;
 }
 
 #shop-preview-canvas {
     display: block;
     background: radial-gradient(circle at center, rgba(30, 45, 60, 0.8), rgba(10, 15, 25, 0.95));
-    border-radius: 8px;
-    border: 1px solid rgba(255, 211, 42, 0.3);
+    border-radius: 10px;
+    border: 1.5px solid rgba(255, 211, 42, 0.4);
 }
 
 #online-form { display: flex; flex-direction: column; gap: 10px; width: min(80vw, 260px); }
