@@ -1,7 +1,7 @@
-# ⚔️ Sword Fencing (ソード・フェンシング) v17.0
+# ⚔️ Sword Fencing
 
 > A fast-paced, high-octane 30-second stickman fencing duel game.  
-> Win through 10 precision slashes, a devastating 1-hit Charged Heavy Strike, or unleash the ultimate **Qi Energy Blast (波動弾)**!
+> Win through 10 precision slashes, a devastating 1-hit Charged Heavy Strike, or unleash the ultimate **Qi Energy Blast**!
 
 ---
 
