@@ -8,9 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
-    <!-- ★ バージョンアップ時はこの1箇所だけを書き換えるだけでOK！ -->
     <script>
-        const VERSION = '18.1.6';
+        const VERSION = '18.1.7';
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = `style.css?v=${VERSION}`;
@@ -34,7 +33,6 @@
         <!-- 全画面ゲームCanvas -->
         <canvas id="gameCanvas"></canvas>
 
-        <!-- 観戦中のみ表示されるタイトル戻るボタン -->
         <button id="btn-exit-watch" onclick="returnToTitle()">✕ 観戦終了</button>
 
         <!-- スコア・タイマー・HP/SPゲージUI -->
@@ -132,6 +130,26 @@
                 <div id="online-counter">
                     <span class="live-dot"></span>
                     オンライン: <span id="online-count-num">1</span>人
+                </div>
+            </div>
+        </div>
+
+        <!-- ★ 格闘ゲーム風 VS対戦カード画面 -->
+        <div id="vs-screen" class="screen">
+            <div class="vs-card-container">
+                <!-- P1 -->
+                <div class="vs-player-box">
+                    <canvas id="vs-p1-canvas" width="110" height="110"></canvas>
+                    <div class="vs-name" id="vs-p1-name">PLAYER 1</div>
+                </div>
+
+                <!-- 中央VSロゴ -->
+                <div class="vs-logo-center">VS</div>
+
+                <!-- P2 -->
+                <div class="vs-player-box">
+                    <canvas id="vs-p2-canvas" width="110" height="110"></canvas>
+                    <div class="vs-name" id="vs-p2-name">CPU</div>
                 </div>
             </div>
         </div>
@@ -328,7 +346,7 @@
         </div>
     </div>
 
-    <!-- ★ Androidでも100%安全に動くバージョン連動・自動チェーンローダー -->
+    <!-- 自動チェーンローダー -->
     <script>
         const scripts = ['sound.js', 'shop.js', 'effects.js', 'renderer.js', 'game.js'];
         function loadScriptsSequentially(list, i = 0) {

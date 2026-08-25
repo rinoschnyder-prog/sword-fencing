@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js v18.1.6（溜め・必殺の壁激突大吹き飛び＆通常ダウン決着版）
+// ★ event.js v18.1（VS対戦カード演出連携版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -119,7 +119,6 @@ class Character {
         this.animFrame += 1 * timeScale;
         if (!this.isGrounded) this.vy += GRAVITY * timeScale;
 
-        // ★ 豪快な後方大吹き飛び＆壁激突物理
         if (this.state === 'blowaway') {
             this.x += this.vx * timeScale;
             this.y += this.vy * timeScale;
@@ -465,6 +464,7 @@ function showOverlay(t, d = 1500, cb) {
     overlayTimeout = setTimeout(() => { gameOverlay.classList.remove('show'); if (cb) cb(); }, d);
 }
 
+// ★ イベント挑戦開始（Round 1前にVS対戦カード演出）
 function startEventBattle() {
     winStreak = 0; p1Score = 0; p2Score = 0; currentRound = 1; timeScale = 1.0;
     applyPlayerCustomization();
@@ -472,9 +472,12 @@ function startEventBattle() {
     p2.color = '#40c4ff'; p2.bodyColor = '#40c4ff'; p2.legsColor = '#40c4ff';
     p2.outfitType = 'normal'; p2.hasHelmet = false; p2.visorColor = '#ffffff';
 
-    document.getElementById('p1-name-display').innerText = "PLAYER";
+    const p1Name = "PLAYER";
+    const p2Name = "CPU (練習用)";
+
+    document.getElementById('p1-name-display').innerText = p1Name;
     document.getElementById('p1-name-display').style.color = p1.color;
-    document.getElementById('p2-name-display').innerText = "CPU (練習用)";
+    document.getElementById('p2-name-display').innerText = p2Name;
     document.getElementById('p2-name-display').style.color = p2.color;
 
     titleScreen.style.display = 'none'; uiLayer.style.display = 'flex';
@@ -482,7 +485,11 @@ function startEventBattle() {
     Sound.playBGM('game');
 
     p1.reset(); p2.reset(); updateScoreUI(); updateControlsVisibility();
-    showOverlay(`🔰 初心者イベント\nROUND ${currentRound}`, 1500, startRound);
+
+    // ★ 対戦カードVS演出 ➔ ROUND 1
+    showVsIntro(p1, p2, p1Name, p2Name, () => {
+        showOverlay(`🔰 初心者イベント\nROUND ${currentRound}`, 1500, startRound);
+    });
 }
 
 function startRound() {
@@ -506,7 +513,6 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 溜め・必殺は後方大吹き飛び壁激突＆通常はダウン決着
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true; clearInterval(timerInterval);
@@ -517,7 +523,6 @@ function endRound(winner, reason) {
     const loser = (winner === p1) ? p2 : p1;
     const message = (winner === p1) ? "PLAYER WIN" : ((winner === p2) ? "CPU WIN" : (reason || "DRAW"));
 
-    // 溜め・必殺は後方大吹き飛び、通常はダウン
     if (winner) {
         if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';
@@ -564,7 +569,11 @@ function endRound(winner, reason) {
                         p1Score = 0; p2Score = 0; currentRound = 1; timeScale = 1.0;
                         streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
                         p1.reset(); p2.reset(); updateScoreUI();
-                        showOverlay(`ROUND ${currentRound}\n(VS 練習用CPU)`, 1500, startRound);
+
+                        // ★ 試合間もVS演出
+                        showVsIntro(p1, p2, "PLAYER", "CPU (練習用)", () => {
+                            showOverlay(`ROUND ${currentRound}\n(VS 練習用CPU)`, 1500, startRound);
+                        });
                     });
                 }
             } else {
@@ -578,7 +587,7 @@ function endRound(winner, reason) {
             showOverlay(message, 1500, () => {
                 currentRound++; showOverlay(`ROUND ${currentRound}`, 1500, startRound);
             });
-        }, 1000);
+        }, 800);
     }
 }
 
@@ -678,14 +687,14 @@ function checkHits() {
 
     if (a1 && p2.state !== 'flinch' && p2.state !== 'hit' && p2.state !== 'blowaway') {
         const p2Body = { x: p2.x, y: p2.y, width: p2.width, height: p2.height };
-        if (checkCollision(a1, p2Body)) {
+        if (a1.x < p2Body.x + p2Body.width && a1.x + a1.width > p2Body.x && a1.y < p2Body.y + p2Body.height && a1.y + a1.height > p2Body.y) {
             handleHit(p1, p2, true, p1.direction === 1 ? p2.x + 8 : p2.x + p2.width - 8, a1.y + a1.height / 2);
         }
     }
 
     if (a2 && p1.state !== 'flinch' && p1.state !== 'hit' && p1.state !== 'blowaway') {
         const p1Body = { x: p1.x, y: p1.y, width: p1.width, height: p1.height };
-        if (checkCollision(a2, p1Body)) {
+        if (a2.x < p1Body.x + p1Body.width && a2.x + a2.width > p1Body.x && a2.y < p1Body.y + p1Body.height && a2.y + a2.height > p1Body.y) {
             handleHit(p2, p1, false, p2.direction === 1 ? p1.x + 8 : p1.x + p1.width - 8, a2.y + a2.height / 2);
         }
     }

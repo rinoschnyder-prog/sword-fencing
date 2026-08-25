@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v18.1.6（溜め・必殺の壁激突大吹き飛び＆通常ダウン決着版）
+// ★ game.js v18.1（VS対戦カード演出連携版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -212,13 +212,11 @@ class Character {
             ));
         }
 
-        // ★ 豪快な後方大吹き飛び＆壁激突物理
         if (this.state === 'blowaway') {
             this.x += this.vx * timeScale;
             this.y += this.vy * timeScale;
             this.vy += GRAVITY * 1.1 * timeScale;
 
-            // 壁に激突したときの跳ね返り＆衝撃
             if (this.x <= 12) {
                 this.x = 12;
                 this.vx = Math.abs(this.vx) * 0.4;
@@ -233,7 +231,6 @@ class Character {
                 Sound.playSE('bom');
             }
 
-            // 地面に着地してダウン
             if (this.y + this.height >= GROUND_Y) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
@@ -378,6 +375,7 @@ class Character {
             }
         }
 
+        // オートガード判定
         const isBackingUp = (this.direction === 1 && keys.a) || (this.direction === -1 && keys.d);
         const isOpponentAttacking = (opponent && (opponent.state === 'attack' || opponent.state === 'hadouken' || energyBalls.length > 0));
 
@@ -717,8 +715,12 @@ function connectToRoom() {
             p1.reset();
             p2.reset();
             updateScoreUI();
-            showOverlay(`ROUND ${currentRound}`, 1500, startRound);
-        }, 1000);
+
+            // ★ 対戦カードVS演出 ➔ ROUND 1
+            showVsIntro(p1, p2, data.p1, data.p2, () => {
+                showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+            });
+        }, 800);
     });
 
     socket.on('opponent_physics', (data) => {
@@ -849,6 +851,7 @@ function generateRandomCpuSkin(excludeColor) {
     };
 }
 
+// ★ CPU戦開始（Round 1前にVS演出）
 function startCPUMode() {
     isOnlineMode = false;
     isWatchMode = false;
@@ -867,9 +870,12 @@ function startCPUMode() {
     const cpuSkin = generateRandomCpuSkin(p1.color);
     Object.assign(p2, cpuSkin);
 
-    document.getElementById('p1-name-display').innerText = "PLAYER 1";
+    const p1Name = "PLAYER 1";
+    const p2Name = `CPU LV.${winStreak + 1}`;
+
+    document.getElementById('p1-name-display').innerText = p1Name;
     document.getElementById('p1-name-display').style.color = p1.color;
-    document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
+    document.getElementById('p2-name-display').innerText = p2Name;
     document.getElementById('p2-name-display').style.color = p2.color;
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
@@ -885,9 +891,14 @@ function startCPUMode() {
     p1.reset();
     p2.reset();
     updateScoreUI();
-    showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+
+    // ★ 対戦カードVS演出 ➔ ROUND 1
+    showVsIntro(p1, p2, p1Name, p2Name, () => {
+        showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+    });
 }
 
+// 観戦モード開始
 function startWatchMode() {
     isOnlineMode = false;
     isWatchMode = true;
@@ -906,9 +917,12 @@ function startWatchMode() {
     Object.assign(p1, skin1);
     Object.assign(p2, skin2);
 
-    document.getElementById('p1-name-display').innerText = "CPU 1";
+    const p1Name = "CPU 1";
+    const p2Name = "CPU 2";
+
+    document.getElementById('p1-name-display').innerText = p1Name;
     document.getElementById('p1-name-display').style.color = p1.color;
-    document.getElementById('p2-name-display').innerText = "CPU 2";
+    document.getElementById('p2-name-display').innerText = p2Name;
     document.getElementById('p2-name-display').style.color = p2.color;
 
     updateControlsVisibility();
@@ -923,7 +937,11 @@ function startWatchMode() {
     p1.reset();
     p2.reset();
     updateScoreUI();
-    showOverlay(`WATCH MATCH\nROUND ${currentRound}`, 1500, startRound);
+
+    // ★ 対戦カードVS演出 ➔ WATCH MATCH
+    showVsIntro(p1, p2, p1Name, p2Name, () => {
+        showOverlay(`WATCH MATCH\nROUND ${currentRound}`, 1500, startRound);
+    });
 }
 
 function startRound() {
@@ -962,7 +980,6 @@ function startRound() {
     }, 1000);
 }
 
-// ★ 溜め・必殺は後方大吹き飛び壁激突＆通常はダウン決着
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -985,20 +1002,19 @@ function endRound(winner, reason) {
         message = reason || "DRAW";
     }
 
-    // ★ 溜め強攻撃または波動弾での決着時は後方大吹き飛び（壁激突へ）
     if (winner) {
         if (winner.isHeavyAttack || winner.isSpecialAttack) {
             loser.state = 'blowaway';
-            loser.vx = winner.direction * 18; // 勝者の攻撃方向に吹き飛ぶ
+            loser.vx = winner.direction * 18;
             loser.vy = -16;
         } else {
-            loser.state = 'hit'; // 通常攻撃時はダウン
+            loser.state = 'hit';
             loser.vx = 0;
         }
     }
 
     if (isMatchFinished && winner) {
-        timeScale = 0.35; // 迫力のあるスローモーション
+        timeScale = 0.35;
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -1063,6 +1079,7 @@ function endRound(winner, reason) {
     }
 }
 
+// 連勝時（VSカードなしでスムーズに次の試合へ）
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
@@ -1072,7 +1089,8 @@ function startNextMatch() {
     const nextCpuSkin = generateRandomCpuSkin(p1.color);
     Object.assign(p2, nextCpuSkin);
     
-    document.getElementById('p2-name-display').innerText = `CPU LV.${winStreak + 1}`;
+    const p2Name = `CPU LV.${winStreak + 1}`;
+    document.getElementById('p2-name-display').innerText = p2Name;
     document.getElementById('p2-name-display').style.color = p2.color;
 
     Sound.playBGM('game');
@@ -1081,7 +1099,10 @@ function startNextMatch() {
     p2.reset();
     updateScoreUI();
 
-    showOverlay(`ROUND ${currentRound}\n(VS CPU LV.${winStreak + 1})`, 2000, startRound);
+    // ★ 試合切り替え時もVSカード演出
+    showVsIntro(p1, p2, "PLAYER 1", p2Name, () => {
+        showOverlay(`ROUND ${currentRound}`, 1500, startRound);
+    });
 }
 
 function returnToTitle() {
@@ -1095,6 +1116,8 @@ function returnToTitle() {
     if (overlayTimeout) clearTimeout(overlayTimeout);
 
     gameOverlay.classList.remove('show');
+    const vsScreen = document.getElementById('vs-screen');
+    if (vsScreen) { vsScreen.classList.remove('show'); vsScreen.style.display = 'none'; }
 
     if (btnExitWatch) btnExitWatch.style.display = 'none';
     updateControlsVisibility();

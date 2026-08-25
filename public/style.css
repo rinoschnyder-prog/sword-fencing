@@ -363,7 +363,6 @@ html, body {
     text-align: center;
 }
 
-/* ★ タイトル画面のメニューコンテナ＆2列ボタングリッド */
 #title-menu-container {
     display: flex;
     flex-direction: column;
@@ -380,7 +379,7 @@ html, body {
 
 .menu-btn {
     width: 100%;
-    max-width: 320px; /* ★ 単体でも横に伸びすぎないようにガード */
+    max-width: 320px;
     padding: 10px 4px;
     margin: 0;
     font-size: 13px;
@@ -397,29 +396,11 @@ html, body {
 }
 
 .menu-btn:active { transform: scale(0.95); }
+.menu-btn.full-width { width: 100%; }
+.menu-btn.watch-btn { background: linear-gradient(135deg, #8e44ad, #2980b9); box-shadow: 0 4px 12px rgba(142, 68, 173, 0.35); }
+.menu-btn.shop-btn { background: linear-gradient(135deg, #f39c12, #d35400); box-shadow: 0 4px 12px rgba(243, 156, 18, 0.35); }
+.menu-btn.settings-btn { background: linear-gradient(135deg, #57606f, #2f3542); box-shadow: 0 4px 12px rgba(47, 53, 66, 0.4); font-size: 12px; padding: 8px 0; }
 
-.menu-btn.full-width {
-    width: 100%;
-}
-
-.menu-btn.watch-btn {
-    background: linear-gradient(135deg, #8e44ad, #2980b9);
-    box-shadow: 0 4px 12px rgba(142, 68, 173, 0.35);
-}
-
-.menu-btn.shop-btn {
-    background: linear-gradient(135deg, #f39c12, #d35400);
-    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.35);
-}
-
-.menu-btn.settings-btn {
-    background: linear-gradient(135deg, #57606f, #2f3542);
-    box-shadow: 0 4px 12px rgba(47, 53, 66, 0.4);
-    font-size: 12px;
-    padding: 8px 0;
-}
-
-/* ランキングボード */
 #ranking-board {
     margin-top: 8px;
     background: rgba(0, 0, 0, 0.5);
@@ -462,6 +443,67 @@ html, body {
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background-color: #2ecc71; animation: livePulse 1.5s infinite; }
 
 @keyframes livePulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+/* ★ 格闘ゲーム風 VS対戦カード画面 */
+#vs-screen {
+    background: radial-gradient(circle at center, rgba(15, 25, 35, 0.96), rgba(5, 8, 12, 0.98));
+    z-index: 25;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    display: none;
+}
+
+#vs-screen.show {
+    opacity: 1;
+}
+
+.vs-card-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 420px;
+}
+
+.vs-player-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    padding: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.vs-player-box canvas {
+    display: block;
+    background: radial-gradient(circle at center, rgba(40, 55, 75, 0.6), rgba(15, 20, 30, 0.8));
+    border-radius: 10px;
+}
+
+.vs-name {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 900;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+}
+
+.vs-logo-center {
+    font-size: clamp(28px, 8vw, 42px);
+    font-weight: 900;
+    font-style: italic;
+    color: #ffd32a;
+    text-shadow: 0 0 20px #ff5500, 0 0 10px #ffd32a, 0 4px 15px rgba(0,0,0,0.9);
+    animation: vsPulse 0.8s infinite alternate;
+}
+
+@keyframes vsPulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.15); }
+}
 
 /* モーダル画面共通 */
 .modal-box {

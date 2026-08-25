@@ -1,5 +1,5 @@
 // ==========================================
-// ★ renderer.js v18.1.6（スキン同系色フチ取り・統一質感版）
+// ★ renderer.js v18.1.6（VS対戦演出＆スキン共通描画）
 // ==========================================
 
 function adjustColor(hex, lum) {
@@ -15,6 +15,70 @@ function adjustColor(hex, lum) {
     return rgb;
 }
 
+// ★ 格闘ゲーム風 VS画面イントロ演出
+function showVsIntro(p1Char, p2Char, p1Name, p2Name, onComplete) {
+    const vsScreen = document.getElementById('vs-screen');
+    if (!vsScreen) {
+        if (onComplete) onComplete();
+        return;
+    }
+
+    const c1 = document.getElementById('vs-p1-canvas');
+    const c2 = document.getElementById('vs-p2-canvas');
+    const name1El = document.getElementById('vs-p1-name');
+    const name2El = document.getElementById('vs-p2-name');
+
+    if (name1El) { name1El.innerText = p1Name || "PLAYER 1"; name1El.style.color = p1Char.color || '#ff5252'; }
+    if (name2El) { name2El.innerText = p2Name || "PLAYER 2"; name2El.style.color = p2Char.color || '#40c4ff'; }
+
+    // P1立ち姿描画
+    if (c1) {
+        const ctx1 = c1.getContext('2d');
+        ctx1.clearRect(0, 0, c1.width, c1.height);
+        const dummy1 = {
+            x: c1.width / 2 - 22,
+            y: c1.height - 88 - 14,
+            width: 44, height: 88, direction: 1,
+            color: p1Char.color, bodyColor: p1Char.bodyColor, legsColor: p1Char.legsColor,
+            armorBodyColor: p1Char.armorBodyColor, armorLegsColor: p1Char.armorLegsColor,
+            outfitType: p1Char.outfitType, hasHelmet: p1Char.hasHelmet, helmetColor: p1Char.helmetColor,
+            visorColor: p1Char.visorColor, hasCloak: p1Char.hasCloak, hasGodAura: p1Char.hasGodAura,
+            state: 'idle', animFrame: 0
+        };
+        drawCharacter(ctx1, dummy1, { gameActive: false, isMyCharacter: false, isPreview: true });
+    }
+
+    // P2立ち姿描画 (左向き)
+    if (c2) {
+        const ctx2 = c2.getContext('2d');
+        ctx2.clearRect(0, 0, c2.width, c2.height);
+        const dummy2 = {
+            x: c2.width / 2 - 22,
+            y: c2.height - 88 - 14,
+            width: 44, height: 88, direction: -1,
+            color: p2Char.color, bodyColor: p2Char.bodyColor, legsColor: p2Char.legsColor,
+            armorBodyColor: p2Char.armorBodyColor, armorLegsColor: p2Char.armorLegsColor,
+            outfitType: p2Char.outfitType, hasHelmet: p2Char.hasHelmet, helmetColor: p2Char.helmetColor,
+            visorColor: p2Char.visorColor, hasCloak: p2Char.hasCloak, hasGodAura: p2Char.hasGodAura,
+            state: 'idle', animFrame: 0
+        };
+        drawCharacter(ctx2, dummy2, { gameActive: false, isMyCharacter: false, isPreview: true });
+    }
+
+    vsScreen.style.display = 'flex';
+    vsScreen.classList.add('show');
+    if (typeof Sound !== 'undefined') Sound.playSE('swing');
+
+    setTimeout(() => {
+        vsScreen.classList.remove('show');
+        setTimeout(() => {
+            vsScreen.style.display = 'none';
+            if (onComplete) onComplete();
+        }, 300);
+    }, 2000);
+}
+
+// キャラクター描画エンジン
 function drawCharacter(ctx, char, options = {}) {
     const isDarkTone = options.isDarkTone || false;
     const isMyCharacter = options.isMyCharacter || false;
@@ -33,7 +97,6 @@ function drawCharacter(ctx, char, options = {}) {
 
     if (isDarkTone) ctx.globalAlpha = 0.8;
 
-    // 足元の影
     if (char.state !== 'blowaway') {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         ctx.beginPath();
@@ -55,7 +118,6 @@ function drawCharacter(ctx, char, options = {}) {
 
     const dir = char.direction || 1;
 
-    // YOUマーカー
     if (isMyCharacter && gameActive && char.state !== 'hit' && char.state !== 'blowaway' && youMarkerTimer > 0) {
         const bob = Math.sin((char.animFrame || 0) * 0.15) * 4;
         const markerY = headY - 26 + bob;
@@ -77,7 +139,6 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.restore();
     }
 
-    // 溜め発光
     if (char.state === 'charge') {
         const maxCharge = (typeof MAX_CHARGE_FRAMES !== 'undefined') ? MAX_CHARGE_FRAMES : 45;
         const isFull = (char.chargeTimer || 0) >= maxCharge;
@@ -96,7 +157,6 @@ function drawCharacter(ctx, char, options = {}) {
         }
     }
 
-    // モーション分岐
     if (char.state === 'hadouken') {
         headY = cy - 68; chestY = cy - 50; hipY = cy - 30;
         leftFoot = { x: cx - dir * 18, y: cy }; rightFoot = { x: cx + dir * 22, y: cy };
@@ -280,15 +340,14 @@ function drawCharacter(ctx, char, options = {}) {
     ctx.arc(cx, headY, 11, 0, Math.PI * 2);
     ctx.fill();
 
-    // ★ 兜（フルヘルム・同系色の輝くハイライトフチ取り）
+    // 兜（フルヘルム）
     if (char.hasHelmet && char.state !== 'hit') {
         const hColor = char.helmetColor || '#ff5252';
-        const hLight = adjustColor(hColor, 0.55); // 同系色のハイライト
-        const hDark = adjustColor(hColor, -0.45);
+        const hLight = adjustColor(hColor, 0.55);
 
         ctx.save();
         ctx.fillStyle = hColor;
-        ctx.strokeStyle = hLight; // ★ 同系色フチ取り
+        ctx.strokeStyle = hLight;
         ctx.lineWidth = 1.6;
         ctx.beginPath();
         ctx.arc(cx, headY - 1, 12.5, Math.PI * 0.75, Math.PI * 2.25);
@@ -298,7 +357,6 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.fill();
         ctx.stroke();
 
-        // 兜トサカ
         ctx.fillStyle = hLight;
         ctx.beginPath();
         ctx.moveTo(cx - dir * 4, headY - 13);
@@ -338,7 +396,7 @@ function drawCharacter(ctx, char, options = {}) {
     ctx.lineTo(rightFoot.x, rightFoot.y);
     ctx.stroke();
 
-    // ★ 鎧（下半身：立体脛当て・同系色フチの菱形ニーガード・鉄靴）
+    // 鎧（下半身）
     if (char.outfitType === 'armor') {
         const aLegLight = adjustColor(char.armorLegsColor, 0.55);
         const aLegDark = adjustColor(char.armorLegsColor, -0.45);
@@ -360,7 +418,6 @@ function drawCharacter(ctx, char, options = {}) {
             ctx.lineTo(foot.x, foot.y);
             ctx.stroke();
 
-            // ★ 菱形ニーガード（同系色の明色フチ取り）
             ctx.fillStyle = aLegLight;
             ctx.strokeStyle = aLegLight;
             ctx.lineWidth = 1.6;
@@ -373,7 +430,6 @@ function drawCharacter(ctx, char, options = {}) {
             ctx.fill();
             ctx.stroke();
 
-            // 鉄靴サバトン
             ctx.fillStyle = aLegDark;
             ctx.beginPath();
             ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2);
@@ -388,7 +444,7 @@ function drawCharacter(ctx, char, options = {}) {
     }
     ctx.restore();
 
-    // ★ 上半身＆腕（同系色ショルダーフチ＆同系色コア）
+    // 上半身＆腕
     if (char.outfitType === 'armor') {
         const aBodyLight = adjustColor(char.armorBodyColor, 0.55);
         const aBodyDark = adjustColor(char.armorBodyColor, -0.5);
@@ -449,7 +505,6 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.lineTo(cx, hipY - 2);
         ctx.stroke();
 
-        // ★ 胸のコア（同系色ハイライト）
         ctx.fillStyle = aBodyLight;
         ctx.beginPath();
         ctx.arc(cx, chestY + 6, 3.5, 0, Math.PI * 2);
@@ -464,7 +519,6 @@ function drawCharacter(ctx, char, options = {}) {
         ctx.fill();
         ctx.stroke();
 
-        // ★ 2段ショルダーガード（同系色の明色フチ取り）
         [-1, 1].forEach(side => {
             const spX = cx + side * 8;
             const spY = chestY - 3;
@@ -479,7 +533,7 @@ function drawCharacter(ctx, char, options = {}) {
             spGrad.addColorStop(0.3, aBodyLight);
             spGrad.addColorStop(1, char.armorBodyColor);
             ctx.fillStyle = spGrad;
-            ctx.strokeStyle = aBodyLight; // ★ 同系色フチ取り
+            ctx.strokeStyle = aBodyLight;
             ctx.lineWidth = 1.6;
             ctx.beginPath();
             ctx.ellipse(spX, spY, 7, 5, side * 0.25, 0, Math.PI * 2);
