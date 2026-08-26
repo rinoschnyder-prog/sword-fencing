@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v18.2（中断セーブ＆再開＆タスクキル防止対応版）
+// ★ game.js v18.1（オンライン対戦VS画面スキン完全同期版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -677,25 +677,27 @@ function connectToRoom() {
         p1.isCPU = false;
         p2.isCPU = false;
 
+        // ★ 自分のキャラクターにセーブデータを100%確実に適用
         const myChar = (myPlayerNumber === 1) ? p1 : p2;
-        myChar.outfitType = p1.outfitType;
-        myChar.hasHelmet = p1.hasHelmet;
-        myChar.helmetColor = p1.helmetColor;
-        myChar.visorColor = p1.visorColor;
-        myChar.color = p1.color;
-        myChar.bodyColor = p1.bodyColor;
-        myChar.legsColor = p1.legsColor;
-        myChar.armorBodyColor = p1.armorBodyColor;
-        myChar.armorLegsColor = p1.armorLegsColor;
-        myChar.hasCloak = p1.hasCloak;
-        myChar.hasGodAura = p1.hasGodAura;
+        myChar.outfitType = playerData.outfitType || 'normal';
+        myChar.hasHelmet = !!playerData.hasHelmet;
+        myChar.helmetColor = playerData.helmetColor || playerData.normalBodyColor;
+        myChar.visorColor = playerData.visorColor || '#ffffff';
+        myChar.color = playerData.normalBodyColor;
+        myChar.bodyColor = playerData.normalBodyColor;
+        myChar.legsColor = playerData.normalLegsColor;
+        myChar.armorBodyColor = playerData.armorBodyColor;
+        myChar.armorLegsColor = playerData.armorLegsColor;
+        myChar.hasCloak = !!playerData.hasCloak;
+        myChar.hasGodAura = !!playerData.hasGodAura;
 
+        // 相手キャラの初期化
         const oppChar = (myPlayerNumber === 1) ? p2 : p1;
-        oppChar.color = CPU_COLORS[1];
-        oppChar.bodyColor = CPU_COLORS[1];
-        oppChar.legsColor = CPU_COLORS[1];
-        oppChar.armorBodyColor = CPU_COLORS[1];
-        oppChar.armorLegsColor = CPU_COLORS[1];
+        oppChar.color = (myPlayerNumber === 1) ? '#40c4ff' : '#ff5252';
+        oppChar.bodyColor = oppChar.color;
+        oppChar.legsColor = oppChar.color;
+        oppChar.armorBodyColor = oppChar.color;
+        oppChar.armorLegsColor = oppChar.color;
         oppChar.hasHelmet = false;
         oppChar.visorColor = '#ffffff';
         oppChar.hasCloak = false;
@@ -705,6 +707,9 @@ function connectToRoom() {
         document.getElementById('p2-name-display').innerText = data.p2;
 
         updateControlsVisibility();
+
+        // ★ 開始時に即座に自分のスキン情報を相手に送信
+        emitMyPhysics();
 
         setTimeout(() => {
             onlineScreen.style.display = 'none';
@@ -716,6 +721,7 @@ function connectToRoom() {
 
             if (typeof rotateBattleBackground === 'function') rotateBattleBackground();
 
+            // VS対戦カード演出
             showVsIntro(p1, p2, data.p1, data.p2, () => {
                 Sound.playBGM('game');
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
@@ -742,17 +748,41 @@ function connectToRoom() {
         opp.isSpecialAttack = data.isSpecialAttack;
         opp.sp = data.sp || 0;
 
+        // ★ 相手スキンデータの完全反映
         if (data.bodyColor) opp.bodyColor = data.bodyColor;
         if (data.legsColor) opp.legsColor = data.legsColor;
         if (data.armorBodyColor) opp.armorBodyColor = data.armorBodyColor;
         if (data.armorLegsColor) opp.armorLegsColor = data.armorLegsColor;
         if (data.helmetColor) opp.helmetColor = data.helmetColor;
-        if (data.hasHelmet !== undefined) opp.hasHelmet = data.hasHelmet;
+        if (data.hasHelmet !== undefined) opp.hasHelmet = !!data.hasHelmet;
         if (data.color) opp.color = data.color;
         if (data.outfitType) opp.outfitType = data.outfitType;
         if (data.visorColor) opp.visorColor = data.visorColor;
         opp.hasCloak = !!data.hasCloak;
         opp.hasGodAura = !!data.hasGodAura;
+
+        // ★ VSカード表示中に相手スキンが届いたら、即座に立ち姿を再描画！
+        const vsScreen = document.getElementById('vs-screen');
+        if (vsScreen && vsScreen.style.display !== 'none') {
+            const oppCanvasId = (myPlayerNumber === 1) ? 'vs-p2-canvas' : 'vs-p1-canvas';
+            const cOpp = document.getElementById(oppCanvasId);
+            if (cOpp && typeof drawCharacter === 'function') {
+                const ctxOpp = cOpp.getContext('2d');
+                ctxOpp.clearRect(0, 0, cOpp.width, cOpp.height);
+                const dummyOpp = {
+                    x: cOpp.width / 2 - 22,
+                    y: cOpp.height - 88 - 14,
+                    width: 44, height: 88,
+                    direction: (myPlayerNumber === 1 ? -1 : 1),
+                    color: opp.color, bodyColor: opp.bodyColor, legsColor: opp.legsColor,
+                    armorBodyColor: opp.armorBodyColor, armorLegsColor: opp.armorLegsColor,
+                    outfitType: opp.outfitType, hasHelmet: opp.hasHelmet, helmetColor: opp.helmetColor,
+                    visorColor: opp.visorColor, hasCloak: opp.hasCloak, hasGodAura: opp.hasGodAura,
+                    state: 'idle', animFrame: 0
+                };
+                drawCharacter(ctxOpp, dummyOpp, { gameActive: false, isMyCharacter: false, isPreview: true });
+            }
+        }
 
         if (typeof data.myHp === 'number') opp.hp = data.myHp;
 
@@ -851,7 +881,6 @@ function generateRandomCpuSkin(excludeColor) {
     };
 }
 
-// ★ CPU戦ボタン押下（中断データ判定）
 function checkAndStartCPUMode() {
     if (playerData.savedCpuStreak && playerData.savedCpuStreak > 0) {
         document.getElementById('saved-streak-num').innerText = playerData.savedCpuStreak;
@@ -864,7 +893,7 @@ function checkAndStartCPUMode() {
 function resumeSavedCpuMatch() {
     document.getElementById('resume-modal').style.display = 'none';
     const streak = playerData.savedCpuStreak || 0;
-    playerData.savedCpuStreak = 0; // 消費してタスクキル防止
+    playerData.savedCpuStreak = 0;
     savePlayerData();
     startCPUMode(streak);
 }
@@ -876,7 +905,6 @@ function startFreshCpuMatch() {
     startCPUMode(0);
 }
 
-// CPU戦開始
 function startCPUMode(initialStreak = 0) {
     isOnlineMode = false;
     isWatchMode = false;
@@ -923,7 +951,6 @@ function startCPUMode(initialStreak = 0) {
     });
 }
 
-// 観戦モード開始
 function startWatchMode() {
     isOnlineMode = false;
     isWatchMode = true;
@@ -1005,7 +1032,6 @@ function startRound() {
     }, 1000);
 }
 
-// 試合決着＆勝利時中断セーブ選択
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1082,7 +1108,6 @@ function endRound(winner, reason) {
                         winMsg += `\n👑 通算30勝達成！【兜】解放！`;
                     }
 
-                    // ★ 勝利時：中断セーブして休憩か、次へ進むかの選択表示
                     showOverlay(`${winMsg}\n\n[ ☕ セーブして休憩 ]`, 2200, startNextMatch);
                     const overlayBtn = document.createElement('button');
                     overlayBtn.className = 'menu-btn cancel-btn';
@@ -1099,7 +1124,6 @@ function endRound(winner, reason) {
                     }, 2200);
 
                 } else {
-                    // 敗北時は中断セーブも破棄
                     playerData.savedCpuStreak = 0;
                     savePlayerData();
                     showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
@@ -1124,7 +1148,6 @@ function endRound(winner, reason) {
     }
 }
 
-// ★ 正当な中断セーブ（勝った後のみ保存してタイトルへ）
 function saveAndPauseCpuStreak() {
     playerData.savedCpuStreak = winStreak;
     savePlayerData();
