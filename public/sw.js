@@ -1,8 +1,8 @@
 // ==========================================
-// ★ sw.js v18.1.6（PWAクラッシュ防止・安全キャッシュ版）
+// ★ sw.js v18.1（背景1〜3キャッシュ対応版）
 // ==========================================
 
-const VERSION = '18.1.9';
+const VERSION = '18.91';
 const CACHE_NAME = `sword-fencing-v${VERSION}`;
 
 const ASSETS_TO_CACHE = [
@@ -16,10 +16,12 @@ const ASSETS_TO_CACHE = [
   `./renderer.js?v=${VERSION}`,
   `./effects.js?v=${VERSION}`,
   `./sound.js?v=${VERSION}`,
-  './manifest.json'
+  './manifest.json',
+  './background1.jpg',
+  './background2.jpg',
+  './background3.jpg'
 ];
 
-// インストール（1つ失敗してもクラッシュさせない安全処理）
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
@@ -32,7 +34,6 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 古いキャッシュを安全に消去
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -43,7 +44,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ネットワーク優先
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(

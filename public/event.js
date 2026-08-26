@@ -1,5 +1,5 @@
 // ==========================================
-// ★ event.js v18.1（決着時BGM停止＆次戦BGM切り替え対応）
+// ★ event.js v18.1（背景ローテーション連携版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -106,7 +106,8 @@ class Character {
         this.hp = MAX_HP; this.sp = 0; this.state = 'idle';
         this.isAirAttack = false; this.isHeavyAttack = false; this.isSpecialAttack = false;
         this.hadouTimer = 0; this.chargeTimer = 0; this.attackTimer = 0; this.attackCooldown = 0;
-        this.flinchTimer = 0; this.breakTimer = 0; this.guardActive = false; this.isGrounded = true;
+        this.flinchTimer = 0; this.breakTimer = 0;
+        this.guardActive = false; this.isGrounded = true;
         this.cpuTargetAirAttack = false;
     }
 
@@ -464,6 +465,7 @@ function showOverlay(t, d = 1500, cb) {
     overlayTimeout = setTimeout(() => { gameOverlay.classList.remove('show'); if (cb) cb(); }, d);
 }
 
+// イベントバトル開始
 function startEventBattle() {
     winStreak = 0; p1Score = 0; p2Score = 0; currentRound = 1; timeScale = 1.0;
     applyPlayerCustomization();
@@ -484,8 +486,10 @@ function startEventBattle() {
 
     p1.reset(); p2.reset(); updateScoreUI(); updateControlsVisibility();
 
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+
     showVsIntro(p1, p2, p1Name, p2Name, () => {
-        Sound.playBGM('game'); // ★ VS画面終了後に確実に再生開始
+        Sound.playBGM('game');
         showOverlay(`🔰 初心者イベント\nROUND ${currentRound}`, 1500, startRound);
     });
 }
@@ -534,7 +538,7 @@ function endRound(winner, reason) {
 
     if (isMatchFinished && winner) {
         timeScale = 0.35;
-        Sound.stopBGM(); // ★ 決着時にBGMを停止！
+        Sound.stopBGM();
 
         if (roundEndTimeout) clearTimeout(roundEndTimeout);
         roundEndTimeout = setTimeout(() => {
@@ -569,8 +573,10 @@ function endRound(winner, reason) {
                         streakCounterEl.innerText = `イベント連勝: ${winStreak}`;
                         p1.reset(); p2.reset(); updateScoreUI();
 
+                        if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+
                         showVsIntro(p1, p2, "PLAYER", "CPU (練習用)", () => {
-                            Sound.playBGM('game'); // ★ 次のBGM再生開始
+                            Sound.playBGM('game');
                             showOverlay(`ROUND ${currentRound}\n(VS 練習用CPU)`, 1500, startRound);
                         });
                     });

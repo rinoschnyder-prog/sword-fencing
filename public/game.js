@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v18.1（決着時BGM停止＆次戦BGM切り替え対応）
+// ★ game.js v18.1（背景ローテーション連携版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -714,6 +714,8 @@ function connectToRoom() {
             p2.reset();
             updateScoreUI();
 
+            if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+
             showVsIntro(p1, p2, data.p1, data.p2, () => {
                 Sound.playBGM('game');
                 showOverlay(`ROUND ${currentRound}`, 1500, startRound);
@@ -888,6 +890,8 @@ function startCPUMode() {
     p2.reset();
     updateScoreUI();
 
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+
     showVsIntro(p1, p2, p1Name, p2Name, () => {
         Sound.playBGM('game');
         showOverlay(`ROUND ${currentRound}`, 1500, startRound);
@@ -931,6 +935,8 @@ function startWatchMode() {
     p1.reset();
     p2.reset();
     updateScoreUI();
+
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
 
     showVsIntro(p1, p2, p1Name, p2Name, () => {
         Sound.playBGM('game');
@@ -1074,7 +1080,6 @@ function endRound(winner, reason) {
     }
 }
 
-// 次のCPU戦マッチ（VS画面中に次曲BGM開始）
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
@@ -1092,8 +1097,10 @@ function startNextMatch() {
     p2.reset();
     updateScoreUI();
 
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+
     showVsIntro(p1, p2, "PLAYER 1", p2Name, () => {
-        Sound.playBGM('game'); // ★ 確実に次曲BGMを再生開始！
+        Sound.playBGM('game');
         showOverlay(`ROUND ${currentRound}`, 1500, startRound);
     });
 }

@@ -1,5 +1,5 @@
 // ==========================================
-// ★ renderer.js v18.1.6（VS対戦演出＆スキン共通描画）
+// ★ renderer.js v18.1（背景ローテーション＆VS対戦演出＆スキン共通描画）
 // ==========================================
 
 function adjustColor(hex, lum) {
@@ -15,7 +15,25 @@ function adjustColor(hex, lum) {
     return rgb;
 }
 
-// ★ 格闘ゲーム風 VS画面イントロ演出
+// ★ 背景ステージリスト（今後 background4.jpg などもここに追加するだけでOK）
+const BACKGROUND_STAGE_LIST = [
+    'background1.jpg',
+    'background2.jpg',
+    'background3.jpg'
+];
+let currentBgStageIndex = 0;
+
+// ★ 試合ごとに背景を順番に切り替える関数
+function rotateBattleBackground() {
+    const canvasEl = document.getElementById('gameCanvas');
+    if (!canvasEl) return;
+    const bgUrl = BACKGROUND_STAGE_LIST[currentBgStageIndex];
+    canvasEl.style.backgroundImage = `url('${bgUrl}')`;
+    // 次回用にインデックスを1つ進める
+    currentBgStageIndex = (currentBgStageIndex + 1) % BACKGROUND_STAGE_LIST.length;
+}
+
+// 格闘ゲーム風 VS画面イントロ演出
 function showVsIntro(p1Char, p2Char, p1Name, p2Name, onComplete) {
     const vsScreen = document.getElementById('vs-screen');
     if (!vsScreen) {
@@ -418,6 +436,7 @@ function drawCharacter(ctx, char, options = {}) {
             ctx.lineTo(foot.x, foot.y);
             ctx.stroke();
 
+            // 菱形ニーガード
             ctx.fillStyle = aLegLight;
             ctx.strokeStyle = aLegLight;
             ctx.lineWidth = 1.6;
@@ -430,6 +449,7 @@ function drawCharacter(ctx, char, options = {}) {
             ctx.fill();
             ctx.stroke();
 
+            // 鉄靴サバトン
             ctx.fillStyle = aLegDark;
             ctx.beginPath();
             ctx.ellipse(foot.x + dir * 2, foot.y, 7, 4, 0, 0, Math.PI * 2);
@@ -582,7 +602,6 @@ function drawCharacter(ctx, char, options = {}) {
 
         ctx.strokeStyle = '#ffd32a';
         ctx.lineWidth = 5;
-        ctx.beginPath();
         const sDx = swordEnd.x - swordStart.x;
         const sDy = swordEnd.y - swordStart.y;
         const sLen = Math.hypot(sDx, sDy) || 1;
