@@ -1,5 +1,5 @@
 // ==========================================
-// ★ shop.js v18.1.6（設定セーブ＆ON/OFF連動対応版）
+// ★ shop.js v18.2（中断セーブ＆再開データ管理対応版）
 // ==========================================
 
 const BASE_COLOR_PRICE = 15;
@@ -20,6 +20,7 @@ let currentBetAmount = 1;
 let playerData = {
     gold: 5,
     totalCpuWins: 0,
+    savedCpuStreak: 0, // ★ 中断セーブ連勝数
     outfitType: 'normal',
     normalBodyColor: '#ff5252',
     normalLegsColor: '#ff5252',
@@ -38,7 +39,6 @@ let playerData = {
     unlockedGodAura: false,
     visorColor: '#ffffff',
     unlockedVisorColors: ['#ffffff'],
-    // ★ 音量＆ミュート設定のセーブ項目
     bgmVolume: 0.45,
     seVolume: 0.7,
     bgmMuted: false,
@@ -82,7 +82,6 @@ function loadPlayerData() {
     if (maxStreak >= 10) playerData.unlockedCloak = true;
     if (maxStreak >= 100) playerData.unlockedGodAura = true;
 
-    // ★ 保存されていた音量設定を Sound に反映
     if (typeof Sound !== 'undefined') {
         Sound.bgmVolume = (playerData.bgmVolume !== undefined) ? playerData.bgmVolume : 0.45;
         Sound.seVolume = (playerData.seVolume !== undefined) ? playerData.seVolume : 0.7;
@@ -136,9 +135,7 @@ function resetAllPlayerData() {
     }
 }
 
-// ==========================================
-// ★ 各種設定モーダルの開閉＆音量・ON/OFF連動
-// ==========================================
+// 設定モーダル
 function openSettingsModal() {
     const bgmSlider = document.getElementById('settings-bgm-slider');
     if (bgmSlider) bgmSlider.value = (playerData.bgmVolume !== undefined) ? playerData.bgmVolume : 0.45;
@@ -147,10 +144,10 @@ function openSettingsModal() {
     if (seSlider) seSlider.value = (playerData.seVolume !== undefined) ? playerData.seVolume : 0.7;
 
     const bgmCheck = document.getElementById('settings-bgm-mute');
-    if (bgmCheck) bgmCheck.checked = !playerData.bgmMuted; // ONの時にチェック
+    if (bgmCheck) bgmCheck.checked = !playerData.bgmMuted;
 
     const seCheck = document.getElementById('settings-se-mute');
-    if (seCheck) seCheck.checked = !playerData.seMuted; // ONの時にチェック
+    if (seCheck) seCheck.checked = !playerData.seMuted;
 
     const modal = document.getElementById('settings-screen');
     if (modal) modal.style.display = 'flex';

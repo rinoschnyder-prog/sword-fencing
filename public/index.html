@@ -8,15 +8,16 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
+    <!-- ★ バージョン変更箇所 (v18.2) -->
     <script>
-        const VERSION = '18.1.91';
+        const VERSION = '18.2';
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = `style.css?v=${VERSION}`;
         document.head.appendChild(link);
     </script>
 
-    <title>ソード・フェンシング</title>
+    <title>ソード・フェンシング v18.2</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f1419">
@@ -106,7 +107,7 @@
                 <button class="menu-btn full-width" style="background: linear-gradient(135deg, #00d2d3, #ff9f43);" onclick="location.href='event.html'">🔰 初心者バイザー獲得祭 (開催中)</button>
 
                 <div class="menu-row">
-                    <button class="menu-btn" onclick="startCPUMode()">⚔️ CPU戦 (連勝挑戦)</button>
+                    <button class="menu-btn" onclick="checkAndStartCPUMode()">⚔️ CPU戦 (連勝挑戦)</button>
                     <button class="menu-btn" onclick="showOnlineMenu()">🌐 対戦モード (通信)</button>
                 </div>
 
@@ -134,19 +135,28 @@
             </div>
         </div>
 
-        <!-- ★ 格闘ゲーム風 VS対戦カード画面 -->
+        <!-- ★ CPU戦 中断データ再開確認モーダル -->
+        <div id="resume-modal" class="screen modal-screen" style="display: none;">
+            <div class="modal-box" style="width: min(90vw, 310px); text-align: center;">
+                <h2>🎮 前回の続きから再開</h2>
+                <div class="subtitle" style="font-size: 13px; color: #ffd32a; margin: 8px 0;">
+                    現在 <span id="saved-streak-num" style="font-size: 18px; font-weight: 900; color: #0be881;">0</span> 連勝中の中断データがあります！
+                </div>
+                <div class="modal-buttons" style="flex-direction: column; gap: 8px;">
+                    <button class="menu-btn" onclick="resumeSavedCpuMatch()">⚔️ 続きから挑戦する</button>
+                    <button class="menu-btn cancel-btn" style="background:#57606f;" onclick="startFreshCpuMatch()">🔄 最初から（0連勝〜）</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- VS対戦カード画面 -->
         <div id="vs-screen" class="screen">
             <div class="vs-card-container">
-                <!-- P1 -->
                 <div class="vs-player-box">
                     <canvas id="vs-p1-canvas" width="110" height="110"></canvas>
                     <div class="vs-name" id="vs-p1-name">PLAYER 1</div>
                 </div>
-
-                <!-- 中央VSロゴ -->
                 <div class="vs-logo-center">VS</div>
-
-                <!-- P2 -->
                 <div class="vs-player-box">
                     <canvas id="vs-p2-canvas" width="110" height="110"></canvas>
                     <div class="vs-name" id="vs-p2-name">CPU</div>
@@ -236,7 +246,6 @@
                     <div class="accessory-grid" id="accessory-list"></div>
                 </div>
 
-                <!-- リアルタイム・スキンプレビュー画面 -->
                 <div id="shop-preview-container">
                     <div style="font-size: 10px; color: #ffd32a; font-weight: bold; margin-bottom: 2px;">👁️ 現在のプレビュー</div>
                     <canvas id="shop-preview-canvas" width="120" height="120"></canvas>
@@ -346,7 +355,7 @@
         </div>
     </div>
 
-    <!-- 自動チェーンローダー -->
+    <!-- 安全なチェーンローダー (v18.2) -->
     <script>
         const scripts = ['sound.js', 'shop.js', 'effects.js', 'renderer.js', 'game.js'];
         function loadScriptsSequentially(list, i = 0) {

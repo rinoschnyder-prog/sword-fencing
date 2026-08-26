@@ -1,5 +1,5 @@
 // ==========================================
-// ★ game.js v18.1（背景ローテーション連携版）
+// ★ game.js v18.2（中断セーブ＆再開＆タスクキル防止対応版）
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -714,7 +714,7 @@ function connectToRoom() {
             p2.reset();
             updateScoreUI();
 
-            if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+            if (typeof rotateBattleBackground === 'function') rotateBattleBackground();
 
             showVsIntro(p1, p2, data.p1, data.p2, () => {
                 Sound.playBGM('game');
@@ -851,12 +851,37 @@ function generateRandomCpuSkin(excludeColor) {
     };
 }
 
+// ★ CPU戦ボタン押下（中断データ判定）
+function checkAndStartCPUMode() {
+    if (playerData.savedCpuStreak && playerData.savedCpuStreak > 0) {
+        document.getElementById('saved-streak-num').innerText = playerData.savedCpuStreak;
+        document.getElementById('resume-modal').style.display = 'flex';
+    } else {
+        startCPUMode(0);
+    }
+}
+
+function resumeSavedCpuMatch() {
+    document.getElementById('resume-modal').style.display = 'none';
+    const streak = playerData.savedCpuStreak || 0;
+    playerData.savedCpuStreak = 0; // 消費してタスクキル防止
+    savePlayerData();
+    startCPUMode(streak);
+}
+
+function startFreshCpuMatch() {
+    document.getElementById('resume-modal').style.display = 'none';
+    playerData.savedCpuStreak = 0;
+    savePlayerData();
+    startCPUMode(0);
+}
+
 // CPU戦開始
-function startCPUMode() {
+function startCPUMode(initialStreak = 0) {
     isOnlineMode = false;
     isWatchMode = false;
     myPlayerNumber = 0;
-    winStreak = 0;
+    winStreak = initialStreak;
     p1Score = 0;
     p2Score = 0;
     currentRound = 1;
@@ -890,7 +915,7 @@ function startCPUMode() {
     p2.reset();
     updateScoreUI();
 
-    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground();
 
     showVsIntro(p1, p2, p1Name, p2Name, () => {
         Sound.playBGM('game');
@@ -936,7 +961,7 @@ function startWatchMode() {
     p2.reset();
     updateScoreUI();
 
-    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground();
 
     showVsIntro(p1, p2, p1Name, p2Name, () => {
         Sound.playBGM('game');
@@ -980,6 +1005,7 @@ function startRound() {
     }, 1000);
 }
 
+// 試合決着＆勝利時中断セーブ選択
 function endRound(winner, reason) {
     if (roundOver) return;
     roundOver = true;
@@ -1056,8 +1082,26 @@ function endRound(winner, reason) {
                         winMsg += `\n👑 通算30勝達成！【兜】解放！`;
                     }
 
-                    showOverlay(winMsg, 2500, startNextMatch);
+                    // ★ 勝利時：中断セーブして休憩か、次へ進むかの選択表示
+                    showOverlay(`${winMsg}\n\n[ ☕ セーブして休憩 ]`, 2200, startNextMatch);
+                    const overlayBtn = document.createElement('button');
+                    overlayBtn.className = 'menu-btn cancel-btn';
+                    overlayBtn.style.cssText = 'position:absolute; bottom:25%; font-size:12px; width:180px; z-index:40; pointer-events:auto;';
+                    overlayBtn.innerText = '☕ セーブして休憩 (タイトルへ)';
+                    overlayBtn.onclick = () => {
+                        clearTimeout(overlayTimeout);
+                        saveAndPauseCpuStreak();
+                    };
+                    gameOverlay.appendChild(overlayBtn);
+
+                    setTimeout(() => {
+                        if (overlayBtn.parentNode) overlayBtn.parentNode.removeChild(overlayBtn);
+                    }, 2200);
+
                 } else {
+                    // 敗北時は中断セーブも破棄
+                    playerData.savedCpuStreak = 0;
+                    savePlayerData();
                     showOverlay(`DEFEAT...\n記録: ${winStreak}連勝`, 3000, () => {
                         saveScore(winStreak);
                         returnToTitle();
@@ -1080,6 +1124,14 @@ function endRound(winner, reason) {
     }
 }
 
+// ★ 正当な中断セーブ（勝った後のみ保存してタイトルへ）
+function saveAndPauseCpuStreak() {
+    playerData.savedCpuStreak = winStreak;
+    savePlayerData();
+    alert(`☕ ${winStreak}連勝の記録をセーブしました！\n次回タイトルからいつでも続きを再開できます。`);
+    returnToTitle();
+}
+
 function startNextMatch() {
     p1Score = 0;
     p2Score = 0;
@@ -1097,7 +1149,7 @@ function startNextMatch() {
     p2.reset();
     updateScoreUI();
 
-    if (typeof rotateBattleBackground === 'function') rotateBattleBackground(); // ★ 背景切り替え
+    if (typeof rotateBattleBackground === 'function') rotateBattleBackground();
 
     showVsIntro(p1, p2, "PLAYER 1", p2Name, () => {
         Sound.playBGM('game');

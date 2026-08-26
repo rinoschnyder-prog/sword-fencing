@@ -25,7 +25,6 @@ html, body {
     overflow: hidden;
 }
 
-/* ★ 初期背景は background1.jpg に設定 */
 #gameCanvas {
     position: absolute;
     top: 0;

@@ -8,15 +8,16 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
 
+    <!-- ★ バージョン変更箇所 (v18.2) -->
     <script>
-        const VERSION = '18.1.91';
+        const VERSION = '18.2';
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = `style.css?v=${VERSION}`;
         document.head.appendChild(link);
     </script>
 
-    <title>🔰 初心者応援！フェイス・バイザー獲得祭</title>
+    <title>🔰 初心者応援！フェイス・バイザー獲得祭 v18.2</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f1419">
@@ -135,16 +136,14 @@
             </div>
         </div>
 
-        <!-- ★ イベント用 VS対戦カード画面 -->
+        <!-- VS対戦カード画面 -->
         <div id="vs-screen" class="screen">
             <div class="vs-card-container">
                 <div class="vs-player-box">
                     <canvas id="vs-p1-canvas" width="110" height="110"></canvas>
                     <div class="vs-name" id="vs-p1-name">PLAYER</div>
                 </div>
-
                 <div class="vs-logo-center">VS</div>
-
                 <div class="vs-player-box">
                     <canvas id="vs-p2-canvas" width="110" height="110"></canvas>
                     <div class="vs-name" id="vs-p2-name">CPU (練習用)</div>
@@ -201,7 +200,6 @@
                     <div class="accessory-grid" id="accessory-list"></div>
                 </div>
 
-                <!-- リアルタイム・スキンプレビュー画面 -->
                 <div id="shop-preview-container">
                     <div style="font-size: 10px; color: #ffd32a; font-weight: bold; margin-bottom: 2px;">👁️ 現在のプレビュー</div>
                     <canvas id="shop-preview-canvas" width="120" height="120"></canvas>
@@ -220,7 +218,7 @@
         </div>
     </div>
 
-    <!-- 自動チェーンローダー -->
+    <!-- 安全なチェーンローダー (v18.2) -->
     <script>
         const scripts = ['sound.js', 'shop.js', 'effects.js', 'renderer.js', 'event.js'];
         function loadScriptsSequentially(list, i = 0) {

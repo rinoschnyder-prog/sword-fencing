@@ -1,8 +1,8 @@
 // ==========================================
-// ★ sw.js v18.1（背景1〜3キャッシュ対応版）
+// ★ sw.js v18.2（自動キャッシュ更新版）
 // ==========================================
 
-const VERSION = '18.91';
+const VERSION = '18.2';
 const CACHE_NAME = `sword-fencing-v${VERSION}`;
 
 const ASSETS_TO_CACHE = [
